@@ -1,0 +1,12 @@
+id = "RFC9112-6.3-P3"
+rfc = 9112
+section = "6.3"
+paragraph = 3
+level = "MUST"
+roles = ["origin-server", "forward-proxy", "reverse-proxy"]
+applicability = "example only; replace with reviewed requirement text summary"
+status = "unreviewed"
+source_sha256 = ""
+implementation = []
+tests = []
+security = ["request-smuggling", "connection-desynchronization"]

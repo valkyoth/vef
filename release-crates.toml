@@ -1,0 +1,39 @@
+[release]
+version = "0.1.0"
+tag = "v0.1.0"
+
+[[crates]]
+name = "vef-core"
+version = "0.1.0"
+change = "foundation"
+publish = true
+
+[[crates]]
+name = "vef-hpack"
+version = "0.1.0"
+change = "foundation"
+publish = true
+
+[[crates]]
+name = "vef-http1"
+version = "0.1.0"
+change = "foundation"
+publish = true
+
+[[crates]]
+name = "vef-http2"
+version = "0.1.0"
+change = "foundation"
+publish = true
+
+[[crates]]
+name = "vef-io"
+version = "0.1.0"
+change = "foundation"
+publish = true
+
+[[crates]]
+name = "vef"
+version = "0.1.0"
+change = "foundation"
+publish = true

@@ -1,0 +1,6 @@
+# Normative RFC copies are immutable byte-for-byte inputs.
+rfc/rfc*.txt -text
+
+# Generated and vendored reference material must not skew language statistics.
+rfc/** linguist-vendored
+spec/generated/** linguist-generated

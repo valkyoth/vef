@@ -1,0 +1,268 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "created": "2026-07-21T20:55:37Z",
+    "creators": [
+      "Tool: cargo-sbom-v0.10.0"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "https://spdx.org/spdxdocs/vef-cf89e237-5d61-4828-aea0-c5dd0baacd3e",
+  "files": [
+    {
+      "SPDXID": "SPDXRef-File-vef",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "048ea9ba4c48b98399192e8456c20d5e55a4a827"
+        }
+      ],
+      "fileName": "./Cargo.lock",
+      "fileTypes": [
+        "SOURCE",
+        "TEXT"
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-File-vef_core",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "048ea9ba4c48b98399192e8456c20d5e55a4a827"
+        }
+      ],
+      "fileName": "./Cargo.lock",
+      "fileTypes": [
+        "SOURCE",
+        "TEXT"
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-File-vef_hpack",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "048ea9ba4c48b98399192e8456c20d5e55a4a827"
+        }
+      ],
+      "fileName": "./Cargo.lock",
+      "fileTypes": [
+        "SOURCE",
+        "TEXT"
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-File-vef_http1",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "048ea9ba4c48b98399192e8456c20d5e55a4a827"
+        }
+      ],
+      "fileName": "./Cargo.lock",
+      "fileTypes": [
+        "SOURCE",
+        "TEXT"
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-File-vef_http2",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "048ea9ba4c48b98399192e8456c20d5e55a4a827"
+        }
+      ],
+      "fileName": "./Cargo.lock",
+      "fileTypes": [
+        "SOURCE",
+        "TEXT"
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-File-vef_io",
+      "checksums": [
+        {
+          "algorithm": "SHA1",
+          "checksumValue": "048ea9ba4c48b98399192e8456c20d5e55a4a827"
+        }
+      ],
+      "fileName": "./Cargo.lock",
+      "fileTypes": [
+        "SOURCE",
+        "TEXT"
+      ]
+    }
+  ],
+  "name": "vef",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-vef-core-0.1.0",
+      "description": "Shared dependency-free HTTP semantics and policy types for VEF",
+      "downloadLocation": "NONE",
+      "homepage": "https://github.com/valkyoth/vef",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "vef-core",
+      "versionInfo": "0.1.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-vef-http1-0.1.0",
+      "description": "Dependency-free HTTP/0.9, HTTP/1.0, and HTTP/1.1 engines for VEF",
+      "downloadLocation": "NONE",
+      "homepage": "https://github.com/valkyoth/vef",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "vef-http1",
+      "versionInfo": "0.1.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-vef-hpack-0.1.0",
+      "description": "Dependency-free, bounded HPACK codec for VEF",
+      "downloadLocation": "NONE",
+      "homepage": "https://github.com/valkyoth/vef",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "vef-hpack",
+      "versionInfo": "0.1.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-vef-http2-0.1.0",
+      "description": "Dependency-free HTTP/2 framing and state engines for VEF",
+      "downloadLocation": "NONE",
+      "homepage": "https://github.com/valkyoth/vef",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "vef-http2",
+      "versionInfo": "0.1.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-vef-0.1.0",
+      "description": "Security-first, no_std HTTP protocol facade",
+      "downloadLocation": "NONE",
+      "homepage": "https://github.com/valkyoth/vef",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "vef",
+      "versionInfo": "0.1.0"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-vef-io-0.1.0",
+      "description": "Runtime-neutral, dependency-free byte-stream contracts for VEF",
+      "downloadLocation": "NONE",
+      "homepage": "https://github.com/valkyoth/vef",
+      "licenseConcluded": "MIT OR Apache-2.0",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "vef-io",
+      "versionInfo": "0.1.0"
+    }
+  ],
+  "relationships": [
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-http2-0.1.0",
+      "relationshipType": "GENERATED_FROM",
+      "spdxElementId": "SPDXRef-File-vef_http2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-core-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-hpack-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-hpack-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-hpack-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-http2-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-http1-0.1.0",
+      "relationshipType": "GENERATED_FROM",
+      "spdxElementId": "SPDXRef-File-vef_http1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-vef_http2",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-core-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-http1-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-io-0.1.0",
+      "relationshipType": "GENERATED_FROM",
+      "spdxElementId": "SPDXRef-File-vef_io"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-io-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-core-0.1.0",
+      "relationshipType": "GENERATED_FROM",
+      "spdxElementId": "SPDXRef-File-vef_core"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-vef_core",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-core-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-http2-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-vef_hpack",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-vef_http1",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-0.1.0",
+      "relationshipType": "GENERATED_FROM",
+      "spdxElementId": "SPDXRef-File-vef"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-vef_io",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-core-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-http2-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-hpack-0.1.0",
+      "relationshipType": "GENERATED_FROM",
+      "spdxElementId": "SPDXRef-File-vef_hpack"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-Package-vef-http1-0.1.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-Package-vef-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-File-vef",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

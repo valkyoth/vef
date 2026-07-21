@@ -1,0 +1,32 @@
+schema = 1
+status = "foundation"
+
+[[effective_sets]]
+id = "http11-current"
+documents = [9110, 9112, 9931]
+roles = ["client", "origin-server", "forward-proxy", "reverse-proxy", "gateway", "intermediary"]
+
+[[effective_sets]]
+id = "http2-current"
+documents = [9110, 9113, 7541]
+roles = ["client", "origin-server", "forward-proxy", "reverse-proxy", "gateway", "intermediary"]
+
+[[profiles]]
+id = "http10-compatibility"
+documents = [1945, 9110]
+status = "planned"
+
+[[profiles]]
+id = "http09-explicit-legacy"
+documents = [1945]
+status = "planned"
+
+[[extensions]]
+id = "modern-priority"
+documents = [9218, 9651]
+status = "planned-optional"
+
+[[extensions]]
+id = "extended-connect"
+documents = [8441]
+status = "planned-optional"

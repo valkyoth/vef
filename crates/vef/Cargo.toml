@@ -1,0 +1,32 @@
+[package]
+name = "vef"
+description = "Security-first, no_std HTTP protocol facade"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+include = ["Cargo.toml", "README.md", "LICENSE-*", "src/**"]
+
+[features]
+default = []
+http1 = ["dep:vef-http1"]
+hpack = ["dep:vef-hpack"]
+http2 = ["hpack", "dep:vef-http2"]
+io = ["dep:vef-io"]
+full = ["http1", "http2", "io"]
+
+[dependencies]
+vef-core = { path = "../vef-core", version = "=0.1.0" }
+vef-hpack = { path = "../vef-hpack", version = "=0.1.0", optional = true }
+vef-http1 = { path = "../vef-http1", version = "=0.1.0", optional = true }
+vef-http2 = { path = "../vef-http2", version = "=0.1.0", optional = true }
+vef-io = { path = "../vef-io", version = "=0.1.0", optional = true }
+
+[lints]
+workspace = true

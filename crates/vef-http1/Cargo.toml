@@ -1,0 +1,20 @@
+[package]
+name = "vef-http1"
+description = "Dependency-free HTTP/0.9, HTTP/1.0, and HTTP/1.1 engines for VEF"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+include = ["Cargo.toml", "README.md", "LICENSE-*", "src/**"]
+
+[dependencies]
+vef-core = { path = "../vef-core", version = "=0.1.0" }
+
+[lints]
+workspace = true

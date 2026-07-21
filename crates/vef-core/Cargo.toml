@@ -1,0 +1,17 @@
+[package]
+name = "vef-core"
+description = "Shared dependency-free HTTP semantics and policy types for VEF"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+include = ["Cargo.toml", "README.md", "LICENSE-*", "src/**"]
+
+[lints]
+workspace = true

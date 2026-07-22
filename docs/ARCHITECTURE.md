@@ -237,18 +237,22 @@ the closed wire state does not release the remaining CONTINUATION/HPACK owner.
 Rejected half-closed(local) DATA+END_STREAM accounts/discards its full payload
 and padding before closure. Reserved(remote) DATA and reuse of its non-idle ID
 are connection PROTOCOL_ERROR; tolerated post-reset DATA restores only
-connection credit and never emits stream WINDOW_UPDATE. Remote reset or
-END_STREAM supersedes a zero-byte queued CANCEL with a separate closure cause,
-whereas a partially serialized reset finishes once when the connection survives.
+connection credit and never emits stream WINDOW_UPDATE. Peer reset can supersede
+a zero-byte action. END_STREAM instead makes an unsent policy CANCEL dormant
+while retaining its reset slot until terminal validation: valid completion
+releases it, malformed message re-arms it as PROTOCOL_ERROR, and fatal HPACK
+chooses bounded connection shutdown. A partially serialized reset is immutable,
+finishes once when the connection survives, and prevents a second stream reset.
 A generation-checked associated-stream tombstone
 also accepts an in-flight PUSH_PROMISE after local reset: it completes every
 CONTINUATION and validates/tracks the promised ID but publishes no request or
 reconstructed authority. Missing recycled provenance selects safe rejection,
 while illegal IDs and malformed HPACK preserve connection-error scope.
 One total `RejectedPushFrameDisposition` matrix keys these decisions by policy,
-wire state, reset progress, closure cause, normalized event and END flags,
-header-section phase, and field-block ownership; every cell fixes ordered
-transitions, HPACK, flow-credit, error-scope, publication, and reset action.
+wire state, reset progress/reason/reservation, terminal validation, closure
+cause, normalized event/END flags, header-section phase, and field-block
+ownership; every cell fixes ordered transitions, HPACK/validation, flow-credit,
+error precedence, publication, and reset dormancy/re-arm/release/serialization.
 
 Once partial assembly exists at v0.181.0, a receiving client completes
 PUSH_PROMISE/CONTINUATION and HPACK/semantic/authority/cacheability validation,
@@ -272,6 +276,9 @@ generation-checked dimensions; every frame validates/commits its wire transition
 before policy controls publication. A stream-scoped delta may touch only its
 target stream; compression errors and connection-scoped violations stop
 publication and enqueue exactly one bounded GOAWAY action.
+Terminal stream validation can replace an uncommitted policy reset but cannot
+alter partially committed bytes; connection-fatal compression errors override
+future stream actions without rolling back HPACK or wire state.
 For field-block frames, undersized mandatory priority/promised-ID layouts are
 connection FRAME_SIZE_ERROR, invalid padding/identifiers are connection
 PROTOCOL_ERROR, and HEADERS self-dependency is stream PROTOCOL_ERROR.

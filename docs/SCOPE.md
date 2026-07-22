@@ -92,10 +92,13 @@ capacity. Reserved(remote) HEADERS synchronizes and transitions to half-closed
 CONTINUATION/HPACK ownership remains active. Rejected half-closed(local)
 DATA+END_STREAM accounts/discards full payload and padding before closure.
 Reserved(remote) DATA and duplicate promised IDs are connection PROTOCOL_ERROR.
-Remote reset or END_STREAM supersedes only a zero-byte queued CANCEL with its
-cause recorded separately, and one partially serialized CANCEL finishes without
-duplication if the connection survives; tolerated post-reset DATA restores
-connection credit without stream WINDOW_UPDATE. Locally reset associated
+Peer reset can supersede a zero-byte action. END_STREAM makes an unsent policy
+CANCEL dormant but retains its reset slot through fragmented HPACK and terminal
+message validation: valid completion releases it, malformed status/fields/
+trailers/Content-Length/body phase re-arms PROTOCOL_ERROR, and fatal HPACK selects
+bounded connection shutdown. One partially serialized reset remains immutable
+and finishes without duplication if the connection survives; tolerated
+post-reset DATA restores connection credit without stream WINDOW_UPDATE. Locally reset associated
 streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

@@ -97,9 +97,10 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   waits for every body/identity/output lease despite semantic invalidation.
 - A live/reserved HTTP/2 slot preflights cutoff storage before release and is
   never untracked. Rejection disposition, RFC wire state, and reset-output
-  progress, remote-closure cause, and field-block ownership remain independent;
-  reset/END_STREAM races update each explicitly, and tracking failure retains
-  the record through typed bounded shutdown.
+  progress/reason/reservation, remote-closure cause, terminal validation, and
+  field-block ownership remain independent. END_STREAM can make a zero-byte
+  policy reset dormant but cannot release its slot before valid/malformed
+  terminal resolution; tracking failure retains the record through shutdown.
 - Assembly-enabled local correlation reserves a linear engine-only target/
   principal/partition/navigation invalidation handle before request output.
   Accepted push atomically preflights its slot, handle, independent minimal
@@ -107,9 +108,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   complete HPACK/semantic validation and before publication. Local exhaustion
   returns zero-byte/no-correlation AssemblyInvalidationCapacity backpressure;
   push capacity failure marks the provisional slot rejecting without changing
-  its wire state, publishes nothing, and uses the exact queued/partial/committed/
-  remote-closure-superseded RST_STREAM(CANCEL) lifecycle or tracked shutdown if
-  rejection state is unavailable. Hold the handle/provenance through terminal
+  its wire state, publishes nothing, and reserves exact policy/error reset
+  arbitration through terminal validation or tracked shutdown if state is
+  unavailable. Hold the handle/provenance through terminal
   backpressure, release it once at a terminal disposition, and reserve
   independently for retries. A completed valid 200 invalidates by exact key or
   within that namespace; absent coding/domain refinement widens only its
@@ -388,15 +389,17 @@ frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
 Keep policy disposition orthogonal to the RFC stream state and reset-output
-progress, remote-closure cause, and active block. Normalize HEADERS/DATA and
-their END_STREAM event separately: HEADERS+END_STREAM can close while fragmented
+progress/reason/reservation, remote-closure cause, terminal validation, and
+active block. Normalize HEADERS/DATA and their END_STREAM event separately:
+HEADERS+END_STREAM can close while fragmented
 CONTINUATION still owns HPACK; half-closed(local) rejected DATA+END_STREAM uses
 normal discard credit before closure; reserved(remote) DATA remains connection
-PROTOCOL_ERROR. Queue resets withdrawably until byte zero commits, finish one
-partially serialized frame if the connection survives, and suppress it when
-remote reset/END_STREAM or connection failure wins before serialization. Drive
-every END_STREAM/END_HEADERS/header-phase combination through a total no-default
-disposition table shared with exhaustive model/fuzz oracles.
+PROTOCOL_ERROR. Peer reset can suppress an unsent action; END_STREAM makes an
+unsent policy CANCEL dormant until field/DATA terminal validation releases it or
+re-arms the same slot as PROTOCOL_ERROR. Finish one partially serialized reset
+if the connection survives and never emit another; HPACK-fatal input chooses
+bounded connection shutdown. Drive every validation and output-offset product
+through a total no-default table shared with model/fuzz oracles.
 Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
 post-initial-HEADERS DATA into fixed-capacity PendingConnect while
 AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without
@@ -497,9 +500,10 @@ policy to rejecting, and queues mandatory-control stream-local CANCEL without
 changing its wire state. Apply the Phase 3 frame matrix: synchronize legal
 HEADERS and apply END_STREAM as a second transition while retaining fragmented
 block ownership, make reserved(remote) DATA/duplicate IDs connection errors,
-credit half-closed(local) DATA before END_STREAM closure, supersede only a zero-
-byte queued reset on remote closure, finish one partially serialized reset, and
-give tolerated closed-stream DATA connection credit only.
+credit and terminal-validate half-closed(local) DATA before END_STREAM closure,
+keep a zero-byte policy reset dormant until valid release or malformed re-arm,
+finish one partially serialized reset without duplication, and give tolerated
+closed-stream DATA connection credit only.
 Unrepresentable tracking retains the slot through typed bounded shutdown.
 Neither rotates an arena. The exact correlation holds its handle and
 provenance independently of associated-stream teardown, buffer reuse, or later

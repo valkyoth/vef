@@ -107,12 +107,30 @@ typed invalid received status evidence, versions, URI/request-target forms,
 ordered fields, message heads, roles, limits, policies, progress, and
 structured diagnostics, including opaque generation-safe compression-principal
 provenance supplied by callers without embedding identity policy in HPACK.
+It owns raw protocol-neutral response heads and trailer-permission evidence,
+but neither grants response emission nor exposes a serializer.
+
+### `vef-auth` (planned at `0.157.2`)
+
+Depends only on `vef-core`. Owns bounded scheme-neutral challenge,
+credentials, token68, auth-param, authentication field, sensitive-storage, and
+scheme-certified authentication-trailer permission behavior. It implements no
+Basic, Digest, application credential validation, or physical buffer erasure.
+
+### `vef-semantics` (planned at `0.182.1`)
+
+Depends only on `vef-core` and `vef-auth`. Owns received/forwarded/generated
+role and protocol response semantics and is the sole issuer of sealed opaque
+`ValidatedResponse` / `ResponseEmissionPermit`. Permits bind protocol, role,
+message generation and semantic evidence, are non-Copy/non-Clone, and are
+consumed exactly once by an outbound engine.
 
 ### `vef-http1`
 
 Owns HTTP/1.0 and HTTP/1.1 parsing, serialization, framing, bodies,
 persistence, transitions, and connection state. It cannot parse or select
-HTTP/0.9.
+HTTP/0.9. It depends on `vef-semantics` and has no public response-head output
+entry that accepts a raw `vef-core` head.
 
 ### `vef-http09` (planned at `0.76.0`)
 
@@ -139,7 +157,9 @@ representations, indexing policy, and compression budgets.
 
 Owns frame codecs, exhaustive connection/stream state, message mapping, flow
 control, borrowed inbound DATA acknowledgement, outbound per-stream message
-commands, push, errors, priority signals, and hostile-control budgets.
+commands, push, errors, priority signals, and hostile-control budgets. It
+depends on `vef-semantics` plus `vef-hpack`; response HEADERS require a matching
+permit, and HTTP/2 status 426 has no local emission path.
 
 ### `vef-structured-fields` (planned at `0.164.0`)
 
@@ -245,6 +265,10 @@ responses are non-cacheable.
 HTTP/1 205 output is provably zero content; inbound 205 still follows ordinary
 framing so nonzero content is drained-or-closed without pipeline desynchrony
 and cannot be forwarded as a valid 205.
+Trailers use a field-definition allowlist rather than a semantic-category ban:
+ETag/Accept-Ranges require field permission, authentication-info additionally
+requires scheme permission, received trailers stay separate and non-retroactive,
+and merging is opt-in per field definition.
 Informational responses exclude 101: an exchange ends through either ordinary
 1xx then one final response, or one validated terminal 101 after complete
 request processing (and required 100), after which every HTTP operation fails.
@@ -286,10 +310,13 @@ HTTP/2 205 rejects outbound DATA and drains/resets malicious inbound DATA under
 ordinary stream framing without disturbing other streams.
 Integrate ENABLE_PUSH in push ownership and apply MAX_FRAME_SIZE atomically
 before emitting its SETTINGS ACK. Push admission requires a complete known-safe
-and cacheable content/trailer-free request plus authoritative :authority;
+and cacheable content/trailer-free request plus connection-bound TLS,
+caller-certified cleartext, or configured-proxy authority evidence;
 client-originated push is a connection error, promised semantic failure is
-isolated to the promised stream, and associated-state/ID/GOAWAY/concurrency
-commit is atomic. Non-cacheable pushed responses are explicitly unstorable.
+isolated to the promised stream, reserved slots/work are bounded separately,
+reservation is legal at peer concurrency zero, and concurrency applies only
+when the promised response opens. Sender/receiver associated-state,
+ID/GOAWAY/opening commit is atomic. Non-cacheable responses are unstorable.
 Retain independent budgets, mandatory ACK tracking, reserved output, and flood
 defenses.
 
@@ -323,9 +350,12 @@ authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 Before the origin role facade, v0.182.1 validates the complete generated
 response status/method/field/content matrix using caller-supplied typed values,
-including 401/405/426 and contextual 206/304/416; local construction failure is
-zero-output InvalidState, received violations remain framing-synchronized under
-recipient policy, and forwarded responses preserve required fields.
+including 401/405, HTTP/1-only 426, and contextual 206/304/416. It creates
+`vef-semantics`; both engines depend on it and require its sealed one-shot
+permit, so facade, fixed/alloc APIs and features cannot expose raw serialization.
+Generated 206 is single-range only; received multipart remains opaque. Local
+failure is zero-output InvalidState, received violations stay synchronized
+under recipient policy, and forwarded responses preserve required fields.
 The matrix carries raw path plus optional query into/out of `:path`, preserves
 empty-query and percent-encoded identity, and only inserts `/` for an empty path
 where the RFC requires it.

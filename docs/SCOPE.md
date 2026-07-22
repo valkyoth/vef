@@ -36,7 +36,10 @@ implemented or has a reviewed decision.
 HTTP/3, QUIC, TCP/UDP implementations, TLS implementations, certificate
 validation, DNS, cache storage, cookie jars, redirect policy, connection-pool
 policy, proxy discovery, content compression, WebSocket frames, HTML/forms,
-multipart, routers, templates, server binaries, and CLIs are out of scope.
+general-purpose multipart parsing/generation, routers, templates, server
+binaries, and CLIs are out of scope. VEF 1.0 generates only single-range 206;
+received multipart/byteranges bodies remain opaque bytes that can be preserved
+and forwarded without boundary or part validation.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

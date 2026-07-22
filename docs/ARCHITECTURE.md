@@ -20,11 +20,14 @@ and diagnostics while retaining protocol-appropriate state machines.
 vef facade
   |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
   |-- vef-websocket-handshake --> vef-core  (planned optional extension)
-  |-- vef-http1 -----> vef-core
-  |-- vef-http2 -----> vef-core
+  |-- vef-http1 -----> vef-core + vef-semantics
+  |-- vef-http2 -----> vef-core + vef-semantics
   |       `----------> vef-hpack -----> vef-core
   |       `-- priority feature --> vef-structured-fields --> vef-core
   `-- vef-io
+
+vef-auth -----------> vef-core
+vef-semantics ------> vef-core + vef-auth
 
 future runtime/TLS/Aesynx adapters -----> vef-io and protocol crates
 ```
@@ -63,6 +66,15 @@ port in 1..=65535, never a scheme default or Host-derived destination.
 `StatusCode` represents only 100..=599, including unregistered valid codes;
 received 600..=999 digits survive only in typed invalid wire evidence for
 client 5xx handling and can never enter valid server/serializer output.
+`vef-core` also owns protocol-neutral trailer-permission and raw message-head
+types, but raw response heads confer no serialization capability.
+
+`vef-auth` owns bounded scheme-neutral authentication grammar and sensitive
+borrowed/caller storage. `vef-semantics` owns the full role/protocol response
+matrix and is the sole issuer of opaque sealed `ValidatedResponse` /
+`ResponseEmissionPermit` capabilities. Both HTTP engines consume one matching
+permit before response-head output; no public raw-head serialization path
+exists, and body/trailer commands remain bound to that response generation.
 
 ## HTTP/0.9 and HTTP/1 boundaries
 
@@ -100,6 +112,10 @@ Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
 Outbound request/response framing uses one state machine that checks body byte
 counts, trailers, body-forbidden contexts, and completion before reuse.
+Trailer admission uses a field-definition allowlist and generation-bound
+permission; authentication-info additionally requires caller-certified scheme
+permission. Received trailers stay separate, never retroactively affect prior
+decisions, and merge only when the field definition explicitly permits it.
 Transfer-Encoding selection is role-specific: requests require final chunked,
 whereas responses can be delimited by close when chunked is non-final or a
 different coding is final. Repeated chunked is malformed; an unsupported valid
@@ -176,10 +192,13 @@ publication. Connected streams allow DATA/applicable management frames; caller
 TCP failure produces CONNECT_ERROR and HTTP/2 failure requests upstream TCP
 reset without unrelated-stream mutation.
 Server push publishes only a complete known-safe/cacheable content-free and
-trailer-free request for an authoritative :authority. Client push is connection
-PROTOCOL_ERROR; promised semantic failures reset only the promised stream; and
-associated legality, promised ID, GOAWAY cutoff and concurrency commit
-atomically. Pushed response metadata forbids cache storage when non-cacheable.
+trailer-free request under connection/generation-bound TLS, cleartext endpoint,
+or configured-proxy authority evidence independent of coalescing. Client push
+is connection PROTOCOL_ERROR; promised semantic failures reset only the
+promised stream. Reserved pushes use their own slot/work budget and do not
+count against MAX_CONCURRENT_STREAMS until the response opens; sender and
+receiver associated-state perspectives, promised ID, GOAWAY and opening commit
+atomically. Pushed response metadata forbids storage when non-cacheable.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -265,7 +284,10 @@ the next client, every generated 407 has a `vef-auth`-validated challenge, and
 all proxy-auth fields are sensitive, redacted, never-indexed, and TRACE-excluded.
 Before any generated response bytes, a role-aware semantic gate validates the
 complete method/status/field/content matrix using caller-supplied typed values:
-401 challenges, 405 Allow, 426 Upgrade, and contextual 206/304/416 are explicit.
+401 challenges, 405 Allow, protocol-specific 426, and contextual 206/304/416
+are explicit. HTTP/2 cannot generate 426; HTTP/1 426 cannot translate by
+stripping Upgrade. Generated 206 is single-range only for 1.0; received
+multipart/byteranges remains opaque and forwardable, never parsed or generated.
 Local invalid construction is zero-output InvalidState; received semantic
 violations remain framing-synchronized under recipient policy; intermediaries
 preserve end-to-end response fields except already-authorized transformations.
@@ -288,5 +310,5 @@ Rustls, OpenSSL, and s2n integration names describe future boundaries, not
 current dependencies. Admission requires explicit maintainer approval and a
 release-plan update. Such crates remain optional, separately published, and
 outward-facing so `vef`, `vef-core`, `vef-http09`, `vef-http1`, `vef-hpack`,
-`vef-http2`, `vef-auth`, `vef-structured-fields`, and the base `vef-io` remain
-independent.
+`vef-http2`, `vef-auth`, `vef-semantics`, `vef-structured-fields`, and the base
+`vef-io` remain independent.

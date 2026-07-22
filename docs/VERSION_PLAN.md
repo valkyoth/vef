@@ -12,11 +12,12 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review added an explicit generated-response semantic gate,
-split intermediary parsing into independent failure domains, completed HTTP/2
-push admission, and made authorization capabilities one-shot with honest
-caller-buffer erasure boundaries. The roadmap remains at minor `0.225.0` with
-focused patch stops at `0.157.1`–`0.157.3` and `0.182.1`.
+The latest design review made response validation an engine-level capability,
+resolved protocol-specific 426 and single-range 206 behavior, replaced the
+trailer category ban with definition/scheme permissions, sharpened push
+capacity/authority, and completed authentication grammar invariants. The
+roadmap remains at minor `0.225.0` with focused patch stops at
+`0.157.1`–`0.157.3` and `0.182.1`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -36,14 +37,14 @@ focused patch stops at `0.157.1`–`0.157.3` and `0.182.1`.
 | Bidirectional WebSocket bridge | `0.69.0`, `0.162.0`, `0.163.0` | Bridge both directions; map schemes and retained negotiation/end-to-end fields exactly, isolate key/accept processing to HTTP/1, gate settings on availability, and commit both sides before data. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
-| Generic HTTP authentication grammar | `0.97.0`, `0.157.2` | Add dependency-free `vef-auth` bounded parsing/serialization for challenges, credentials, token68, auth-param and all origin/proxy fields, resolving comma ambiguity without scheme implementations, secret ownership, diagnostic exposure, or indexing. |
+| Generic HTTP authentication grammar | `0.97.0`, `0.157.2` | Add dependency-free `vef-auth`; preserve raw/case-insensitive schemes, compare parameter names case-insensitively, reject duplicates, quote generated realm, enforce terminal token68 padding, resolve comma ambiguity, and prevent secret ownership/diagnostic/index exposure. |
 | Hop-scoped proxy authentication | `0.19.0`, `0.65.0`, `0.97.0`, `0.157.2`–`0.157.3`, `0.184.0` | Bind validated proxy credentials to hop/connection/generation/exchange, consume before origin forwarding, permit only named cooperative relay, scope challenges/info to the next client, require challenged 407, redact/never-index/exclude from TRACE, and force fresh HTTP/1 CONNECT authentication retry. |
 | Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |
 | Compression provenance bookkeeping | `0.90.0`–`0.91.0`, `0.97.0` | Keep immutable provenance as an encoder sidecar that never changes HPACK size/index order, and remove it atomically with entry eviction or reset. |
 | HPACK wire legality | `0.82.0`–`0.93.0` | Accept non-shortest valid integers, emit canonical integers, reject illegal Huffman EOS/padding and invalid indices, and emit at most two ordered table-size changes. |
 | SETTINGS dependency ordering | `0.108.0` then `0.124.0`, `0.135.0`, `0.141.0`, `0.143.0` | Parse/store early; integrate only after HPACK, streams/windows, admission, and scheduling exist. |
 | HTTP/2 publication order | `0.127.0` before `0.128.0` | Malformed names/values, pseudo-fields, context, and initial Content-Length are rejected before mapped messages can become observable. |
-| HTTP/2 push admission | `0.145.0` | Require complete safe/cacheable/content-free promised requests and authoritative targets, isolate promised-stream semantic errors, reject client push at connection scope, atomically reserve IDs/slots/cutoffs, and mark non-cacheable pushed responses unstorable. |
+| HTTP/2 push admission | `0.145.0` | Require complete safe/cacheable/content-free requests; connection-bound TLS/cleartext/proxy authority; sender/receiver state perspectives; separate reserved-slot/work limits; open-time concurrency; atomic ID/GOAWAY state; and unstorable non-cacheable responses. |
 | HPACK refusal synchronization | `0.123.0`, `0.148.0` | RST/refusal/cancellation never abandons an inbound block; REFUSED_STREAM requires capacity to finish HPACK invisibly, otherwise the connection shuts down boundedly. |
 | HTTP/2 DATA and command ownership | `0.136.0`–`0.137.0` | Application acknowledgement, not parsing, releases inbound credit; outbound HEADERS/DATA/trailers/END_STREAM and partial output use one per-stream lifecycle. |
 | HTTP/2 activation/shutdown | `0.119.0`–`0.122.0` | Make preface, first SETTINGS, frame legality, fragmentation, stream exhaustion, GOAWAY, retry cutoff, and backpressured shutdown explicit. |
@@ -64,7 +65,10 @@ focused patch stops at `0.157.1`–`0.157.3` and `0.182.1`.
 | RFC 9931 optimistic-data closure | `0.65.0` | Require CONNECT proxy wait-or-close behavior, mandatory close after rejected CONNECT, no pre-101 WebSocket or HTTP/1.x CONNECT-UDP data, and no failed-transition reparsing. |
 | Complete TRACE/OPTIONS semantics | `0.158.0` | Complete Max-Forwards absence/zero behavior, prohibit generated TRACE content/secrets, sanitize bounded reflection, require Content-Type for generated OPTIONS content, and mark responses non-cacheable. |
 | Exact Via forwarding and privacy | `0.157.1`, `0.184.0`, `0.185.0` | Parse bounded ordered members/comments, append inbound protocol/version plus configured pseudonym, never replace/combine, cover proxy and gateway applicability, preflight capacity, and expose caller-owned loop detection without input-derived identity. |
-| Role-aware response semantics | `0.157.2`, `0.182.1`, `0.183.0` | Validate generated 401/405/426 and contextual 206/304/416 plus the complete RFC 9110 response matrix before output, separate local InvalidState from received semantic policy, and preserve forwarded fields. |
+| Definition-permitted trailers | `0.52.0`, `0.53.0`, `0.131.0`, `0.137.0`, `0.157.2`, `0.160.0` | Use per-field and authentication-scheme permission, keep received trailers separate/non-retroactive, merge only when explicitly safe, and carry identical policy across HTTP versions/translation. |
+| Protocol-specific 426 | `0.126.0`, `0.129.0`, `0.137.0`, `0.160.0`, `0.182.1` | Require Upgrade only for HTTP/1 generation, prohibit local HTTP/2 426, distinguish forbidden received Upgrade from semantic 426-without-Upgrade, and prevent strip-and-forward translation. |
+| Unbypassable response semantics | `0.54.0`, `0.137.0`, `0.157.2`, `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.194.0`, `0.197.0` | Make `vef-semantics` depend on core/auth, require a sealed protocol/role/generation permit in both engines, remove raw public response serialization, retain validation through facade/fixed/alloc/features, and compile-fail bypasses. |
+| Role-aware response semantics | `0.157.2`, `0.182.1`, `0.183.0` | Validate 401/405, HTTP/1-only 426, single-range generated 206, contextual 304/416, and the complete RFC 9110 matrix; preserve received multipart opaquely; separate local InvalidState from received policy and forwarded fields. |
 | Server-wide OPTIONS final hop | `0.158.0`, `0.160.0` | Preserve absolute-form through intermediate forward proxies, convert empty-path/absent-query OPTIONS to `*` only at the origin-facing hop, and keep empty query and `/` resource-specific. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |

@@ -20,8 +20,8 @@ and diagnostics while retaining protocol-appropriate state machines.
 vef facade
   |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
   |-- vef-websocket-handshake --> vef-core  (planned optional extension)
-  |-- vef-http1 -----> vef-core + vef-conditions + vef-semantics
-  |-- vef-http2 -----> vef-core + vef-conditions + vef-semantics
+  |-- vef-http1 -----> vef-core + vef-media-type + vef-conditions + vef-semantics
+  |-- vef-http2 -----> vef-core + vef-media-type + vef-conditions + vef-semantics
   |       `----------> vef-hpack -----> vef-core
   |       `-- priority feature --> vef-structured-fields --> vef-core
   `-- vef-io --------> vef-core
@@ -29,7 +29,7 @@ vef facade
 vef-auth -----------> vef-core
 vef-media-type -----> vef-core
 vef-conditions -----> vef-core + vef-media-type
-vef-semantics ------> vef-core + vef-auth + vef-conditions
+vef-semantics ------> vef-core + vef-auth + vef-media-type + vef-conditions
 
 future runtime/TLS/Aesynx adapters -----> vef-io and protocol crates
 ```
@@ -77,8 +77,9 @@ monotonic deadlines and is always caller/adapter supplied.
 
 `vef-auth` owns bounded scheme-neutral authentication grammar and sensitive
 borrowed/caller storage. `vef-media-type` owns bounded dependency-free media
-type/subtype/parameter grammar and sealed exact partial-content classification;
-it classifies but does not parse multipart bodies. `vef-conditions` owns entity
+type/subtype/parameter grammar, exact field-bound validation evidence, and later
+sealed partial-content classification; it validates generated OPTIONS content
+but does not parse multipart bodies. `vef-conditions` owns entity
 tags, civil-evidence-aware HTTP dates, conditional-field evaluation, checked
 range planning, final client request validation, individual partial segments, and bounded combination
 plans. Its sealed pre-action evidence, retrieval-only snapshot, and outcomes
@@ -325,32 +326,39 @@ generation-bound outcomes and validates the complete
 method/status/field/content matrix: 401 challenges over both protocols, 405
 Allow, protocol-specific 426, and contextual 206/304/416 are explicit. HTTP/2
 cannot generate 426; HTTP/1 426 cannot translate by stripping Upgrade.
-Generated 206 is single-range only for 1.0; a bounded exact media-type parser
+Generated 206 is single-range only for 1.0; the shared bounded media-type parser
 classifies received multipart/byteranges, which remains opaque and forwardable,
-never parsed or generated. Malformed/duplicate Content-Type grants no partial
-capability, and multipart never grants top-level Content-Range authority.
+never parsed or generated. Exact multipart with a missing/invalid RFC 2046
+boundary, malformed/duplicate Content-Type, or stale field evidence grants no
+partial capability, and multipart never grants top-level Content-Range authority.
 Outbound conditional/range requests receive the same final frozen validation
 over typed or generic fields before either engine serializes them. Client 206
 classification consumes the sealed media-type result, checks Content-Range and
 request/validator identity, then publishes a generation-bound validated head.
-Before body consumption the caller selects StreamOnly, RetainOnly, or
-StreamAndRetain; retention commits before publication and acknowledgement.
+Before body consumption the caller supplies a freely constructible delivery
+preference; the engine validates it and issues the sealed generation-bound
+StreamOnly, RetainOnly, or StreamAndRetain permit. Retention commits before publication and acknowledgement.
 Borrowed accounted chunks can stream to the application with no retained
 storage; terminal standalone proof does not require a strong validator. Optional retention safely converts an
 exclusive slice/sealed-arena write into an immutable transfer-decoded but
 content-encoded `StoredPartialSegment`; only this stored form can combine.
 Combination eligibility waits through validated trailers, which may supply
 ETag but cannot change range/domain or the head-published ordinal. A
-generation-safe assembly context consumes an engine-minted variant key derived
-from bounded Vary and the exact original request, plus coding/domain, length,
-and strong-validator constraints; principal, privacy partition, and navigation
-are bound into that key, and `Vary: *` never matches. Physical storage
+generation-safe assembly context compares an engine-derived semantic variant
+identity from bounded Vary, exact original-request values, principal, privacy
+partition, and navigation identity. Each segment separately carries fresh
+request/response provenance evidence; those generations never enter identity
+equality. Coding/domain, length, and strong-validator constraints still apply,
+and `Vary: *` never matches. Physical storage
 generation stays in leases, not semantic replacement identity. Output comes
 from safe non-overlapping splitting or a separate arena, and completed same-key
 200 invalidates across arena generations. Combination sorts intervals under a
 dedicated comparison budget: equal overlaps deduplicate, while unequal bytes
 emit no output, return `ConflictingPartialContent`, and quarantine the full
-context and validator association. Multipart and unknown units remain outside
+context and validator association. Only complete same-key 200 replacement or
+destruction followed by a different-validator/new-generation empty context can
+clear it; 304, unchanged revalidation, and separate selection contexts cannot.
+Multipart and unknown units remain outside
 recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage

@@ -13,6 +13,7 @@ MIT or Apache-2.0 software licenses and are excluded from crate packages.
 | RFC | Role |
 | --- | --- |
 | 1945 | Historical HTTP/1.0 and simple-request compatibility profile |
+| 2046 | Media-type parameter and multipart boundary grammar referenced by HTTP semantics |
 | 2119, 8174 | Normative requirement language |
 | 3986 | URI generic syntax |
 | 5322 Section 3.3 | Calendar and year semantics inherited by HTTP-date |

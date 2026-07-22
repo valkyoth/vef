@@ -14,6 +14,7 @@ I/O contracts, not an opinionated application framework.
 | Requirement language | RFC 2119 and RFC 8174 | Applied to requirement ledger |
 | HTTP/0.9 and HTTP/1.0 | RFC 1945 | Explicit historical profiles; HTTP/0.9 is an isolated package |
 | URI syntax | RFC 3986 | Validated components without implicit normalization |
+| Media types | RFC 2046 plus RFC 9110 | Bounded grammar and multipart boundary classification; no multipart body parser |
 | WebSocket opening handshake | RFC 6455 | Optional isolated handshake extension; no frame protocol |
 | ALPN | RFC 7301 | Adapter selection metadata |
 | HPACK | RFC 7541 | Complete bounded encoder and decoder |
@@ -39,7 +40,8 @@ validation, DNS, cache storage, cookie jars, redirect policy, connection-pool
 policy, proxy discovery, content compression, WebSocket frames, HTML/forms,
 general-purpose multipart parsing/generation, routers, templates, server
 binaries, and CLIs are out of scope. VEF 1.0 generates only single-range 206;
-its narrow bounded media-type grammar classifies Content-Type exactly, while
+its reusable bounded media-type grammar validates generated content and later
+classifies partial Content-Type exactly, including required RFC 2046 boundary grammar, while
 received multipart/byteranges bodies remain opaque bytes that can be preserved
 and forwarded without boundary or part validation. VEF parses entity tags,
 HTTP dates, conditional fields, Range, and Content-Range and evaluates them
@@ -50,12 +52,14 @@ state) independently of monotonic deadlines. Built-in client handling validates
 single-range 206 and keeps multipart opaque as NeedsMultipartConsumer. Its
 fixed-capacity partial-combination plan handles validated byte-range segments
 and incomplete-200 prefixes from multiple request generations, but standalone
-206 bodies select StreamOnly, RetainOnly, or StreamAndRetain and can stream
-without retention. Optional combination requires safely
+206 bodies accept a public StreamOnly, RetainOnly, or StreamAndRetain preference
+but require an engine-selected permit and can stream without retention. Optional combination requires safely
 frozen transfer-decoded/content-encoded storage, trailer-finalized strong
-validators, an engine-minted exact-request/Vary/principal/privacy/navigation
-key, and validated-head ordering. Equal overlap deduplicates; conflicting bytes
-publish nothing and quarantine the context under a dedicated comparison budget.
+validators, an engine-derived semantic exact-request/Vary/principal/privacy/
+navigation identity plus separately fresh provenance evidence, and validated-head
+ordering. Equal overlap deduplicates; conflicting bytes publish nothing and
+quarantine the context under a dedicated comparison budget until complete 200
+replacement or a destroyed-and-new different-validator representation context.
 Physical arena generations affect leases, not semantic replacement; `Vary: *`,
 input/output aliasing, in-place transformation, multipart, and unknown units
 never enter combination.

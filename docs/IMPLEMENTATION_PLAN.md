@@ -82,9 +82,11 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   Content-Type, Content-Range, body-length, and strong-validator evidence.
 - Partial Content-Type classification comes only from the bounded sealed
   `vef-media-type` result; multipart never grants top-level range authority.
-- Partial delivery mode is fixed before body consumption, retention commits
-  before publication/acknowledgement, and unequal overlaps quarantine the
-  assembly context without publishing bytes or synthesized metadata.
+- Generated OPTIONS Content-Type validation reuses the same parser from
+  v0.157.5; protocol engines and role code cannot carry temporary grammars.
+- A public delivery preference confers no authority; the engine-selected permit
+  is fixed before body consumption. Retention commits before publication/
+  acknowledgement, and unequal overlaps quarantine the assembly context without publishing bytes or synthesized metadata.
 - Mandatory generated responses retain engine-only semantic-validation slots
   and frozen-head storage that application work cannot consume; total reserve
   failure commits one deterministic close/shutdown action with no partial head.
@@ -135,12 +137,12 @@ credentials, token68, auth-param, authentication field, sensitive-storage, and
 scheme-certified authentication-trailer permission behavior. It implements no
 Basic, Digest, application credential validation, or physical buffer erasure.
 
-### `vef-media-type` (planned at `0.180.5`)
+### `vef-media-type` (planned at `0.157.5`, partial integration at `0.180.5`)
 
 Depends only on `vef-core`. Owns bounded incremental media type, subtype,
-parameter, quoted-string, and escape grammar plus sealed exact Content-Type
-classification for partial responses. It neither parses multipart bodies nor
-grants Content-Range, storage, or combination authority.
+parameter, quoted-string, and escape grammar plus sealed exact field/generation
+validation used by generated OPTIONS. At `0.180.5` it adds RFC 2046-boundary-
+aware partial-response classification. It neither parses multipart bodies nor grants Content-Range, storage, or combination authority.
 
 ### `vef-conditions` (planned at `0.180.1`–`0.181.2`)
 
@@ -160,7 +162,7 @@ permit.
 
 ### `vef-semantics` (planned at `0.182.1`)
 
-Depends only on `vef-core`, `vef-auth`, and `vef-conditions`. Owns
+Depends only on `vef-core`, `vef-auth`, `vef-media-type`, and `vef-conditions`. Owns
 received/forwarded/generated role and protocol response semantics and is the
 sole constructor of sealed `ValidatedResponse`. That object owns or immutably
 borrows the precise ordered head, framing, sensitivity/indexing, body, and
@@ -172,8 +174,8 @@ API pairs a raw head with a permit, and every mutation requires revalidation.
 
 Owns HTTP/1.0 and HTTP/1.1 parsing, serialization, framing, bodies,
 persistence, transitions, and connection state. It cannot parse or select
-HTTP/0.9. It depends on `vef-conditions` and `vef-semantics`, consumes frozen
-validated requests/responses, and has no public head-output entry accepting a
+HTTP/0.9. Starting at v0.157.5 it depends on `vef-media-type`; it later depends
+on `vef-conditions` and `vef-semantics`, consumes frozen validated requests/responses, and has no public head-output entry accepting a
 raw `vef-core` request or response.
 
 ### `vef-http09` (planned at `0.76.0`)
@@ -202,7 +204,8 @@ representations, indexing policy, and compression budgets.
 Owns frame codecs, exhaustive connection/stream state, message mapping, flow
 control, borrowed inbound DATA acknowledgement, outbound per-stream message
 commands, push, errors, priority signals, and hostile-control budgets. It
-depends on `vef-conditions`, `vef-semantics`, and `vef-hpack`;
+depends on `vef-media-type` from v0.157.5 and later on `vef-conditions` and
+`vef-semantics`, in addition to `vef-hpack`;
 request/response HEADERS require their exact frozen validated object, and
 HTTP/2 status 426 has no local emission path.
 
@@ -395,7 +398,9 @@ separate from monotonic deadlines, defines Available/Unavailable origin and
 forwarding Date policy, Last-Modified clamping/external assignment, and the RFC
 850 complete-instant 50-year rule without global clock ownership; generic
 civil years precede 1900 but validated HTTP dates do not. No-RTC Aesynx stays
-supported.
+supported. v0.157.5 then creates dependency-free `vef-media-type`; v0.158.0
+consumes its exact field/generation evidence for generated OPTIONS content, so
+no interim Content-Type parser enters HTTP or role code.
 Then build the normative HTTP/1↔HTTP/2 matrix before destination bytes and add
 Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
@@ -406,19 +411,21 @@ PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 Before the origin role facade, v0.180.1–v0.181.2 create dependency-free
-`vef-conditions` and v0.180.5 creates dependency-free `vef-media-type`:
+`vef-conditions` and v0.180.5 integrates the existing `vef-media-type`:
 civil-aware validators, RFC-ordered evaluation before request
 content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
 range parsing, sealed content/execution permits, final frozen client request
-validation, exact Content-Type classification, individual partial segments, and
-fixed-capacity interval/header combination plans. Standalone 206 chooses an
-explicit delivery mode and can stream without storage or a strong validator;
+validation, exact RFC 2046-aware Content-Type classification, individual partial
+segments, and fixed-capacity interval/header combination plans. Standalone 206
+accepts a public preference but requires an engine-selected delivery permit and can stream without storage or a strong validator;
 only opt-in exclusive-slice/sealed-arena retention freezes bytes for assembly.
 Trailer processing finalizes stored validators without changing head decisions.
-Assembly contexts consume engine-minted exact-request/Vary/principal/privacy/
-navigation keys across requests, keep physical generations in leases, reject
-`Vary: *`, acquire non-aliasing output safely, compare sorted overlaps under a
-dedicated budget, quarantine conflicting bytes with zero output, and order
+Assembly contexts compare semantic exact-request/Vary/principal/privacy/
+navigation identities only after separately validating each request/response
+provenance token, keep physical generations in leases, reject `Vary: *`, acquire
+non-aliasing output safely, compare sorted overlaps under a dedicated budget,
+quarantine conflicting bytes with zero output until complete replacement or a
+destroyed-and-new different-validator representation context, and order
 headers when the correlation engine publishes each validated head. v0.183.0 exposes only the
 read-only pending selection view before those permits and suppresses early 100,
 body delivery, and method effects. A consumed unsafe execution permit survives

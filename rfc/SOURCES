@@ -1,5 +1,6 @@
 # number URL role
 1945 https://www.rfc-editor.org/rfc/rfc1945.txt http10-http09-history
+2046 https://www.rfc-editor.org/rfc/rfc2046.txt media-types-multipart-boundary
 2119 https://www.rfc-editor.org/rfc/rfc2119.txt normative-language
 3986 https://www.rfc-editor.org/rfc/rfc3986.txt uri-syntax
 5322 https://www.rfc-editor.org/rfc/rfc5322.txt internet-message-date-semantics

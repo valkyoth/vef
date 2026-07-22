@@ -21,3 +21,5 @@ Requirements:
 
 RFC 9931, published in March 2026, updates RFC 9112 and is part of the initial
 HTTP/1.1 baseline rather than a later extension.
+RFC 2046 is source-locked only for media-type parameter and multipart boundary
+grammar referenced by RFC 9110; VEF does not thereby claim a multipart body parser.

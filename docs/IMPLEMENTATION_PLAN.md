@@ -201,6 +201,10 @@ initial measurable resource profiles, capacity-versus-protocol dispositions,
 role policies, sync/poll I/O capabilities, fake transports, the complete
 event/command/acknowledgement/publication contract, and executable
 requirements/errata evidence before accepting a complete message.
+URI types retain distinct raw path and optional-query spans, preserve absent
+versus empty query and percent-encoded bytes, and expose normalization only as
+a non-authoritative view. Authority parsing covers IPv6/IPvFuture, ports,
+userinfo rejection, and malformed brackets explicitly.
 
 ### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.28.0`–`0.81.0`)
 
@@ -210,10 +214,10 @@ borrowed body acknowledgement and drain/discard/cancel/reuse actions, bounded
 pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
 isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
-Host syntax accepts the RFC-required empty value; every server accepts
-absolute-form, routes it by request-target authority, and a forwarding proxy
-regenerates Host. Empty effective authority needs explicit reject/default
-policy and is never inferred.
+Host parsing accepts the RFC-required empty value but yields only a non-routable
+artifact. The next stop authorizes target form by origin/forward/reverse role,
+derives effective authority under explicit context/reject/default policy, and
+only then publishes a request. Later translation reuses that typed decision.
 Request transfer codings require final chunked; responses may instead become
 close-delimited, with repeated chunked and unsupported coding kept distinct.
 RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close,
@@ -263,9 +267,17 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
+The matrix carries raw path plus optional query into/out of `:path`, preserves
+empty-query and percent-encoded identity, and only inserts `/` for an empty path
+where the RFC requires it.
+Extended CONNECT keeps peer-enabled outbound initiation separate from locally
+advertised inbound acceptance. Advertisement becomes effective at SETTINGS
+byte commit, accepts only 0/1, cannot be withdrawn after 1, and never rolls
+back because a later endpoint request fails.
 The v0.163 bridge is bidirectional: HTTP/1-side key/accept processing never
-leaks into RFC 8441, the reverse direction consumes fresh caller entropy, local
-ENABLE_CONNECT_PROTOCOL advertisement requires an available endpoint/bridge,
+leaks into RFC 8441, ws/wss and retained negotiation/end-to-end fields map
+exactly with lowercase HTTP/2 names, hostile HTTP/2 key/accept fields cannot
+influence fresh HTTP/1 keys, the reverse direction consumes caller entropy,
 and no WebSocket data crosses before both handshakes commit.
 PRIORITY_UPDATE request and push targets use one receiver-server-relative state
 convention, including reserved-local and half-closed-remote push targets.

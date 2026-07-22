@@ -117,6 +117,10 @@ def main() -> int:
         or "Permit zero or more 100..199 responses before exactly one final response" in detailed
         or "WebSocket HTTP/1 to HTTP/2 handshake bridge" in detailed
         or "HTTP/2 2xx back to HTTP/1 101 with validated accept" in detailed
+        or "parse scheme/authority/path with checked byte ranges" in detailed
+        or "deferring empty effective-authority accept/reject policy to v0.156.0" in detailed
+        or "accept origin-form and absolute-form for ordinary requests at every receiving server role" in detailed
+        or "Permit extended CONNECT only after the peer's SETTINGS_ENABLE_CONNECT_PROTOCOL" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -126,7 +130,6 @@ def main() -> int:
         "flow-controlled payload length (including Pad Length and padding)",
         "before emitting its ACK",
         "SETTINGS_ENABLE_PUSH directionally",
-        "SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective",
         "initial SETTINGS frame",
         "never automatically retry an unsafe request",
         "protocol processing status separately from application replay permission",
@@ -188,18 +191,41 @@ def main() -> int:
         "every target state expressed from the receiving server's perspective",
         "for push streams accept reserved-local or half-closed-remote",
         "including the grammar-valid empty value required when the target URI has no authority",
-        "accept origin-form and absolute-form for ordinary requests at every receiving server role",
-        "require a forwarding proxy to regenerate Host from the target authority",
-        "empty resulting effective authority is either rejected by explicit policy",
+        "regenerate forwarding Host",
         "Parse exactly *(BWS \";\" BWS token [BWS \"=\" BWS (token / quoted-string)])",
         "two exclusive response branches",
         "require 100 to commit before 101 whenever Expect: 100-continue applies",
         "make every later HTTP response parse, serialization, body, trailer, pipeline, or reuse operation an InvalidState",
-        "advertises local ENABLE_CONNECT_PROTOCOL only when its native endpoint or fully configured bridge is actually available",
+        "advertises 1 only with an available native endpoint or fully configured bridge/entropy capability",
         "For HTTP/1 downstream to HTTP/2 upstream",
         "for HTTP/2 downstream to HTTP/1 upstream",
         "without processing key/accept upstream",
         "no WebSocket byte crosses until both sides commit",
+        "raw path, and optional raw query into distinct checked spans",
+        "preserve `/resource` versus `/resource?`",
+        "any decoded or normalized view is separate",
+        "accept well-formed bracketed IPv6/IPvFuture",
+        "accept and preserve a grammar-valid empty port",
+        "reject userinfo for HTTP authority use",
+        "reject malformed/mismatched brackets",
+        "publish only a typed non-routable Host/parser artifact",
+        "explicit forward proxies require absolute-form for ordinary proxy requests",
+        "never infer a forward-proxy destination from origin-form plus Host",
+        "applying a configured reject-or-explicit-default policy to an empty result",
+        "Reuse the already validated v0.40.0 EffectiveAuthority decision",
+        "split :path on its first question mark into raw path and optional raw query",
+        "preserve an empty query's trailing `?`",
+        "proxies never otherwise modify path/query",
+        "peer_enabled_outbound_connect separately from local_advertised_inbound_connect",
+        "only a client receiving peer value 1 may initiate outbound extended CONNECT",
+        "local server's SETTINGS value 1 bytes commit, not when queued",
+        "peer 0-after-1 to connection PROTOCOL_ERROR and a local attempt to InvalidState",
+        "later transient endpoint, nonce, or capacity failure becomes a bounded HTTP failure",
+        "ws mapped to :scheme http and wss to https",
+        "lowercase every emitted HTTP/2 field name",
+        "Origin, Sec-WebSocket-Version, Sec-WebSocket-Protocol, and Sec-WebSocket-Extensions",
+        "ordinary end-to-end cookies/authorization through the normal matrix",
+        "ignore received HTTP/2 key/accept fields for key generation",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

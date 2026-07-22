@@ -693,7 +693,7 @@ on v0.16.0 (Ordered FieldLine and FieldSection storage) and must be independentl
 
 #### Deliverables
 
-- Acceptance contract: Represent origin, absolute, authority, and asterisk request targets separately; parse scheme/authority/path with checked byte ranges, preserve raw authority and URI octets, reject ambiguous forms before publication, and serialize only method/role-coherent forms.
+- Acceptance contract: Represent origin, absolute, authority, and asterisk request targets separately; parse scheme, authority, raw path, and optional raw query into distinct checked spans, split on only the first question mark, preserve `/resource` versus `/resource?`, reject fragments, and preserve every percent-encoded octet byte-for-byte; any decoded or normalized view is separate and can never replace routing, forwarding, cache-key, or signature identity; accept well-formed bracketed IPv6/IPvFuture, accept and preserve a grammar-valid empty port while resolving its scheme default only in a separate semantic view, reject userinfo for HTTP authority use, and reject malformed/mismatched brackets; preserve raw URI/authority octets and serialize only method/role-coherent forms.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -705,7 +705,7 @@ on v0.16.0 (Ordered FieldLine and FieldSection storage) and must be independentl
 
 #### Verification
 
-- Test Request-target, URI, and authority types and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test empty/absent query distinction, first-question-mark splitting, percent-encoded identity, fragment rejection, empty path, bracketed IPv6 and IPvFuture, empty port, userinfo rejection, malformed brackets, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1555,7 +1555,7 @@ on v0.38.0 (Typed HTTP/1 protocol-error response and close actions) and must be 
 
 #### Deliverables
 
-- Acceptance contract: For every HTTP/1.1 request require exactly one syntactically valid Host field, including the grammar-valid empty value required when the target URI has no authority; reject missing, comma-combined, duplicate even when values match, and otherwise malformed Host before request publication, while deferring empty effective-authority accept/reject policy to v0.156.0; HTTP/1.0 retains Host as an ordinary optional field under its separate profile; named vectors cover missing, duplicate, combined, malformed, and empty Host with targets both with and without authority.
+- Acceptance contract: For every HTTP/1.1 request require exactly one syntactically valid Host field, including the grammar-valid empty value required when the target URI has no authority; reject missing, comma-combined, duplicate even when values match, and otherwise malformed Host; publish only a typed non-routable Host/parser artifact that role and application request APIs cannot consume until v0.40.0 authority validation succeeds; HTTP/1.0 retains Host as an ordinary optional field under its separate profile; named vectors cover missing, duplicate, combined, malformed, and empty Host with targets both with and without authority.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1594,7 +1594,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: Require authority-form only for CONNECT and asterisk-form only for server-wide OPTIONS; accept origin-form and absolute-form for ordinary requests at every receiving server role, including origin servers; for absolute-form derive routing authority exclusively from the request-target, ignore received Host for that routing decision, and require a forwarding proxy to regenerate Host from the target authority rather than forward the received value; reject fragments, empty targets, and other method/form mismatches before routing publication while preserving unknown methods as case-sensitive tokens.
+- Acceptance contract: Let the generic parser recognize all four target forms, then authorize them by role before any routable or application-visible request event: origin servers accept origin-form and absolute-form; explicit forward proxies require absolute-form for ordinary proxy requests; reverse/interception proxies accept origin-form only with explicit connection/listener destination context and never infer a forward-proxy destination from origin-form plus Host; require authority-form only for CONNECT and asterisk-form only for server-wide OPTIONS; derive effective authority from the authorized target, Host, and explicit context, applying a configured reject-or-explicit-default policy to an empty result; for absolute-form use only target authority for routing, ignore received Host, and regenerate forwarding Host; reject fragments, empty targets, unauthorized forms, ambiguity, and method/form mismatch before routing/application publication while preserving unknown methods as case-sensitive tokens.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1606,7 +1606,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Verification
 
-- Test origin-server and proxy absolute-form, target-authority/Host conflicts proving the target wins, regenerated forwarding Host, every target form/method mismatch, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test origin-server origin/absolute-form, forward-proxy rejection of origin-form, reverse/interception origin-form with missing/present explicit destination context, empty-authority reject/default policy, target-authority/Host conflicts proving the target wins, regenerated forwarding Host, every unauthorized form/method mismatch, zero application events before authority success, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5043,7 +5043,7 @@ on v0.127.0 (HTTP/2 malformed initial-field-block publication barrier) and must 
 
 #### Deliverables
 
-- Acceptance contract: Map validated :method/:scheme/:authority/:path into the exact ordinary, CONNECT, or extended-CONNECT request form, reconcile Host and :authority, preserve ordered ordinary fields without pseudo-fields, and emit one request event only after the initial-field publication barrier and stream transition commit.
+- Acceptance contract: Map validated :method/:scheme/:authority/:path into the exact ordinary, CONNECT, or extended-CONNECT request form; split :path on its first question mark into raw path and optional raw query, preserve absent versus empty query and percent-encoded octets exactly, require `/` for an empty HTTP(S) URI path except asterisk-form and CONNECT rules, reconcile Host and :authority, preserve ordered ordinary fields without pseudo-fields, and emit one request event only after the initial-field publication barrier and stream transition commit.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6150,7 +6150,7 @@ on v0.155.0 (Protocol-neutral HTTP translation representation) and must be indep
 
 #### Deliverables
 
-- Acceptance contract: Derive scheme, authority, port, path, request-target form, Host/:authority consistency, CONNECT tunnel authority, and end-origin identity without normalization; for an absolute-form request use its target authority and ignore Host for routing, while an empty resulting effective authority is either rejected by explicit policy or replaced only by an explicitly configured connection-context default and is never inferred; reject every remaining ambiguity before translation IR publication and distinguish syntax, policy, and caller-capacity failures.
+- Acceptance contract: Reuse the already validated v0.40.0 EffectiveAuthority decision rather than introducing or changing authority policy during translation; carry scheme, authority, port, raw path, optional raw query, request-target form, Host/:authority disposition, CONNECT tunnel authority, and end-origin identity without normalization; preserve absent versus empty query and percent-encoded octets, use absolute-form target authority rather than Host, and accept an empty authority only when the earlier explicit connection-context default produced the decision; reject decision/context mismatch before translation IR publication and distinguish syntax, policy, and caller-capacity failures.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6306,7 +6306,7 @@ on v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must
 
 #### Deliverables
 
-- Acceptance contract: Map target/Host to pseudo-fields, status, Content-Length/DATA/trailers/END_STREAM, TE: trailers, connection fields, Cookie/Set-Cookie, informational/HEAD/body-forbidden responses, CONNECT/Upgrade, and close-delimited reframing; validate the complete destination head/framing decision before emitting bytes.
+- Acceptance contract: Map target/Host to pseudo-fields and back while carrying raw path plus optional raw query exactly: construct :path as path followed by `?` plus query when present, preserve an empty query's trailing `?`, split inbound :path only on the first `?`, preserve percent-encoded octets byte-for-byte, and replace an empty HTTP URI path with `/` only where RFC 9112 requires; proxies never otherwise modify path/query; also map status, Content-Length/DATA/trailers/END_STREAM, TE: trailers, connection fields, Cookie/Set-Cookie, informational/HEAD/body-forbidden responses, CONNECT/Upgrade, and close-delimited reframing, validating the complete destination head/framing decision before emitting bytes.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6318,7 +6318,7 @@ on v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must
 
 #### Verification
 
-- Test every matrix cell in both directions, including rejection, reframing, partial output, capacity exhaustion, cancellation, and zero destination bytes before full validation.
+- Test every matrix cell in both directions, including absent/empty/multi-question queries, percent-encoded path/query identity, required empty-path-to-slash conversion, forbidden proxy normalization, rejection, reframing, partial output, capacity exhaustion, cancellation, and zero destination bytes before full validation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6384,7 +6384,7 @@ on v0.161.0 (CONNECT translation across HTTP versions) and must be independently
 
 #### Deliverables
 
-- Acceptance contract: Permit extended CONNECT only after the peer's SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective and the completed translation matrix authorizes the request; a proxy/gateway advertises local ENABLE_CONNECT_PROTOCOL only when its native endpoint or fully configured bridge is actually available, including the caller entropy capability needed for HTTP/1 upstream handshakes; enforce :protocol plus the extended :scheme/:path/:authority matrix, distinguish ordinary CONNECT, reject 101 semantics, and publish no tunnel or WebSocket transition before the final response and byte-handoff contract succeeds.
+- Acceptance contract: Accept only SETTINGS_ENABLE_CONNECT_PROTOCOL values 0 and 1 and track peer_enabled_outbound_connect separately from local_advertised_inbound_connect; only a client receiving peer value 1 may initiate outbound extended CONNECT, while receipt by a server has no effect; inbound extended CONNECT is accepted only after the local server's SETTINGS value 1 bytes commit, not when queued, otherwise return stream PROTOCOL_ERROR with no request publication; after either side sends value 1 it can never send 0 on that connection, mapping peer 0-after-1 to connection PROTOCOL_ERROR and a local attempt to InvalidState; a proxy/gateway advertises 1 only with an available native endpoint or fully configured bridge/entropy capability, and later transient endpoint, nonce, or capacity failure becomes a bounded HTTP failure without SETTINGS rollback; enforce :protocol plus extended :scheme/:path/:authority, distinguish ordinary CONNECT, reject 101 semantics, and publish no transition before final response and byte handoff succeed.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6396,7 +6396,7 @@ on v0.161.0 (CONNECT translation across HTTP versions) and must be independently
 
 #### Verification
 
-- Test peer activation and local advertisement separately, including disabled/missing bridge, missing entropy capability, native endpoint ownership, ordinary versus extended CONNECT, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test values 0/1/other, client/server receipt direction, queued versus committed local advertisement, inbound-before-advertisement stream error and publication barrier, repeated 1, peer/local 0-after-1, transient failure after advertisement, disabled/missing bridge, missing entropy, native endpoint ownership, and ordinary versus extended CONNECT.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6423,7 +6423,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Deliverables
 
-- Acceptance contract: For HTTP/1 downstream to HTTP/2 upstream, validate and retain the HTTP/1 Sec-WebSocket-Key, strip Connection, Upgrade, Host, Sec-WebSocket-Key, and any Sec-WebSocket-Accept, construct the extended CONNECT pseudo-fields, validate the HTTP/2-selected subprotocol/extensions against the original offers without processing key/accept upstream, and only after the HTTP/2 2xx commits locally compute the HTTP/1 Sec-WebSocket-Accept and commit 101; for HTTP/2 downstream to HTTP/1 upstream, obtain a fresh v0.69.0 nonce, generate the HTTP/1 key, validate the upstream 101 plus accept hash and selected negotiation, then translate success to HTTP/2 2xx; no WebSocket byte crosses until both sides commit, and either-direction failure remains independently HTTP-framed on each side.
+- Acceptance contract: For HTTP/1 downstream to HTTP/2 upstream, validate and retain the HTTP/1 Sec-WebSocket-Key, strip Connection, Upgrade, Host, Sec-WebSocket-Key, and any Sec-WebSocket-Accept from the HTTP/2 request/response, construct extended CONNECT with ws mapped to :scheme http and wss to https, lowercase every emitted HTTP/2 field name, and preserve/validate Origin, Sec-WebSocket-Version, Sec-WebSocket-Protocol, and Sec-WebSocket-Extensions plus ordinary end-to-end cookies/authorization through the normal matrix; validate selected protocol/extensions against the exact original absent/empty/duplicate offers without processing key/accept upstream, then after HTTP/2 2xx locally compute the HTTP/1 accept and commit 101; for HTTP/2 downstream to HTTP/1 upstream, ignore received HTTP/2 key/accept fields for key generation, obtain a fresh v0.69.0 nonce, generate the HTTP/1 key, validate upstream 101/accept and selected negotiation, then translate success to HTTP/2 2xx without copying HTTP/1 accept/Connection/Upgrade; no WebSocket byte crosses until both sides commit, and either-direction failure remains independently HTTP-framed with normal failure-response translation.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6435,7 +6435,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Verification
 
-- Test both translation directions with RFC 6455/RFC 8441 vectors: stripped/generated fields, fresh nonce use, locally generated downstream accept, upstream accept validation, subprotocol/extension mismatch, independent failure responses, cancellation, and zero WebSocket bytes before both commits.
+- Test both directions with RFC 6455/RFC 8441 vectors: ws/wss scheme mapping, lowercase HTTP/2 names, Origin/version preservation, ordinary cookies/authorization, stripped/generated key/accept/Connection/Upgrade, hostile HTTP/2 key/accept noninfluence, fresh nonce, absent versus empty and duplicate offers, selected-but-unoffered protocol/extension, failure translation, cancellation, and zero WebSocket bytes before both commits.
 - Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
 - Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.

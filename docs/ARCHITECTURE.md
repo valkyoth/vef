@@ -53,6 +53,11 @@ authorities, four explicit request-target forms, ordered field lines, message
 heads, trailers, limits, policies, roles, and structured diagnostics. Ordered
 field lines remain authoritative: duplicate order is preserved and values are
 never combined automatically.
+Request-target and URI identity stores raw path separately from an optional raw
+query. It distinguishes no query from an empty query, splits only on the first
+`?`, preserves percent-encoded octets, and keeps decoded/normalized views out
+of routing, forwarding, cache-key, and signature identity. Authority parsing
+has explicit IPv6/IPvFuture, empty-port, userinfo, and malformed-bracket paths.
 `StatusCode` represents only 100..=599, including unregistered valid codes;
 received 600..=999 digits survive only in typed invalid wire evidence for
 client 5xx handling and can never enter valid server/serializer output.
@@ -72,10 +77,11 @@ The parser is an incremental byte-state machine. It does not decode the whole
 message as UTF-8, reparse accepted bytes, scan without limits, allocate from a
 peer length, or continue indefinitely without progress.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
-when the target URI has no authority. Every server accepts absolute-form and
-routes from its target authority rather than Host; forwarding proxies
-regenerate Host. Empty effective authority is rejected or supplied only by an
-explicit connection-context policy, never inferred.
+when the target URI has no authority, but syntax alone is non-routable. Before
+application publication, role policy authorizes target form and derives an
+effective authority: origins accept origin/absolute, forward proxies require
+absolute for ordinary requests, and reverse/interception origin-form requires
+explicit destination context. Defaults are explicit and never inferred.
 
 Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
@@ -97,9 +103,11 @@ mechanics and the success publication barrier, but no WebSocket frame protocol.
 The cross-version gateway is bidirectional. HTTP/1-to-HTTP/2 retains the key
 and generates the downstream accept locally after the RFC 8441 2xx; the reverse
 direction obtains fresh caller entropy and validates the HTTP/1 upstream 101.
-HTTP/2 never processes key/accept fields, settings advertisement requires an
-available endpoint/bridge, failures stay independently HTTP-framed, and data
-handoff waits for both sides to commit.
+HTTP/2 never processes key/accept fields. ws/wss maps to http/https; Origin,
+version, negotiation, cookies, and authorization remain validated end-to-end;
+HTTP/2 names are lowercase. Settings advertisement requires an available
+endpoint/bridge, failures stay independently HTTP-framed, and data handoff
+waits for both sides to commit.
 
 ## HPACK and HTTP/2
 
@@ -134,6 +142,9 @@ Inbound DATA remains borrowed and releases stream and connection credit only
 when acknowledged or explicitly discarded. Outbound HEADERS, DATA, trailers,
 END_STREAM, partial HPACK/frame output, and cancellation share one per-stream
 command lifecycle.
+HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
+reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
+the RFC-required contexts.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -178,6 +189,11 @@ SETTINGS mutations occur atomically before the corresponding ACK is emitted.
 ENABLE_PUSH is integrated by push ownership, ENABLE_CONNECT_PROTOCOL by the
 extended CONNECT boundary, and NO_RFC7540_PRIORITIES by the priority-mode
 state machine with its initial-SETTINGS-only rule.
+Extended CONNECT owns two directional states: peer-enabled outbound initiation
+and committed local inbound advertisement. Only 0/1 is valid, server receipt
+does not enable outbound use, local advertisement takes effect at byte commit,
+and value 1 is irreversible for the connection; later service failure is an
+HTTP outcome, never SETTINGS rollback.
 Authenticated exact `h2` ALPN is the only encrypted HTTP/2 selector. Cleartext
 prior knowledge requires explicit caller policy or a dedicated endpoint; the
 engine never sniffs, guesses a fallback, reuses failed-selection bytes, or

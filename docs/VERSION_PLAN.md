@@ -12,21 +12,23 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review corrected Host/absolute-form authority handling,
-made the WebSocket HTTP/1↔HTTP/2 bridge bidirectional, separated terminal 101
-from ordinary informational/final response flow, and bound the exact
-chunk-extension BWS grammar. These map to existing owners, so the
-dependency-correct roadmap remains at `0.225.0`.
+The latest design review added lossless query identity, moved authority and
+role authorization ahead of request publication, split RFC 8441 SETTINGS by
+direction and commit state, and completed the bidirectional WebSocket special-
+field matrix. These map to existing owners, so the dependency-correct roadmap
+remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
 | Early resource ceilings | `0.7.0`; replay at `0.211.0` | Set measurable ceilings before layouts/state machines land and verify every later component against them. |
 | Capacity versus protocol errors | `0.10.0` | Local storage/backpressure/control-capacity failures never masquerade as peer protocol violations. |
 | Status-code validity | `0.12.0` | Limit StatusCode to 100..=599, preserve unknown valid codes, retain received 600..=999 only as typed invalid wire evidence, process them under client 5xx policy, and prohibit serialization. |
-| Host and absolute-form authority | `0.39.0`, `0.40.0`, `0.156.0` | Accept grammar-valid empty Host, accept absolute-form at all servers, route it by target authority, regenerate proxy Host, and require explicit empty-effective-authority policy/default. |
+| URI path/query identity | `0.17.0`, `0.128.0`, `0.160.0` | Store raw path and optional query separately, preserve absent versus empty query and percent encoding, map exact `:path`, and perform only required empty-path-to-slash conversion. |
+| Pre-publication authority and role policy | `0.39.0`, `0.40.0`, `0.156.0` | Keep Host syntax non-routable until v0.40 applies explicit origin/forward/reverse-proxy form and authority policy; translation reuses the resulting decision. |
 | Terminal 101 response branch | `0.59.0`, `0.60.0`, `0.67.0` | Separate informational-then-final from terminal 101, prohibit HTTP/1.0 1xx emission, complete the request and any required 100 first, and reject all HTTP operations after handoff. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
-| Bidirectional WebSocket bridge | `0.69.0`, `0.162.0`, `0.163.0` | Bridge both HTTP/1→HTTP/2 and HTTP/2→HTTP/1, keep key/accept processing on the HTTP/1 side, gate settings advertisement on availability, and commit both sides before WebSocket bytes. |
+| Directional extended CONNECT setting | `0.139.0`, `0.162.0` | Separate peer-enabled outbound initiation from committed local inbound advertisement, accept only 0/1, prohibit withdrawal after 1, and fail unadvertised inbound requests before publication. |
+| Bidirectional WebSocket bridge | `0.69.0`, `0.162.0`, `0.163.0` | Bridge both directions; map schemes and retained negotiation/end-to-end fields exactly, isolate key/accept processing to HTTP/1, gate settings on availability, and commit both sides before data. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
 | Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |

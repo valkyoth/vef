@@ -58,6 +58,8 @@ query. It distinguishes no query from an empty query, splits only on the first
 `?`, preserves percent-encoded octets, and keeps decoded/normalized views out
 of routing, forwarding, cache-key, and signature identity. Authority parsing
 has explicit IPv6/IPvFuture, empty-port, userinfo, and malformed-bracket paths.
+`ConnectAuthority` is stricter: bracket-aware host plus an explicit checked
+port in 1..=65535, never a scheme default or Host-derived destination.
 `StatusCode` represents only 100..=599, including unregistered valid codes;
 received 600..=999 digits survive only in typed invalid wire evidence for
 client 5xx handling and can never enter valid server/serializer output.
@@ -82,6 +84,10 @@ application publication, role policy authorizes target form and derives an
 effective authority: origins accept origin/absolute, forward proxies require
 absolute for ordinary requests, and reverse/interception origin-form requires
 explicit destination context. Defaults are explicit and never inferred.
+The same gate forms a complete EffectiveTarget using generation-bound
+TrustedRequestContext: fixed listener, authenticated gateway, then adapter
+transport security under explicit conflict policy. Caller ConnectTargetPolicy
+authorizes CONNECT before DNS, dialing, output, or tunnel publication.
 
 Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
@@ -92,6 +98,9 @@ whereas responses can be delimited by close when chunked is non-final or a
 different coding is final. Repeated chunked is malformed; an unsupported valid
 coding is a separate policy outcome. RFC 9931 CONNECT rejection always closes
 and optimistic protocol bytes never re-enter HTTP parsing after failed handoff.
+CONNECT builders carry no content/framing fields; hardened inbound ambiguity
+rejects and closes, successful server responses omit length/transfer fields,
+clients ignore received ones, and every CONNECT response is non-cacheable.
 An HTTP response lifecycle has two terminal shapes: non-101 informational
 responses followed by one final response, or one validated 101 after the full
 request (and any required 100) commits. After 101, only the selected protocol
@@ -208,9 +217,18 @@ authenticated protocol-selection metadata; they never mutate an established
 HTTP engine into a different protocol.
 TLS/runtime adapters also expose authenticated origin inputs needed for safe
 HTTP/2 coalescing; connection-pool policy remains outside VEF.
+Brynja and Aesynx adapters additionally supply generation/connection-bound
+TrustedRequestContext transport-security and configured scheme metadata; core
+never derives TLS state from an adapter, handle, or socket type.
 Translation first builds a protocol-neutral representation and emits no
 destination bytes until effective URI, hop stripping, and the full framing
 matrix validate. CONNECT/Upgrade handoff returns over-read bytes exactly once.
+TRACE/OPTIONS applies Max-Forwards without synthesis, keeps zero local, blocks
+generated TRACE content/secrets, bounds and sanitizes reflection, validates
+OPTIONS Content-Type with content, and marks both response types non-cacheable.
+Tunnel closure drains only already-owned bytes from the closed side under an
+injected deadline/work/byte budget, closes both sides, diagnoses discarded
+bytes, and can never restore HTTP reuse or remain indefinitely half-open.
 
 ## Third-party boundary
 

@@ -12,11 +12,10 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review added lossless query identity, moved authority and
-role authorization ahead of request publication, split RFC 8441 SETTINGS by
-direction and commit state, and completed the bidirectional WebSocket special-
-field matrix. These map to existing owners, so the dependency-correct roadmap
-remains at `0.225.0`.
+The latest design review bound strict CONNECT authority/content policy,
+flush-then-close tunnel draining, complete TRACE/OPTIONS semantics, and trusted
+scheme reconstruction with adapter-authenticated connection context. These map
+to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -24,7 +23,8 @@ remains at `0.225.0`.
 | Capacity versus protocol errors | `0.10.0` | Local storage/backpressure/control-capacity failures never masquerade as peer protocol violations. |
 | Status-code validity | `0.12.0` | Limit StatusCode to 100..=599, preserve unknown valid codes, retain received 600..=999 only as typed invalid wire evidence, process them under client 5xx policy, and prohibit serialization. |
 | URI path/query identity | `0.17.0`, `0.128.0`, `0.160.0` | Store raw path and optional query separately, preserve absent versus empty query and percent encoding, map exact `:path`, and perform only required empty-path-to-slash conversion. |
-| Pre-publication authority and role policy | `0.39.0`, `0.40.0`, `0.156.0` | Keep Host syntax non-routable until v0.40 applies explicit origin/forward/reverse-proxy form and authority policy; translation reuses the resulting decision. |
+| Trusted effective target | `0.19.0`, `0.40.0`, `0.156.0`, `0.203.0`, `0.208.0` | Bind fixed/gateway/transport scheme evidence to connection generation, apply explicit precedence/conflict policy before publication, and reuse the complete scheme/authority/path/query decision. |
+| CONNECT authority and policy | `0.40.0`, `0.64.0`, `0.161.0` | Require explicit checked port 1..=65535, bracket-safe host parsing, no Host/default substitution, caller target authorization before external action, no request content, strict success fields, and non-cacheability. |
 | Terminal 101 response branch | `0.59.0`, `0.60.0`, `0.67.0` | Separate informational-then-final from terminal 101, prohibit HTTP/1.0 1xx emission, complete the request and any required 100 first, and reject all HTTP operations after handoff. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
 | Directional extended CONNECT setting | `0.139.0`, `0.162.0` | Separate peer-enabled outbound initiation from committed local inbound advertisement, accept only 0/1, prohibit withdrawal after 1, and fail unadvertised inbound requests before publication. |
@@ -54,12 +54,14 @@ remains at `0.225.0`.
 | HTTP/1 transfer-coding roles | `0.43.0`–`0.45.0` | Require final chunked on requests, permit response close delimitation for other/non-final transfer codings, reject repeated chunked, and separate unsupported coding from malformed order. |
 | Chunk-extension BWS grammar | `0.50.0` | Accept BWS around semicolon and equals exactly, charge raw whitespace to limits, trim before semantic interpretation, and retain injection/quoting rejection. |
 | RFC 9931 optimistic-data closure | `0.65.0` | Require CONNECT proxy wait-or-close behavior, mandatory close after rejected CONNECT, no pre-101 WebSocket or HTTP/1.x CONNECT-UDP data, and no failed-transition reparsing. |
+| Complete TRACE/OPTIONS semantics | `0.158.0` | Complete Max-Forwards absence/zero behavior, prohibit generated TRACE content/secrets, sanitize bounded reflection, require Content-Type for generated OPTIONS content, and mark responses non-cacheable. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
 | Concrete acceptance contracts | `0.1.0`–`0.225.0` | Eliminate generic state-graph and family templates; every type, parser, codec, protocol, adapter, campaign, audit, and release stop states its actual accepted input, state, error, capacity, and publication evidence. |
 | Intermediary and retry semantics | `0.158.0`, `0.159.0`, `0.182.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
 | Structured Fields and priority | `0.164.0`–`0.179.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
 | Translation and byte handoff | `0.155.0` then `0.160.0`; `0.188.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |
+| Tunnel flush-then-close | `0.186.0` | Drain only already-owned closed-side bytes under injected deadline/work/byte bounds, then close both sides, discard with diagnostics, and prohibit HTTP reuse or indefinite half-open state. |
 | TLS and bare-metal contracts | `0.204.0`–`0.205.0` plus adapter milestones | Enumerate RFC 9113 TLS prerequisites and concrete short-I/O/readiness/deadline/EOF/alignment/scatter-gather behavior. |
 
 ## Standards disposition

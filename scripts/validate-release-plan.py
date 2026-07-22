@@ -121,6 +121,10 @@ def main() -> int:
         or "deferring empty effective-authority accept/reject policy to v0.156.0" in detailed
         or "accept origin-form and absolute-form for ordinary requests at every receiving server role" in detailed
         or "Permit extended CONNECT only after the peer's SETTINGS_ENABLE_CONNECT_PROTOCOL" in detailed
+        or "Accept CONNECT only with authority-form and role authorization" in detailed
+        or "Parse one valid Max-Forwards value, decrement on forwarded TRACE/OPTIONS" in detailed
+        or "local-half-closed, peer-half-closed" in detailed
+        or "derive effective authority from the authorized target, Host, and explicit context" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -211,8 +215,8 @@ def main() -> int:
         "publish only a typed non-routable Host/parser artifact",
         "explicit forward proxies require absolute-form for ordinary proxy requests",
         "never infer a forward-proxy destination from origin-form plus Host",
-        "applying a configured reject-or-explicit-default policy to an empty result",
-        "Reuse the already validated v0.40.0 EffectiveAuthority decision",
+        "applying configured reject-or-explicit-default empty-authority policy",
+        "Reuse the already validated v0.40.0 EffectiveTarget",
         "split :path on its first question mark into raw path and optional raw query",
         "preserve an empty query's trailing `?`",
         "proxies never otherwise modify path/query",
@@ -226,6 +230,34 @@ def main() -> int:
         "Origin, Sec-WebSocket-Version, Sec-WebSocket-Protocol, and Sec-WebSocket-Extensions",
         "ordinary end-to-end cookies/authorization through the normal matrix",
         "ignore received HTTP/2 key/accept fields for key generation",
+        "generation- and connection-bound TrustedRequestContext",
+        "optional fixed-listener scheme, authenticated trusted-gateway scheme",
+        "precedence fixed-listener then trusted-gateway then transport-derived http/https",
+        "reject stale/cross-connection context",
+        "caller-supplied ConnectTargetPolicy",
+        "distinct ConnectAuthority from authority-form",
+        "explicit nonempty decimal port in 1..=65535",
+        "complete EffectiveTarget of trusted scheme",
+        "generation-matched TrustedRequestContext",
+        "before DNS, dialing, upstream bytes, or tunnel publication",
+        "outbound CONNECT builders reject request content, Content-Length, and Transfer-Encoding",
+        "bounded 400 plus mandatory close and never reparses following bytes",
+        "successful server responses forbid Content-Length and Transfer-Encoding",
+        "every CONNECT response carries typed non-cacheable metadata",
+        "never synthesize it when absent, handle zero locally without forwarding",
+        "TRACE client builders reject content, Cookie, Authorization, Proxy-Authorization",
+        "bounded sanitized reflection representation excluding sensitive fields",
+        "OPTIONS client content requires a valid Content-Type",
+        "shared validated ConnectAuthority between HTTP/1 authority-form and HTTP/2",
+        "same ConnectTargetPolicy authorization before DNS, dialing, upstream output, or tunnel publication",
+        "DrainingAfterPeerClose",
+        "TCP EOF, HTTP/2 END_STREAM, RST_STREAM, TLS close_notify, fatal TLS alert",
+        "attempt delivery only of already-owned bytes",
+        "caller-injected drain deadline plus byte/work limits",
+        "discard undelivered bytes with a typed diagnostic",
+        "never remain indefinitely half-open, reopen, or return a tunnel connection to HTTP reuse",
+        "TrustedRequestContext carrying authenticated transport-security state",
+        "never infer TLS from Aesynx handle or socket types",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

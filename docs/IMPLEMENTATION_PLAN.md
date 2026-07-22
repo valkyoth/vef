@@ -205,6 +205,9 @@ URI types retain distinct raw path and optional-query spans, preserve absent
 versus empty query and percent-encoded bytes, and expose normalization only as
 a non-authoritative view. Authority parsing covers IPv6/IPvFuture, ports,
 userinfo rejection, and malformed brackets explicitly.
+Role policy defines generation-bound TrustedRequestContext scheme evidence and
+precedence/conflict handling plus caller-owned CONNECT target authorization;
+socket/runtime types never imply transport security.
 
 ### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.28.0`–`0.81.0`)
 
@@ -216,12 +219,18 @@ isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
 Host parsing accepts the RFC-required empty value but yields only a non-routable
 artifact. The next stop authorizes target form by origin/forward/reverse role,
-derives effective authority under explicit context/reject/default policy, and
-only then publishes a request. Later translation reuses that typed decision.
+derives the full effective scheme/authority/path/query under explicit trusted
+context/reject/default policy, and only then publishes a request. CONNECT uses
+a distinct bracket-safe authority with explicit port 1..=65535 and no default.
+Later translation reuses those typed decisions.
 Request transfer codings require final chunked; responses may instead become
 close-delimited, with repeated chunked and unsupported coding kept distinct.
 RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close,
 and no failed optimistic transition bytes are reparsed as HTTP.
+CONNECT target policy runs before DNS/dial/output/tunnel work; builders attach
+no request content, hardened inbound framing rejects and closes, successful
+server responses emit no length/transfer fields, and all responses are
+non-cacheable.
 Informational responses exclude 101: an exchange ends through either ordinary
 1xx then one final response, or one validated terminal 101 after complete
 request processing (and required 100), after which every HTTP operation fails.
@@ -270,6 +279,9 @@ fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 The matrix carries raw path plus optional query into/out of `:path`, preserves
 empty-query and percent-encoded identity, and only inserts `/` for an empty path
 where the RFC requires it.
+TRACE/OPTIONS completes Max-Forwards without synthesis, safe zero handling,
+content/sensitive-field builder rules, bounded sanitized reflection, required
+OPTIONS Content-Type, and non-cacheable responses.
 Extended CONNECT keeps peer-enabled outbound initiation separate from locally
 advertised inbound acceptance. Advertisement becomes effective at SETTINGS
 byte commit, accepts only 0/1, cannot be withdrawn after 1, and never rolls
@@ -279,6 +291,10 @@ leaks into RFC 8441, ws/wss and retained negotiation/end-to-end fields map
 exactly with lowercase HTTP/2 names, hostile HTTP/2 key/accept fields cannot
 influence fresh HTTP/1 keys, the reverse direction consumes caller entropy,
 and no WebSocket data crosses before both handshakes commit.
+Tunnel closure enters bounded draining of already-owned closed-side bytes,
+then closes both sides and diagnoses discarded bytes for EOF, END_STREAM,
+reset, TLS closure/alert, cancellation, timeout, or failure; it never reuses
+the connection as HTTP.
 PRIORITY_UPDATE request and push targets use one receiver-server-relative state
 convention, including reserved-local and half-closed-remote push targets.
 
@@ -289,7 +305,9 @@ separate first-party adapter, enforce concrete RFC 9113 TLS admission and
 termination/alert/EOF mapping, prohibit TLS 1.3 early data for 1.0, prove
 short-I/O/readiness/deadline/alignment/scatter-gather Aesynx behavior, and
 enforce deterministic CPU, stack, code-size, amplification,
-fragmentation-cost, and scheduler-fairness budgets. Finish the
+fragmentation-cost, and scheduler-fairness budgets. Brynja and Aesynx adapters
+inject authenticated, connection-generation-bound TrustedRequestContext rather
+than allowing core to infer TLS from handles. Finish the
 target/architecture matrix, replay and expand the Kani and stateful fuzz
 harnesses created with each component,
 interoperability, whole-project pentest, independent audit, remediation, API

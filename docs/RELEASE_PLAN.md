@@ -771,7 +771,7 @@ on v0.18.0 (Request and response control-data types) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Use exhaustive client, origin, intermediary, proxy, gateway, and tunnel roles plus named strict/compatibility profiles; make every policy choice explicit and immutable for a message, reject unsupported combinations, and never infer role from input bytes.
+- Acceptance contract: Use exhaustive client, origin, intermediary, proxy, gateway, and tunnel roles plus named strict/compatibility profiles; define generation- and connection-bound TrustedRequestContext with optional fixed-listener scheme, authenticated trusted-gateway scheme, and adapter-supplied authenticated transport-security state; apply explicit precedence fixed-listener then trusted-gateway then transport-derived http/https, reject disagreement by default unless an immutable named policy authorizes the higher-priority source, reject stale/cross-connection context, and never infer security from socket or runtime types; include a caller-supplied ConnectTargetPolicy for host/port authorization; make every policy choice immutable for a message, reject unsupported combinations, and never infer role from input bytes.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -783,7 +783,7 @@ on v0.18.0 (Request and response control-data types) and must be independently t
 
 #### Verification
 
-- Test Role, profile, and policy types and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test every TrustedRequestContext source/absence/precedence/conflict, TLS-termination override policy, stale generation and cross-connection reuse, socket-type noninference, ConnectTargetPolicy allow/deny/error, every role/profile combination, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1594,7 +1594,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: Let the generic parser recognize all four target forms, then authorize them by role before any routable or application-visible request event: origin servers accept origin-form and absolute-form; explicit forward proxies require absolute-form for ordinary proxy requests; reverse/interception proxies accept origin-form only with explicit connection/listener destination context and never infer a forward-proxy destination from origin-form plus Host; require authority-form only for CONNECT and asterisk-form only for server-wide OPTIONS; derive effective authority from the authorized target, Host, and explicit context, applying a configured reject-or-explicit-default policy to an empty result; for absolute-form use only target authority for routing, ignore received Host, and regenerate forwarding Host; reject fragments, empty targets, unauthorized forms, ambiguity, and method/form mismatch before routing/application publication while preserving unknown methods as case-sensitive tokens.
+- Acceptance contract: Let the generic parser recognize all four target forms, then authorize them by role before any routable or application-visible request event: origin servers accept origin-form and absolute-form; explicit forward proxies require absolute-form for ordinary proxy requests; reverse/interception proxies accept origin-form only with explicit connection/listener destination context and never infer a forward-proxy destination from origin-form plus Host; require asterisk-form only for server-wide OPTIONS; for CONNECT construct a distinct ConnectAuthority from authority-form with bracket-aware host plus an explicit nonempty decimal port in 1..=65535, rejecting zero, overflow, truncation, empty/invalid port, scheme-default substitution, and Host-based routing; derive a complete EffectiveTarget of trusted scheme, effective authority or ConnectAuthority, raw path, and optional raw query from the generation-matched TrustedRequestContext, authorized target, Host, and explicit context, applying configured reject-or-explicit-default empty-authority policy; for absolute-form use only target authority, ignore Host, and regenerate forwarding Host; reject stale context, scheme-source conflict, fragments, empty targets, unauthorized forms, ambiguity, and method/form mismatch before routing/application publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1606,7 +1606,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Verification
 
-- Test origin-server origin/absolute-form, forward-proxy rejection of origin-form, reverse/interception origin-form with missing/present explicit destination context, empty-authority reject/default policy, target-authority/Host conflicts proving the target wins, regenerated forwarding Host, every unauthorized form/method mismatch, zero application events before authority success, and all previously implemented relevant behavior.
+- Test trusted scheme sources/precedence/conflicts and context generations; bracketed IPv6 CONNECT with explicit port; empty, zero, nondecimal, overflow, >65535, and default-substitution ports; CONNECT Host mismatch proving authority-form wins; origin/absolute-form role policy, explicit reverse context, empty-authority reject/default, regenerated Host, every unauthorized form/method mismatch, and zero application events before EffectiveTarget success.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2531,7 +2531,7 @@ on v0.63.0 (1xx, 204, 304, and body-forbidden response handling) and must be ind
 
 #### Deliverables
 
-- Acceptance contract: Accept CONNECT only with authority-form and role authorization; on a final 2xx response ignore Content-Length and Transfer-Encoding for framing, atomically end HTTP parsing, and hand over each over-read byte exactly once, while every non-2xx remains an ordinary response and cannot publish a tunnel.
+- Acceptance contract: Accept CONNECT only with the v0.40.0 validated ConnectAuthority and role authorization; before DNS, dialing, upstream bytes, or tunnel publication require caller ConnectTargetPolicy approval for its exact host and 1..=65535 port, with no Host routing or scheme default; outbound CONNECT builders reject request content, Content-Length, and Transfer-Encoding; hardened inbound policy rejects any CONNECT carrying Content-Length or Transfer-Encoding with bounded 400 plus mandatory close and never reparses following bytes; successful server responses forbid Content-Length and Transfer-Encoding while clients ignore either if received, every CONNECT response carries typed non-cacheable metadata, a final 2xx atomically ends HTTP parsing and hands over each over-read byte once, and non-2xx remains ordinary HTTP without tunnel publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2543,7 +2543,7 @@ on v0.63.0 (1xx, 204, 304, and body-forbidden response handling) and must be ind
 
 #### Verification
 
-- Test CONNECT request and successful tunnel transition and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test ConnectTargetPolicy before every external/output action, safe/unsafe ports, bracketed IPv6, Host disagreement, builder and inbound content/framing rejection with close/no-reparse, successful response field serialization prohibition/client ignore, non-cacheable metadata, 2xx/non-2xx byte handoff, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6150,7 +6150,7 @@ on v0.155.0 (Protocol-neutral HTTP translation representation) and must be indep
 
 #### Deliverables
 
-- Acceptance contract: Reuse the already validated v0.40.0 EffectiveAuthority decision rather than introducing or changing authority policy during translation; carry scheme, authority, port, raw path, optional raw query, request-target form, Host/:authority disposition, CONNECT tunnel authority, and end-origin identity without normalization; preserve absent versus empty query and percent-encoded octets, use absolute-form target authority rather than Host, and accept an empty authority only when the earlier explicit connection-context default produced the decision; reject decision/context mismatch before translation IR publication and distinguish syntax, policy, and caller-capacity failures.
+- Acceptance contract: Reuse the already validated v0.40.0 EffectiveTarget and its generation-bound TrustedRequestContext rather than introducing or changing scheme/authority policy during translation; carry trusted scheme, authority/port, raw path, optional raw query, request-target form, Host/:authority disposition, validated ConnectAuthority, and end-origin identity without normalization; preserve query/percent encoding, use absolute-form target authority rather than Host, accept an empty authority only from the earlier explicit default, and reject decision/context mismatch before translation IR publication with distinct syntax, policy, and caller-capacity failures.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6228,7 +6228,7 @@ on v0.157.0 (Connection-field stripping, Via, and cache preservation) and must b
 
 #### Deliverables
 
-- Acceptance contract: Parse one valid Max-Forwards value, decrement on forwarded TRACE/OPTIONS, handle zero locally by role, define malformed/duplicate disposition, and preserve or ignore it correctly for other methods.
+- Acceptance contract: Parse one valid Max-Forwards value, decrement only a received value on forwarded TRACE/OPTIONS, never synthesize it when absent, handle zero locally without forwarding, define malformed/duplicate disposition, and preserve or ignore it correctly for other methods; TRACE client builders reject content, Cookie, Authorization, Proxy-Authorization, and caller-marked sensitive fields, while a final TRACE responder produces only a bounded sanitized reflection representation excluding sensitive fields; OPTIONS client content requires a valid Content-Type; TRACE and OPTIONS responses carry typed non-cacheable metadata.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6240,6 +6240,7 @@ on v0.157.0 (Connection-field stripping, Via, and cache preservation) and must b
 
 #### Verification
 
+- Test absent Max-Forwards remains absent, decrement/zero-local/no-forward behavior, malformed/duplicate values, TRACE builder content and sensitive-field rejection, bounded sanitized reflection, zero reflection leakage, OPTIONS content with missing/invalid/valid Content-Type, and non-cacheable response metadata.
 - Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
@@ -6345,7 +6346,7 @@ on v0.160.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be indepen
 
 #### Deliverables
 
-- Acceptance contract: Translate HTTP/1 CONNECT authority-form to HTTP/2 :method CONNECT plus :authority with no :scheme/:path and reverse it exactly; map non-2xx as ordinary responses, publish a tunnel only after the successful destination response commits, and buffer/return optimistic or over-read bytes exactly once without HTTP reinterpretation.
+- Acceptance contract: Translate only the shared validated ConnectAuthority between HTTP/1 authority-form and HTTP/2 :method CONNECT plus :authority with no :scheme/:path; preserve bracketed host and explicit 1..=65535 port exactly, never derive it from Host or apply a scheme default, and require the same ConnectTargetPolicy authorization before DNS, dialing, upstream output, or tunnel publication in either direction; reject request content/framing according to source protocol, forbid Content-Length/Transfer-Encoding on generated successful HTTP/1 CONNECT responses, mark all CONNECT responses non-cacheable, map non-2xx as ordinary responses, publish a tunnel only after destination success commits, and hand optimistic/over-read bytes exactly once.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6357,7 +6358,7 @@ on v0.160.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be indepen
 
 #### Verification
 
-- Test CONNECT translation across HTTP versions and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test identical ConnectAuthority and authorization decisions in both directions, all port/bracket/Host-conflict cases, request-content rejection, successful response field stripping/prohibition, non-cacheable metadata, non-2xx mapping, exactly-once bytes, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -7325,7 +7326,7 @@ on v0.185.0 (Reverse-proxy and gateway role API) and must be independently trust
 
 #### Deliverables
 
-- Acceptance contract: Model pending, committed, bidirectional, local-half-closed, peer-half-closed, cancelling, and closed tunnel states with bounded buffers, one owner per direction, explicit cancellation, EOF, TLS close_notify, and mandatory-close outcomes.
+- Acceptance contract: Model pending, committed, bidirectional, DrainingAfterPeerClose, cancelling, and closed tunnel states with bounded buffers and one owner per direction; map TCP EOF, HTTP/2 END_STREAM, RST_STREAM, TLS close_notify, fatal TLS alert, transport failure, and local cancellation to explicit closure causes; once either side closes, accept no new bytes from that direction, attempt delivery only of already-owned bytes from it under caller-injected drain deadline plus byte/work limits, then close the opposite side after success, timeout, cancellation, or failure and discard undelivered bytes with a typed diagnostic; never remain indefinitely half-open, reopen, or return a tunnel connection to HTTP reuse.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7337,7 +7338,7 @@ on v0.185.0 (Reverse-proxy and gateway role API) and must be independently trust
 
 #### Verification
 
-- Test Tunnel lifecycle and half-close semantics and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test every closure cause from both directions at every buffered-byte and partial-write boundary, refusal of new closed-direction bytes, drain success/deadline/byte/work exhaustion/cancellation/failure, opposite close, typed discard counts, no HTTP reuse, bounded termination, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -7992,7 +7993,7 @@ on v0.202.0 (Brynja TLS provider contract and admission review) and must be inde
 
 #### Deliverables
 
-- Acceptance contract: Map every admitted Brynja handshake/progress/alert/EOF metadata state into vef-io capabilities and typed TLS outcomes without inference, hidden buffering, reentrancy, protocol fallback, or dependency leakage into protocol crates.
+- Acceptance contract: Map every admitted Brynja handshake/progress/alert/EOF metadata state into vef-io capabilities and typed TLS outcomes plus a generation/connection-bound TrustedRequestContext carrying authenticated transport-security state and any configured fixed/trusted-gateway scheme; reject missing, stale, or conflicting context and never infer security from socket/runtime types, hidden buffering, reentrancy, protocol fallback, or dependency leakage into protocol crates.
 - Preserve the phase invariant: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8188,7 +8189,7 @@ on v0.207.0 (Aesynx fixed-memory capability profile) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Prove short I/O, WouldBlock, spurious edge/level readiness, wake coalescing, EOF/starvation distinction, alignment, cancellation, and scalar fallback against the fixed-memory profile.
+- Acceptance contract: Prove short I/O, WouldBlock, spurious edge/level readiness, wake coalescing, EOF/starvation distinction, alignment, cancellation, and scalar fallback against the fixed-memory profile; inject a generation/connection-bound TrustedRequestContext with explicit configured scheme/gateway and authenticated transport-security capability, reject stale/conflicting metadata, and never infer TLS from Aesynx handle or socket types.
 - Preserve the phase invariant: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

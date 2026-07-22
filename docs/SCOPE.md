@@ -72,10 +72,18 @@ only through a resource-profile-capped engine permit.
 Equal overlap deduplicates; conflicting bytes publish nothing and
 quarantine the context under a dedicated comparison budget until complete 200
 replacement or a destroyed-and-new different-validator representation context.
-Every assembly-enabled correlation reserves a linear engine-only target/
+Every assembly-enabled local correlation reserves a linear engine-only target/
 principal/partition/navigation invalidation namespace from isolated per-shard
-capacity before any request output. Exhaustion returns zero-byte/no-correlation
-AssemblyInvalidationCapacity backpressure, never rotation or untracked admission.
+capacity before request output. Accepted HTTP/2 push finishes its complete
+PUSH_PROMISE/CONTINUATION and semantic validation, derives identity only from
+the associated local request/caller policy, and atomically reserves its promised
+slot plus the same handle before publication. Local exhaustion returns zero-byte/
+no-correlation AssemblyInvalidationCapacity backpressure. Push exhaustion stays
+HPACK-synchronized, publishes no promised request/correlation or partial authority,
+rolls both reservations back, and schedules stream-local CANCEL through mandatory
+control capacity while field blocks drain synchronization-only and DATA is
+discarded with normal receive-credit accounting; neither path rotates an arena
+or admits an untracked request.
 The exact correlation holds its non-Copy/non-Clone handle across informational
 responses and terminal-event backpressure, releases it once at a terminal
 disposition, and a retry reserves independently. Every completed framing- and

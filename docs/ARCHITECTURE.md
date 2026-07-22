@@ -225,7 +225,18 @@ is connection PROTOCOL_ERROR; promised semantic failures reset only the
 promised stream. Reserved pushes use their own slot/work budget and do not
 count against MAX_CONCURRENT_STREAMS until the response opens; sender and
 receiver associated-state perspectives, promised ID, GOAWAY and opening commit
-atomically. Pushed response metadata forbids storage when non-cacheable.
+atomically. The validated request and trusted push-policy provenance remain in
+an unpublished rollback-capable admission transaction. Once partial assembly
+exists at v0.181.0, a receiving client completes PUSH_PROMISE/CONTINUATION and
+HPACK/semantic/authority/cacheability validation, then atomically adds a
+correlation-bound invalidation handle before publication. Its target comes from
+the promised request; principal/partition/tenant/navigation come only from the
+associated local request and caller policy. Slot or handle failure publishes
+nothing, rolls both back, and schedules mandatory-control RST_STREAM(CANCEL)
+while any arriving promised response field block drains synchronization-only
+and DATA is discarded with normal receive-credit accounting;
+the associated stream remains unchanged. Pushed response metadata forbids
+storage when non-cacheable.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -371,13 +382,16 @@ emit no output, return `ConflictingPartialContent`, and quarantine the full
 context and validator association. Only complete same-key 200 replacement or
 destruction followed by a different-validator/new-generation empty context can
 clear it; 304, unchanged revalidation, and separate selection contexts cannot.
-Before request output or correlation creation, assembly-enabled requests reserve
-an engine-only, non-Copy/non-Clone target/principal/partition/navigation
-invalidation handle bound to that exact correlation. Optional peer-driven work
-and other shards cannot consume its fixed per-shard pool. Exhaustion returns
-local AssemblyInvalidationCapacity with zero request bytes/no correlation and
-ordinary Sans-I/O backpressure; it never rotates an arena or admits an untracked
-request. The handle survives informational responses and terminal-event
+Before output or correlation creation, assembly-enabled locally initiated
+requests reserve an engine-only, non-Copy/non-Clone target/principal/partition/
+navigation invalidation handle bound to that exact correlation; accepted push
+reserves the same capability at its post-HPACK prepublication gate. Optional
+peer-driven work and other shards cannot consume its fixed per-shard pool.
+Local exhaustion returns AssemblyInvalidationCapacity with zero request bytes/
+no correlation and ordinary Sans-I/O backpressure; push exhaustion publishes no
+promised request/correlation and uses the synchronized stream-local rejection
+path above. Neither rotates an arena or admits an untracked request. The handle
+survives informational responses and terminal-event
 backpressure, releases exactly once at final completion/cancellation/reset/
 connection failure/retry disposition, and cannot be duplicated or rebound for a
 retry. Per-shard/per-connection admission limits bound stalled handles. When a

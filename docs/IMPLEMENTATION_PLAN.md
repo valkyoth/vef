@@ -95,10 +95,14 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   normalization runs once under profile caps, retains canonical bytes without a
   redundant sensitive raw copy, and comparisons never reparse. Physical reuse
   waits for every body/identity/output lease despite semantic invalidation.
-- Assembly-enabled correlation reserves a linear engine-only target/principal/
-  partition/navigation invalidation handle before any request output. Per-shard
-  exhaustion returns zero-byte/no-correlation AssemblyInvalidationCapacity and
-  Sans-I/O backpressure, never rotation or untracked admission. Hold the handle
+- Assembly-enabled local correlation reserves a linear engine-only target/
+  principal/partition/navigation invalidation handle before request output;
+  accepted push atomically reserves its slot plus a trusted-associated-request-
+  derived handle after complete HPACK/semantic validation and before publication.
+  Local exhaustion returns zero-byte/no-correlation AssemblyInvalidationCapacity
+  backpressure; push exhaustion stays synchronized, publishes nothing, rolls
+  back both reservations, and uses mandatory-control RST_STREAM(CANCEL). Hold the
+  handle
   through terminal backpressure, release it once at a terminal disposition, and
   reserve independently for retries. A completed valid 200 invalidates by exact
   key or within that namespace; absent coding/domain refinement widens only its
@@ -393,7 +397,9 @@ client-originated push is a connection error, promised semantic failure is
 isolated to the promised stream, reserved slots/work are bounded separately,
 reservation is legal at peer concurrency zero, and concurrency applies only
 when the promised response opens. Sender/receiver associated-state,
-ID/GOAWAY/opening commit is atomic. Non-cacheable responses are unstorable.
+ID/GOAWAY/opening commit is atomic. Keep validated promised input/provenance and
+the slot rollback-capable until publication; v0.181.0 atomically adds the
+invalidation handle at this gate. Non-cacheable responses are unstorable.
 Retain independent budgets, mandatory ACK tracking, reserved output, and flood
 defenses.
 
@@ -457,9 +463,16 @@ profile-capped non-resettable budget. Conflicting bytes are quarantined with
 zero output until complete replacement or a
 destroyed-and-new different-validator representation context. Correlation
 admission reserves a non-Copy/non-Clone target/principal/partition/navigation
-invalidation handle from isolated per-shard capacity before output; exhaustion
-produces zero-byte AssemblyInvalidationCapacity backpressure and no correlation
-or rotation. The exact correlation holds it through terminal-event backpressure
+invalidation handle from isolated per-shard capacity before local output. Push
+admission instead finishes PUSH_PROMISE/CONTINUATION synchronization and all
+semantics, derives identity only from the associated local request/caller policy,
+then atomically reserves the promised slot plus handle before publication.
+Local exhaustion produces zero-byte AssemblyInvalidationCapacity backpressure;
+push exhaustion publishes no correlation, rolls both reservations back, and
+issues mandatory-control stream-local CANCEL while draining any arriving header
+block synchronization-only and discarding DATA with normal receive-credit
+accounting. Neither rotates an arena. The exact correlation holds it through
+terminal-event backpressure
 and releases once; a retry reserves independently. Completed 200
 fallbacks invalidate by exact key or that namespace, widening only its coding/
 domain children when refinement is unavailable; whole-arena rotation is limited

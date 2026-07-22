@@ -71,6 +71,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   explicitly discarded DATA octets, never merely because a frame was parsed.
 - HTTP/2 outbound HEADERS, DATA, trailers, END_STREAM, partial output, and
   cancellation follow one generation-checked per-stream command lifecycle.
+  END_STREAM command acceptance seals the application send direction; only
+  complete carrying-frame acknowledgement changes wire state, while partial
+  output/failure does not and fragmented HEADERS retain CONTINUATION ownership.
 - Internal receive-credit accounting is distinct from bounded, coalesced
   WINDOW_UPDATE emission; padding cannot drive one control frame per DATA frame.
 - Unknown HTTP/2 frames are bounded, incrementally drained, state-neutral, and
@@ -411,9 +414,13 @@ HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
 Keep policy disposition orthogonal to the RFC stream state and reset-output
 progress/reason/reservation, remote-closure record, first-closure cause,
 terminal state/semantic stage, and active block. Normalize HEADERS/DATA,
-END_STREAM, peer reset, and fully acknowledged local reset separately:
-HEADERS+END_STREAM can close while fragmented
-CONTINUATION still owns HPACK; half-closed(local) rejected DATA+END_STREAM uses
+remote END_STREAM, peer reset, fully acknowledged local END_STREAM, and fully
+acknowledged local reset separately. Local END_STREAM command acceptance seals
+later application sends without changing wire state; full carrying-frame
+acknowledgement moves Open to half-closed(local) or half-closed(remote) to Closed.
+Normalized inbound HEADERS+END_STREAM or a fully acknowledged outbound carrying
+HEADERS can transition while fragmented CONTINUATION still owns HPACK;
+half-closed(local) rejected DATA+END_STREAM uses
 normal discard credit before closure; reserved(remote) DATA remains connection
 PROTOCOL_ERROR. HPACK completion transfers PendingFieldBlock plus one sealed
 `TerminalFieldSectionLease` to the first semantic stage, never Valid, and frees
@@ -583,8 +590,10 @@ exactly with lowercase HTTP/2 names, hostile HTTP/2 key/accept fields cannot
 influence fresh HTTP/1 keys, the reverse direction consumes caller entropy,
 and no WebSocket data crosses before both handshakes commit.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
-closes both sides, while HTTP/2/RFC8441 END_STREAM forwards a directional FIN
-and preserves reverse traffic until both directions finish. Reset, TCP error,
+closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
+only full acknowledgement of its END_STREAM-carrying frame enters wire
+half-close; reverse traffic continues until both wire directions finish. Reset,
+TCP error,
 fatal alert, cancellation, or connection error aborts both; half-close timeout
 is injected and no tunnel returns to HTTP reuse.
 PRIORITY_UPDATE request and push targets use one receiver-server-relative state

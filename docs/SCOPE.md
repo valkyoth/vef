@@ -111,10 +111,19 @@ unfreeze it, positive progress resumes only at the suffix, and invalid tokens ar
 state-neutral. Reserved or Frozen output through acknowledged byte 12 does not
 close the RFC stream: inbound frames still use its prior wire state. Only
 acknowledged byte 13 completes local reset and closes once; an earlier peer
-reset/END_STREAM remains the first closure cause, while local output completion
-is recorded without a second transition. Connection failure records only
-acknowledged bytes and no incomplete local-reset transition; tolerated DATA
+reset or remote END_STREAM that actually performed the final transition remains
+the first closure cause, while local output completion is recorded without a
+second transition. Remote END_STREAM received in Open creates
+half-closed(remote), so a later completed local reset performs the close and owns
+its cause. Connection failure records only acknowledged bytes and no incomplete
+local-reset transition; tolerated DATA
 after actual closure restores connection credit without stream WINDOW_UPDATE.
+For normal outbound HEADERS, DATA, trailers, or empty DATA carrying END_STREAM,
+command acceptance seals later application sends but leaves wire state intact.
+Only acknowledgement of the complete carrying frame emits
+`LocalEndStreamComplete`; partial/failing output cannot claim half-close or
+close, peer-first closure remains authoritative, and fragmented HEADERS retain
+CONTINUATION/HPACK ownership after their directional transition.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

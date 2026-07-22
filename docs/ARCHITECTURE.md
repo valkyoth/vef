@@ -224,7 +224,12 @@ status validation, status 101 rejection, and trailer pseudo-field rejection.
 Inbound DATA remains borrowed and releases stream and connection credit only
 when acknowledged or explicitly discarded. Outbound HEADERS, DATA, trailers,
 END_STREAM, partial HPACK/frame output, and cancellation share one per-stream
-command lifecycle.
+command lifecycle. Accepting an END_STREAM-bearing command seals the local
+application send direction but does not mutate RFC wire state. Only full-frame
+acknowledgement emits `LocalEndStreamComplete`: Open becomes half-closed(local),
+or half-closed(remote) becomes Closed. Partial output and failure claim neither;
+HEADERS completion performs the transition even when CONTINUATION/HPACK
+ownership remains live until END_HEADERS.
 HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
 reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
 the RFC-required contexts.
@@ -279,9 +284,12 @@ wire state unchanged, so every inbound frame still uses the prior
 reserved/open/half-closed legality and credit rules. Acknowledging byte 13
 records output completion and applies one local-reset transition to Closed only
 if remote END_STREAM or peer RST_STREAM did not close it first. Remote closure
-is retained independently, and immutable first-closure attribution is never
-overwritten by later local completion; the frozen suffix still completes while
-the connection is usable. Partial-prefix connection failure performs cleanup
+is retained independently. `FirstWireClosureCause` distinguishes completed
+local reset, completed ordinary local END_STREAM, peer reset, and a remote
+END_STREAM that actually performed the final close; an END_STREAM received in
+Open only creates half-closed(remote). Immutable first-closure attribution is
+never overwritten by later local completion; the frozen suffix still completes
+while the connection is usable. Partial-prefix connection failure performs cleanup
 without claiming reset completion or a local wire transition.
 A generation-checked associated-stream tombstone
 also accepts an in-flight PUSH_PROMISE after completed local reset: it completes

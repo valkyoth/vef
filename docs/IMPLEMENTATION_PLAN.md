@@ -95,17 +95,21 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   normalization runs once under profile caps, retains canonical bytes without a
   redundant sensitive raw copy, and comparisons never reparse. Physical reuse
   waits for every body/identity/output lease despite semantic invalidation.
+- A live/reserved HTTP/2 slot converts in place to a generation-bound rejection
+  tombstone or preflights cutoff storage before release; an accepted ID is never
+  untracked, and tracking failure retains it through typed bounded shutdown.
 - Assembly-enabled local correlation reserves a linear engine-only target/
-  principal/partition/navigation invalidation handle before request output;
-  accepted push atomically reserves its slot plus a trusted-associated-request-
-  derived handle after complete HPACK/semantic validation and before publication.
-  Local exhaustion returns zero-byte/no-correlation AssemblyInvalidationCapacity
-  backpressure; push exhaustion stays synchronized, publishes nothing, rolls
-  back both reservations, and uses mandatory-control RST_STREAM(CANCEL). Hold the
-  handle
-  through terminal backpressure, release it once at a terminal disposition, and
-  reserve independently for retries. A completed valid 200 invalidates by exact
-  key or within that namespace; absent coding/domain refinement widens only its
+  principal/partition/navigation invalidation handle before request output.
+  Accepted push atomically preflights its slot, handle, independent minimal
+  immutable `PushedAssemblyProvenance`, and rejection/cutoff tracking after
+  complete HPACK/semantic validation and before publication. Local exhaustion
+  returns zero-byte/no-correlation AssemblyInvalidationCapacity backpressure;
+  push capacity failure converts the provisional slot in place, publishes
+  nothing, and uses mandatory-control RST_STREAM(CANCEL), or tracked shutdown if
+  rejection state is unavailable. Hold the handle/provenance through terminal
+  backpressure, release it once at a terminal disposition, and reserve
+  independently for retries. A completed valid 200 invalidates by exact key or
+  within that namespace; absent coding/domain refinement widens only its
   children. Arena rotation is internal invariant/trusted-storage corruption or
   caller policy only, never peer invalidity, conflict, or capacity.
 - Mandatory generated responses retain engine-only semantic-validation slots
@@ -179,7 +183,8 @@ head/chunk/completion streaming, optional retained-prefix validation,
 generation-safe cross-request assembly contexts, structurally safe stored-byte/
 output leases, exact redacted Vary identity leases/fixed storage, trailer-
 finalized combination refinement, one-time canonical normalization, reserved-
-namespace/keyed full-200 replacement evidence, borrow-aware reclamation,
+namespace/keyed full-200 replacement evidence, independently leased immutable
+pushed-assembly provenance, borrow-aware reclamation,
 requested/profile-capped
 active work budgets, and bounded copy/header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
@@ -398,8 +403,10 @@ isolated to the promised stream, reserved slots/work are bounded separately,
 reservation is legal at peer concurrency zero, and concurrency applies only
 when the promised response opens. Sender/receiver associated-state,
 ID/GOAWAY/opening commit is atomic. Keep validated promised input/provenance and
-the slot rollback-capable until publication; v0.181.0 atomically adds the
-invalidation handle at this gate. Non-cacheable responses are unstorable.
+the slot rollback-capable until publication; its slot converts directly to a
+rejection tombstone and is never temporarily idle. v0.181.0 atomically adds the
+invalidation handle, independently leased pushed provenance, and rejection/
+cutoff capacity at this gate. Non-cacheable responses are unstorable.
 Retain independent budgets, mandatory ACK tracking, reserved output, and flood
 defenses.
 
@@ -466,14 +473,17 @@ admission reserves a non-Copy/non-Clone target/principal/partition/navigation
 invalidation handle from isolated per-shard capacity before local output. Push
 admission instead finishes PUSH_PROMISE/CONTINUATION synchronization and all
 semantics, derives identity only from the associated local request/caller policy,
-then atomically reserves the promised slot plus handle before publication.
+then atomically preflights the promised slot, handle, independent minimal
+immutable provenance lease/copy, and rejection/cutoff tracking before publication.
 Local exhaustion produces zero-byte AssemblyInvalidationCapacity backpressure;
-push exhaustion publishes no correlation, rolls both reservations back, and
-issues mandatory-control stream-local CANCEL while draining any arriving header
-block synchronization-only and discarding DATA with normal receive-credit
-accounting. Neither rotates an arena. The exact correlation holds it through
-terminal-event backpressure
-and releases once; a retry reserves independently. Completed 200
+push capacity failure publishes no correlation, converts the provisional slot
+in place, and issues mandatory-control stream-local CANCEL while retaining the
+tombstone through output/peer-state classification and draining header blocks/
+DATA safely. Unrepresentable tracking retains the slot through typed bounded
+shutdown. Neither rotates an arena. The exact correlation holds its handle and
+provenance independently of associated-stream teardown, buffer reuse, or later
+policy changes through terminal-event backpressure and releases once; a retry
+reserves independently. Completed 200
 fallbacks invalidate by exact key or that namespace, widening only its coding/
 domain children when refinement is unavailable; whole-arena rotation is limited
 to internal invariant/trusted-storage corruption or caller policy, never peer

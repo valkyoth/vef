@@ -76,17 +76,24 @@ Every assembly-enabled local correlation reserves a linear engine-only target/
 principal/partition/navigation invalidation namespace from isolated per-shard
 capacity before request output. Accepted HTTP/2 push finishes its complete
 PUSH_PROMISE/CONTINUATION and semantic validation, derives identity only from
-the associated local request/caller policy, and atomically reserves its promised
-slot plus the same handle before publication. Local exhaustion returns zero-byte/
-no-correlation AssemblyInvalidationCapacity backpressure. Push exhaustion stays
-HPACK-synchronized, publishes no promised request/correlation or partial authority,
-rolls both reservations back, and schedules stream-local CANCEL through mandatory
-control capacity while field blocks drain synchronization-only and DATA is
-discarded with normal receive-credit accounting; neither path rotates an arena
-or admits an untracked request.
-The exact correlation holds its non-Copy/non-Clone handle across informational
-responses and terminal-event backpressure, releases it once at a terminal
-disposition, and a retry reserves independently. Every completed framing- and
+the associated local request/caller policy, and atomically preflights its
+promised slot, the same handle, independent minimal immutable pushed provenance,
+and rejection/cutoff tracking before publication. The provenance is arena/
+generation-bound, never borrows recyclable associated-stream storage, and
+survives associated-stream teardown and later identity/policy changes. Local
+exhaustion returns zero-byte/no-correlation `AssemblyInvalidationCapacity`
+backpressure. Pushed-provenance exhaustion returns
+`PushedAssemblyProvenanceCapacity`; other push capacity failure likewise stays
+HPACK-synchronized, publishes no promised request/correlation or partial
+authority, converts the already tracked slot in place to a rejection tombstone,
+and schedules stream-local CANCEL through mandatory control capacity while
+field blocks/DATA drain safely. The tombstone survives until output and peer
+cutoff classify later traffic; unrepresentable tracking retains the slot through
+typed bounded connection shutdown. Neither path rotates an arena or admits an
+untracked request. The exact correlation holds its non-Copy/non-Clone handle and
+pushed provenance across informational responses and terminal-event
+backpressure, releases each once at a terminal disposition, and a retry reserves
+independently. Every completed framing- and
 semantics-valid 200 invalidates by exact key or across all Vary/validator
 siblings in that namespace, widening only across
 its coding/domain children when refinement is unavailable. Peer input and all

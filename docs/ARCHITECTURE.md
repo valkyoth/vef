@@ -226,17 +226,26 @@ promised stream. Reserved pushes use their own slot/work budget and do not
 count against MAX_CONCURRENT_STREAMS until the response opens; sender and
 receiver associated-state perspectives, promised ID, GOAWAY and opening commit
 atomically. The validated request and trusted push-policy provenance remain in
-an unpublished rollback-capable admission transaction. Once partial assembly
-exists at v0.181.0, a receiving client completes PUSH_PROMISE/CONTINUATION and
-HPACK/semantic/authority/cacheability validation, then atomically adds a
-correlation-bound invalidation handle before publication. Its target comes from
-the promised request; principal/partition/tenant/navigation come only from the
-associated local request and caller policy. Slot or handle failure publishes
-nothing, rolls both back, and schedules mandatory-control RST_STREAM(CANCEL)
-while any arriving promised response field block drains synchronization-only
-and DATA is discarded with normal receive-credit accounting;
-the associated stream remains unchanged. Pushed response metadata forbids
-storage when non-cacheable.
+an unpublished rollback-capable admission transaction. The v0.117.0 stream slot
+contains its rejection/cutoff representation, so an accepted promised ID is
+continuously a reserved slot, in-place rejection tombstone, or retained bounded-
+shutdown record—never idle again. Once partial assembly exists at v0.181.0, a
+receiving client completes PUSH_PROMISE/CONTINUATION and HPACK/semantic/
+authority/cacheability validation, then atomically preflights the slot,
+correlation-bound invalidation handle, independent pushed provenance, and
+rejection/cutoff capacity before publication. The provenance copies or
+independently leases minimal immutable target/principal/partition/tenant/
+navigation/policy/arena-generation evidence from the promised request and
+associated caller policy; it never borrows recyclable associated-stream storage.
+Associated-stream teardown/reuse and later policy changes cannot mutate it, and
+each promised stream owns its lifetime. Handle/provenance failure converts the
+provisional slot in place to a tombstone and schedules mandatory-control
+RST_STREAM(CANCEL). The tombstone survives output backpressure and peer reset
+until cutoff state classifies later traffic; field blocks drain synchronization-
+only and DATA is discarded with normal receive-credit accounting. If rejection
+tracking cannot be represented, the slot remains tracked through typed bounded
+connection shutdown. The associated stream remains unchanged. Pushed response
+metadata forbids storage when non-cacheable.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -385,16 +394,18 @@ clear it; 304, unchanged revalidation, and separate selection contexts cannot.
 Before output or correlation creation, assembly-enabled locally initiated
 requests reserve an engine-only, non-Copy/non-Clone target/principal/partition/
 navigation invalidation handle bound to that exact correlation; accepted push
-reserves the same capability at its post-HPACK prepublication gate. Optional
+reserves the same capability plus independent immutable
+`PushedAssemblyProvenance` at its post-HPACK prepublication gate. Optional
 peer-driven work and other shards cannot consume its fixed per-shard pool.
 Local exhaustion returns AssemblyInvalidationCapacity with zero request bytes/
-no correlation and ordinary Sans-I/O backpressure; push exhaustion publishes no
-promised request/correlation and uses the synchronized stream-local rejection
-path above. Neither rotates an arena or admits an untracked request. The handle
-survives informational responses and terminal-event
-backpressure, releases exactly once at final completion/cancellation/reset/
+no correlation and ordinary Sans-I/O backpressure; push capacity failure
+publishes no promised request/correlation and uses the continuously tracked
+rejection/shutdown path above. Neither rotates an arena or admits an untracked
+request. The handle/provenance survives informational responses and terminal-
+event backpressure, releases exactly once at final completion/cancellation/reset/
 connection failure/retry disposition, and cannot be duplicated or rebound for a
-retry. Per-shard/per-connection admission limits bound stalled handles. When a
+retry. Associated-stream closure or storage reuse cannot affect pushed evidence.
+Per-shard/per-connection admission limits bound stalled handles. When a
 completed 200 lacks an exact variant key because of Vary `*`, capacity,
 normalization, or released storage,
 the handle invalidates every Vary/validator sibling in that namespace; absent

@@ -117,8 +117,10 @@ ordered fields, message heads, roles, limits, policies, progress, and
 structured diagnostics, including opaque generation-safe compression-principal
 provenance supplied by callers without embedding identity policy in HPACK.
 It owns raw protocol-neutral response heads, trailer-permission evidence, and
-checked `UtcCivilTime` plus generation-bound Available/Unavailable evidence;
-civil time is distinct from monotonic deadlines and grants no clock ownership.
+checked generic `UtcCivilTime` plus generation-bound Available/Unavailable
+complete-instant evidence; validated HTTP dates have a separate 1900 year
+floor. Civil time is distinct from monotonic deadlines and grants no clock
+ownership.
 Raw heads grant no emission and core exposes no serializer.
 
 ### `vef-auth` (planned at `0.157.2`)
@@ -128,16 +130,18 @@ credentials, token68, auth-param, authentication field, sensitive-storage, and
 scheme-certified authentication-trailer permission behavior. It implements no
 Basic, Digest, application credential validation, or physical buffer erasure.
 
-### `vef-conditions` (planned at `0.180.1`–`0.181.1`)
+### `vef-conditions` (planned at `0.180.1`–`0.181.2`)
 
 Depends only on `vef-core`. Owns bounded entity-tag and HTTP-date validators,
 strong/weak comparison, conditional-field parsing and RFC-ordered evaluation,
-checked Range/Content-Range arithmetic, hypothetical-200 snapshots, staged
-content/execution permits, final outbound request validation, single-range
-planning, and client partial-response/recombination disposition. Its sealed
+checked Range/Content-Range arithmetic, pre-action representation evidence,
+retrieval-only hypothetical-200 snapshots, staged content/execution permits,
+final outbound request validation, single-range planning, individual partial
+segment validation, and bounded combination/header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
 caller-supplied representation existence, metadata, length, validator, and
-modification evidence.
+modification evidence without retroactively revoking a consumed mutation
+permit.
 
 ### `vef-semantics` (planned at `0.182.1`)
 
@@ -226,7 +230,9 @@ repository requires an explicit future policy change and cannot affect core.
 7. Generate requirement-to-code/test evidence.
 8. Run the full gate, stop implementation, and pentest the exact commit.
 
-RFC 9112 and RFC 9931 are one effective HTTP/1.1 set. RFC 1945 is an explicit
+RFC 9112 and RFC 9931 are one effective HTTP/1.1 set. RFC 5322 Section 3.3 is
+source-locked only for the calendar and year semantics inherited by HTTP-date.
+RFC 1945 is an explicit
 historical compatibility profile, not a modern standards-track claim. The
 ledger also records verified/held RFC 9112 and RFC 9113 errata, the RFC 9298
 non-applicability decision unless HTTP/1.1 CONNECT-UDP is added, RFC 9111
@@ -372,7 +378,9 @@ and credentials are logically invalidated across retry.
 v0.157.4 adds checked civil time in core and an optional I/O provider, keeps it
 separate from monotonic deadlines, defines Available/Unavailable origin and
 forwarding Date policy, Last-Modified clamping/external assignment, and the RFC
-850 50-year rule without global clock ownership; no-RTC Aesynx stays supported.
+850 complete-instant 50-year rule without global clock ownership; generic
+civil years precede 1900 but validated HTTP dates do not. No-RTC Aesynx stays
+supported.
 Then build the normative HTTP/1↔HTTP/2 matrix before destination bytes and add
 Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
@@ -382,13 +390,16 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
-Before the origin role facade, v0.180.1–v0.181.1 create dependency-free
+Before the origin role facade, v0.180.1–v0.181.2 create dependency-free
 `vef-conditions`: civil-aware validators, RFC-ordered evaluation before request
-content, one hypothetical-200 snapshot, bounded range parsing, sealed
-content/execution permits, final frozen client request validation, and
-request-bound partial-response/recombination guards. v0.183.0 exposes only the
+content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
+range parsing, sealed content/execution permits, final frozen client request
+validation, individual partial segments, and fixed-capacity interval/header
+combination plans. v0.183.0 exposes only the
 read-only pending selection view before those permits and suppresses early 100,
-body delivery, and method effects. v0.182.1 consumes the same snapshot and
+body delivery, and method effects. A consumed unsafe execution permit survives
+the mutation it authorized; its response uses fresh evidence. v0.182.1 consumes
+the applicable evidence and retrieval snapshot and
 validates the complete generated response matrix, including 401 over HTTP/1
 and HTTP/2, 405, HTTP/1-only 426, hypothetical-200 metadata for 206/304, and
 contextual 416.

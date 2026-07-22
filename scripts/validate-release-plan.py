@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check 225 minor milestones, ten patch stops, and two release candidates."""
+"""Check 225 minor milestones, eleven patch stops, and two release candidates."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ def main() -> int:
         "0.180.3",
         "0.180.4",
         "0.181.1",
+        "0.181.2",
         "0.182.1",
     )
     failures: list[str] = []
@@ -42,9 +43,9 @@ def main() -> int:
         if compact.count(f"| `{patch_stop}` |") != 1:
             failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 235:
-            failures.append(f"expected 235 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 237:
+        if detailed.count(f"#### {heading}") != 236:
+            failures.append(f"expected 236 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 238:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -90,7 +91,8 @@ def main() -> int:
         "Proxy-authentication hop ownership and 407 lifecycle",
         "Injected civil time and HTTP-date policy",
         "Outbound conditional and range request validation",
-        "Client partial-response classification and recombination guard",
+        "Client partial-response classification and segment validation",
+        "Bounded partial-response combination and header synthesis",
         "Role-aware outbound response semantic validator",
     )
     for marker in required_markers:
@@ -127,8 +129,9 @@ def main() -> int:
         ("Conditional request fields and ordered precondition evaluation", "Bounded byte ranges and single-range response planning"),
         ("Bounded byte ranges and single-range response planning", "Outbound conditional and range request validation"),
         ("Outbound conditional and range request validation", "Client correlation, cancellation, and retry tokens"),
-        ("Client correlation, cancellation, and retry tokens", "Client partial-response classification and recombination guard"),
-        ("Client partial-response classification and recombination guard", "Retry safety, idempotency, and body-replayability contract"),
+        ("Client correlation, cancellation, and retry tokens", "Client partial-response classification and segment validation"),
+        ("Client partial-response classification and segment validation", "Bounded partial-response combination and header synthesis"),
+        ("Bounded partial-response combination and header synthesis", "Retry safety, idempotency, and body-replayability contract"),
         ("Retry safety, idempotency, and body-replayability contract", "Role-aware outbound response semantic validator"),
         ("Role-aware outbound response semantic validator", "Origin-server role API"),
         ("vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton", "Structured Fields integer and decimal ranges"),
@@ -387,7 +390,9 @@ def main() -> int:
         "apply v0.65.0 fresh-connection closure to HTTP/1 CONNECT 407",
         "checked no_std `UtcCivilTime` and generation-bound `CivilTimeEvidence::{Available, Unavailable}`",
         "optional `vef-io::CivilClock` provider",
-        "mandatory more-than-50-years-future rollback",
+        "roll a candidate back by 100 years only when its complete timestamp is more than 50 years in the future",
+        "complete supplied current `UtcCivilTime` instant—not only its year",
+        "rejecting every HTTP date earlier than 1900",
         "origin with Available evidence must generate Date on 2xx/3xx/4xx",
         "origin with Unavailable evidence must not generate Date",
         "clamp a future application Last-Modified to message-origination Date",
@@ -403,26 +408,31 @@ def main() -> int:
         "Evaluate preconditions only for an origin server or authorized cache",
         "read-only `PendingConditionalRequest`",
         "before processing request content, method execution, or range selection",
-        "sealed generation-bound `SelectedRepresentationSnapshot` (`WouldBe200Metadata`)",
-        "exact ordered fields that a corresponding 200 would contain",
-        "`PreconditionOutcome` references that exact snapshot",
+        "sealed generation-bound `CurrentRepresentationEvidence`",
+        "sealed retrieval-only `WouldBe200Snapshot`",
+        "exact ordered fields that the corresponding 200 would contain",
+        "unsafe PUT/POST/DELETE admission never requires hypothetical-200 metadata",
         "parse bounded Range byte-range, open-ended range, and suffix-range members",
         "cap raw bytes, decimal digits, member count, normalization work, and output before arithmetic",
-        "Ignore Range for every method except GET",
-        "HTTP dates require caller-certified strong-validator status and exact equality with Last-Modified",
+        "first-pos <= last-pos",
+        "malformed and unknown remain distinct",
+        "Ignore Range except on GET",
+        "dates require caller-certified strong-validator status and exact equality with Last-Modified",
         "sealed `SingleRangePlan` only for one normalized satisfiable range",
         "non-forgeable one-shot `RequestContentPermit` and `MethodExecutionPermit`",
-        "terminal 304/412 produces neither permit",
+        "Terminal 304/412 produces neither permit",
         "final `vef-conditions` validation pass over the exact frozen ordered client request",
         "v0.180.4 must replace its raw entry with frozen `ValidatedConditionalRequest`",
         "If-Range without Range, weak entity-tag If-Range",
         "no ETag is available for that stored representation",
         "`PartialResponseDisposition` bound to the v0.180.4 validated request",
         "count semantic body octets through completion",
-        "all partials share the same strong validator",
+        "identical strong validator",
         "FullRepresentationFallback and atomically invalidate all partial-assembly state",
         "opaque `NeedsMultipartConsumer`",
         "well-formed unknown range unit even though a VEF client returns UnsupportedRangeUnit/NoRecombine",
+        "fixed-capacity `PartialCombinationPlan`",
+        "A full union yields complete 200 with corrected Content-Length",
         "`vef-semantics` crate depending only on `vef-core`, `vef-auth`, and `vef-conditions`",
         "`ValidatedResponse` owns or immutably borrows the exact ordered response head, framing plan, sensitivity/indexing metadata, body plan, and trailer permissions",
         "internal `ResponseEmissionPermit` cannot be extracted or paired with caller-supplied data",
@@ -434,9 +444,9 @@ def main() -> int:
         "normal lowercase HTTP/2 field serialization",
         "reject every locally generated HTTP/2 426 as InvalidState",
         "permit generated 206 only from one matching `SingleRangePlan`",
-        "if Date, Cache-Control, ETag, Expires, Content-Location, or Vary exists in the snapshot's hypothetical 200, require it in 206",
+        "if Date, Cache-Control, ETag, Expires, Content-Location, or Vary exists in its `WouldBe200Snapshot`, require it in 206",
         "require every snapshot 200 field among Content-Location, Date, ETag, Vary, Cache-Control, and Expires",
-        "Any snapshot validator, Date, metadata, content-selection, or representation-generation change invalidates every outcome, plan, and response",
+        "successful unsafe execution instead consumes its admission permit",
         "Permit 304 only from the matching conditional GET/HEAD `PreconditionOutcome`",
         "Bind 416 to the matching unsatisfied range context",
         "Reserve engine-only semantic-validation slots and frozen-head storage",
@@ -466,7 +476,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 minor milestones, ten patch stops, and two release candidates")
+    print("release plan: 225 minor milestones, eleven patch stops, and two release candidates")
     return 0
 
 

@@ -18,6 +18,7 @@ I/O contracts, not an opinionated application framework.
 | ALPN | RFC 7301 | Adapter selection metadata |
 | HPACK | RFC 7541 | Complete bounded encoder and decoder |
 | TLS 1.3 context | RFC 8446 | Provider metadata and HTTP/2 prerequisite checks |
+| Internet Message Format date semantics | RFC 5322 Section 3.3 | HTTP-date calendar semantics and year floor only |
 | Shared HTTP semantics | RFC 9110 | Declared roles and message semantics |
 | HTTP caching | RFC 9111 | Preserve required information; no cache store in core |
 | HTTP/1.1 | RFC 9112 plus RFC 9931 | Full messaging and current transition security update |
@@ -45,8 +46,9 @@ against explicit caller-supplied representation evidence; it does not own a
 representation store, cache, wall clock, or multipart assembler. It can consume
 checked caller/adapter civil-time evidence (including an explicit unavailable
 state) independently of monotonic deadlines. Built-in client handling validates
-single-range 206 and keeps multipart opaque as NeedsMultipartConsumer; it never
-claims recombination authority for multipart or unknown range units.
+single-range 206 and keeps multipart opaque as NeedsMultipartConsumer. Its
+fixed-capacity partial-combination plan handles validated byte-range segments
+and exact RFC header synthesis, but never multipart or unknown range units.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

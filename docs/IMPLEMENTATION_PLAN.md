@@ -80,6 +80,11 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Typed and generic outbound conditional/range fields share one final frozen
   validation; client partial recombination requires terminal request-bound
   Content-Type, Content-Range, body-length, and strong-validator evidence.
+- Partial Content-Type classification comes only from the bounded sealed
+  `vef-media-type` result; multipart never grants top-level range authority.
+- Partial delivery mode is fixed before body consumption, retention commits
+  before publication/acknowledgement, and unequal overlaps quarantine the
+  assembly context without publishing bytes or synthesized metadata.
 - Mandatory generated responses retain engine-only semantic-validation slots
   and frozen-head storage that application work cannot consume; total reserve
   failure commits one deterministic close/shutdown action with no partial head.
@@ -130,11 +135,18 @@ credentials, token68, auth-param, authentication field, sensitive-storage, and
 scheme-certified authentication-trailer permission behavior. It implements no
 Basic, Digest, application credential validation, or physical buffer erasure.
 
+### `vef-media-type` (planned at `0.180.5`)
+
+Depends only on `vef-core`. Owns bounded incremental media type, subtype,
+parameter, quoted-string, and escape grammar plus sealed exact Content-Type
+classification for partial responses. It neither parses multipart bodies nor
+grants Content-Range, storage, or combination authority.
+
 ### `vef-conditions` (planned at `0.180.1`–`0.181.2`)
 
-Depends only on `vef-core`. Owns bounded entity-tag and HTTP-date validators,
-strong/weak comparison, conditional-field parsing and RFC-ordered evaluation,
-checked Range/Content-Range arithmetic, pre-action representation evidence,
+Depends on `vef-core` and, starting at `0.180.5`, `vef-media-type`. Owns bounded
+entity-tag and HTTP-date validators, strong/weak comparison, conditional-field
+parsing and RFC-ordered evaluation, checked Range/Content-Range arithmetic, pre-action representation evidence,
 retrieval-only hypothetical-200 snapshots, staged content/execution permits,
 final outbound request validation, single-range planning, individual partial
 head/chunk/completion streaming, optional retained-prefix validation,
@@ -394,17 +406,20 @@ PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 Before the origin role facade, v0.180.1–v0.181.2 create dependency-free
-`vef-conditions`: civil-aware validators, RFC-ordered evaluation before request
+`vef-conditions` and v0.180.5 creates dependency-free `vef-media-type`:
+civil-aware validators, RFC-ordered evaluation before request
 content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
 range parsing, sealed content/execution permits, final frozen client request
-validation, individual partial segments, and fixed-capacity interval/header
-combination plans. Standalone 206 streams without storage or a strong validator;
+validation, exact Content-Type classification, individual partial segments, and
+fixed-capacity interval/header combination plans. Standalone 206 chooses an
+explicit delivery mode and can stream without storage or a strong validator;
 only opt-in exclusive-slice/sealed-arena retention freezes bytes for assembly.
 Trailer processing finalizes stored validators without changing head decisions.
-Assembly contexts match semantic variant/principal/privacy/navigation identity
-across requests, keep physical generations in leases, reject `Vary: *`, acquire
-non-aliasing output safely, and order headers when the correlation engine
-publishes each validated head. v0.183.0 exposes only the
+Assembly contexts consume engine-minted exact-request/Vary/principal/privacy/
+navigation keys across requests, keep physical generations in leases, reject
+`Vary: *`, acquire non-aliasing output safely, compare sorted overlaps under a
+dedicated budget, quarantine conflicting bytes with zero output, and order
+headers when the correlation engine publishes each validated head. v0.183.0 exposes only the
 read-only pending selection view before those permits and suppresses early 100,
 body delivery, and method effects. A consumed unsafe execution permit survives
 the mutation it authorized; its response uses fresh evidence. v0.182.1 consumes

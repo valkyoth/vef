@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check 225 minor milestones, eleven patch stops, and two release candidates."""
+"""Check 225 minor milestones, twelve patch stops, and two release candidates."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def main() -> int:
         "0.180.1",
         "0.180.2",
         "0.180.3",
-        "0.180.4",
+        "0.180.4", "0.180.5",
         "0.181.1",
         "0.181.2",
         "0.182.1",
@@ -43,9 +43,9 @@ def main() -> int:
         if compact.count(f"| `{patch_stop}` |") != 1:
             failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 236:
-            failures.append(f"expected 236 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 238:
+        if detailed.count(f"#### {heading}") != 237:
+            failures.append(f"expected 237 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 239:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -90,7 +90,7 @@ def main() -> int:
         "Dependency-free generic authentication grammar and sensitive storage",
         "Proxy-authentication hop ownership and 407 lifecycle",
         "Injected civil time and HTTP-date policy",
-        "Outbound conditional and range request validation",
+        "Outbound conditional and range request validation", "Dependency-free media type grammar and partial-content classification",
         "Streaming partial-response and retained-prefix validation",
         "Cross-request partial assembly and header synthesis",
         "Role-aware outbound response semantic validator",
@@ -128,7 +128,7 @@ def main() -> int:
         ("Dependency-free conditional semantics crate and validators", "Conditional request fields and ordered precondition evaluation"),
         ("Conditional request fields and ordered precondition evaluation", "Bounded byte ranges and single-range response planning"),
         ("Bounded byte ranges and single-range response planning", "Outbound conditional and range request validation"),
-        ("Outbound conditional and range request validation", "Client correlation, cancellation, and retry tokens"),
+        ("Outbound conditional and range request validation", "Dependency-free media type grammar and partial-content classification"), ("Dependency-free media type grammar and partial-content classification", "Client correlation, cancellation, and retry tokens"),
         ("Client correlation, cancellation, and retry tokens", "Streaming partial-response and retained-prefix validation"),
         ("Streaming partial-response and retained-prefix validation", "Cross-request partial assembly and header synthesis"),
         ("Cross-request partial assembly and header synthesis", "Retry safety, idempotency, and body-replayability contract"),
@@ -425,12 +425,11 @@ def main() -> int:
         "v0.180.4 must replace its raw entry with frozen `ValidatedConditionalRequest`",
         "If-Range without Range, weak entity-tag If-Range",
         "no ETag is available for that stored representation",
-        "`PartialResponseDisposition` bound permanently to the v0.180.4 validated request",
+        "separate dependency-free, no_std `vef-media-type` crate depending only on `vef-core`", "`PartialContentTypeClassification::{Absent, SinglePart, MultipartByteRanges, Other}`", "exact case-insensitive type/subtype comparison", "`PartialResponseDisposition` bound permanently to the v0.180.4 validated request",
         "generation-bound inclusive body accounting",
-        "`ValidatedPartialResponseHead`", "`StandaloneOnly`/`NoRecombine`",
+        "`ValidatedPartialResponseHead`", "`StandaloneOnly`/`NoRecombine`", "`PartialDeliveryMode::{StreamOnly, RetainOnly, StreamAndRetain}`", "retention write commits", "`VariantSelectionKey`",
         "`ValidatedIncomplete200Prefix`",
-        "safe API accepts only an exclusive `&mut [u8]` or a sealed fixed-arena slot",
-        "`TransferDecodedContentEncoded` byte domain",
+        "against an exclusive `&mut [u8]` or sealed fixed-arena slot", "`TransferDecodedContentEncoded` domain",
         "Clean HTTP/2 END_STREAM length disagreement is malformed stream PROTOCOL_ERROR",
         "successfully completed, framing- and semantics-valid correlated 200",
         "opaque `NeedsMultipartConsumer`",
@@ -446,7 +445,7 @@ def main() -> int:
         "checked monotonic local `ResponseHeadReceiptOrdinal`",
         "when the complete validated header section is atomically published",
         "permitted trailer ETag can supply final strong-validator evidence", "`Vary: *` is never eligible for cross-request assembly",
-        "A full union yields complete 200 with corrected Content-Length",
+        "A full union yields complete 200 with corrected Content-Length", "`ConflictingPartialContent`", "`OverlapComparisonBudget`", "quarantine the entire assembly context",
         "`vef-semantics` crate depending only on `vef-core`, `vef-auth`, and `vef-conditions`",
         "`ValidatedResponse` owns or immutably borrows the exact ordered response head, framing plan, sensitivity/indexing metadata, body plan, and trailer permissions",
         "internal `ResponseEmissionPermit` cannot be extracted or paired with caller-supplied data",
@@ -490,7 +489,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 minor milestones, eleven patch stops, and two release candidates")
+    print("release plan: 225 minor milestones, twelve patch stops, and two release candidates")
     return 0
 
 

@@ -155,11 +155,13 @@ acknowledgement, negative stream windows block new DATA, and zero-length
 END_STREAM DATA charges zero.
 Each scalar or vectored output token owns one frame-slot suffix; acknowledgement
 cannot cross a slot boundary, release several records, or batch hooks.
-Peer HEADER_TABLE_SIZE changes use one connection-owned pending transition:
-track smallest/final maxima and every SETTINGS ACK. No-active applies it before
-the next block; Private rolls back then ACKs before re-encode; FramingCommitted
-drains/publishes first, then transitions and ACKs. No later field block encodes
-until resolution, and re-encode capacity cannot strand a mandatory ACK.
+Each fully validated non-ACK SETTINGS frame reserves one connection-owned
+transaction and one ACK before mutation. Ordered entries attach generation-bound
+HPACK/window/frame-size/admission/push/extension participants; all must be
+effective before FIFO ACK eligibility, while fatal failure cancels ACK and the
+connection. HEADER_TABLE_SIZE tracks smallest/final values plus owner references,
+never ACKs: no-active applies directly, Private rolls back then completes HPACK
+before independent re-encode, and FramingCommitted drains/publishes first.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

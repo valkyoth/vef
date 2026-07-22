@@ -88,12 +88,14 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   abandons both transaction and connection, while the initial HEADERS completion
   hook remains frame-scoped. First ordinary exposure freezes its exact slot,
   commits stream+connection debit, and forces suffix completion.
-- Serialize peer HEADER_TABLE_SIZE through a bounded pending transition with
-  smallest/final values and one reserved ACK per SETTINGS frame. No active
-  transaction applies it before the next block; Private rolls back and releases
-  ACK before possibly failing re-encode; FramingCommitted drains and publishes
-  first, then applies the transition and ACKs. No later field block encodes
-  until both transaction and transition resolve.
+- Fully validate each non-ACK SETTINGS frame, then reserve one connection-owned
+  `InboundSettingsTransaction` with ordered entries, one ACK slot, participant
+  set, generation, and disposition before mutation. HPACK, windows, frame size,
+  admission, push, and extensions complete shared generation-bound obligations;
+  only all-effective transactions enter FIFO ACK output, while fatal failure
+  cancels ACK and connection. HEADER_TABLE_SIZE's pending transition owns only
+  smallest/final values and transaction references. Private rollback completes
+  HPACK before independent re-encode; FramingCommitted drains/publishes first.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.

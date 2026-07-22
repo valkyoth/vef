@@ -195,15 +195,20 @@ Private rollback discards it; first frame exposure commits only framing; full
 acknowledgement of the END_HEADERS frame atomically publishes encoder table
 mutation as HpackCommitted. No later block encodes against provisional entries,
 and partial output, retry, or cancellation cannot advance state ahead of the peer.
-Peer HEADER_TABLE_SIZE changes serialize through a reserved
-`PendingEncoderTableSizeTransition` carrying the smallest observed and final
-maximum plus one ACK obligation per SETTINGS frame. With no active transaction,
-apply it and start the next block with the required one update or smallest-then-
-final pair. A Private block rolls back before transition/ACK and re-encodes under
-the new limit; local re-encode pressure cannot delay the ACK. FramingCommitted
-drains first, publishes its old transaction, then applies the transition and
-releases every ACK before ordinary output. No later block encodes while either
-owner remains unresolved.
+Every validated non-ACK SETTINGS frame owns one connection-wide
+`InboundSettingsTransaction`: ordered entries, a generation, one reserved ACK,
+participant obligations, and a disposition. The whole frame validates before
+ACK reservation or mutation; entries apply in wire order without intervening
+dispatch. HPACK, windows, frame size, admission, push, and extensions report
+generation-bound Effective/fatal results to this shared owner. ACKs become
+eligible only when every participant is effective and serialize in receive
+order; fatal failure cancels the ACK and connection, so no component can race an
+ACK. Peer HEADER_TABLE_SIZE uses a `PendingEncoderTableSizeTransition` carrying
+smallest/final maxima and owning SETTINGS-transaction references, never ACK
+authority. No-active applies it directly; Private rolls back then completes its
+participant before independently backpressured re-encode; FramingCommitted
+drains/publishes before transition. The next block emits one or smallest-then-
+final updates, and no later block encodes while either owner remains unresolved.
 Sensitive indexing uses typed directives and conservative defaults; received
 never-indexed fields cannot be downgraded, secret values do not participate in
 attacker-controlled indexing comparisons, and diagnostics remain redacted.

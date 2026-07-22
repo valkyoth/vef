@@ -85,11 +85,19 @@ exhaustion returns zero-byte/no-correlation `AssemblyInvalidationCapacity`
 backpressure. Pushed-provenance exhaustion returns
 `PushedAssemblyProvenanceCapacity`; other push capacity failure likewise stays
 HPACK-synchronized, publishes no promised request/correlation or partial
-authority, converts the already tracked slot in place to a rejection tombstone,
-and schedules stream-local CANCEL through mandatory control capacity while
-field blocks/DATA drain safely. The tombstone survives until output and peer
-cutoff classify later traffic; unrepresentable tracking retains the slot through
-typed bounded connection shutdown. Neither path rotates an arena or admits an
+authority, marks the already tracked slot rejecting without changing its RFC
+wire state, and schedules stream-local CANCEL through mandatory control
+capacity. Reserved(remote) HEADERS synchronizes and transitions to half-closed
+(local), reserved(remote) DATA and duplicate promised IDs are connection
+PROTOCOL_ERROR, peer reset supersedes only a zero-byte queued CANCEL, and
+one partially serialized CANCEL finishes without duplication if the connection
+survives; tolerated post-reset DATA restores connection credit without stream
+WINDOW_UPDATE. Locally reset associated streams retain bounded tombstones that
+decode in-flight PUSH_PROMISE/CONTINUATION and track/reject the promised ID
+without recreating application or assembly authority; illegal IDs and malformed
+HPACK retain connection scope. Tracking survives through reset serialization,
+active field blocks, and peer cutoff; unrepresentable tracking retains the slot
+through typed bounded shutdown. Neither path rotates an arena or admits an
 untracked request. The exact correlation holds its non-Copy/non-Clone handle and
 pushed provenance across informational responses and terminal-event
 backpressure, releases each once at a terminal disposition, and a retry reserves

@@ -228,31 +228,45 @@ receiver associated-state perspectives, promised ID, GOAWAY and opening commit
 atomically. The validated request and trusted push-policy provenance remain in
 an unpublished rollback-capable admission transaction. The v0.117.0 stream slot
 contains its rejection/cutoff representation, so an accepted promised ID is
-continuously a reserved slot, in-place rejection tombstone, or retained bounded-
-shutdown record—never idle again. Once partial assembly exists at v0.181.0, a
-receiving client completes PUSH_PROMISE/CONTINUATION and HPACK/semantic/
-authority/cacheability validation, then atomically preflights the slot,
-correlation-bound invalidation handle, independent pushed provenance, and
-rejection/cutoff capacity before publication. The provenance copies or
-independently leases minimal immutable target/principal/partition/tenant/
-navigation/policy/arena-generation evidence from the promised request and
-associated caller policy; it never borrows recyclable associated-stream storage.
-Associated-stream teardown/reuse and later policy changes cannot mutate it, and
-each promised stream owns its lifetime. Handle/provenance failure converts the
-provisional slot in place to a tombstone and schedules mandatory-control
-RST_STREAM(CANCEL). The tombstone survives output backpressure and peer reset
-until cutoff state classifies later traffic; field blocks drain synchronization-
-only and DATA is discarded with normal receive-credit accounting. If rejection
-tracking cannot be represented, the slot remains tracked through typed bounded
-connection shutdown. The associated stream remains unchanged. Pushed response
-metadata forbids storage when non-cacheable.
+continuously tracked—never idle again—but policy rejection is orthogonal to its
+RFC wire state and reset serialization. A rejected promise remains
+reserved(remote) until legal response HEADERS moves it to half-closed(local), a
+peer reset closes it, or the local CANCEL commits. Reserved(remote) DATA and
+reuse of its non-idle ID are connection PROTOCOL_ERROR. HEADERS always finishes
+HPACK synchronization; after local reset, tolerated late DATA restores only
+connection credit and never emits stream WINDOW_UPDATE. A peer reset supersedes
+a zero-byte queued CANCEL, whereas a partially serialized reset finishes once
+when the connection survives. A generation-checked associated-stream tombstone
+also accepts an in-flight PUSH_PROMISE after local reset: it completes every
+CONTINUATION and validates/tracks the promised ID but publishes no request or
+reconstructed authority. Missing recycled provenance selects safe rejection,
+while illegal IDs and malformed HPACK preserve connection-error scope.
+One total `RejectedPushFrameDisposition` matrix keys these decisions by policy,
+wire state, reset progress, frame kind, and field-block ownership; every cell
+fixes transition, HPACK, flow-credit, error-scope, publication, and reset action.
+
+Once partial assembly exists at v0.181.0, a receiving client completes
+PUSH_PROMISE/CONTINUATION and HPACK/semantic/authority/cacheability validation,
+then atomically preflights the slot, correlation-bound invalidation handle,
+independent pushed provenance, and rejection/cutoff capacity before publication.
+The provenance copies or independently leases minimal immutable target/
+principal/partition/tenant/navigation/policy/arena-generation evidence from the
+promised request and associated caller policy; it never borrows recyclable
+associated-stream storage. Associated-stream teardown/reuse and later policy
+changes cannot mutate it, and each promised stream owns its lifetime. Handle/
+provenance failure changes only policy disposition to rejecting and queues
+CANCEL under the same wire/reset matrix. If rejection tracking cannot be
+represented, the slot remains tracked through typed bounded connection
+shutdown. Pushed response metadata forbids storage when non-cacheable.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
 and optional-field minima. The connection then applies a typed RFC 9113 error
-delta. A stream-scoped delta may touch only its target stream; compression
-errors and connection-scoped violations stop publication and enqueue exactly
-one bounded GOAWAY action.
+delta. Policy disposition, RFC wire state, and reset-output progress are separate
+generation-checked dimensions; every frame validates/commits its wire transition
+before policy controls publication. A stream-scoped delta may touch only its
+target stream; compression errors and connection-scoped violations stop
+publication and enqueue exactly one bounded GOAWAY action.
 For field-block frames, undersized mandatory priority/promised-ID layouts are
 connection FRAME_SIZE_ERROR, invalid padding/identifiers are connection
 PROTOCOL_ERROR, and HEADERS self-dependency is stream PROTOCOL_ERROR.

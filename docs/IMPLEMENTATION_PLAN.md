@@ -95,18 +95,20 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   normalization runs once under profile caps, retains canonical bytes without a
   redundant sensitive raw copy, and comparisons never reparse. Physical reuse
   waits for every body/identity/output lease despite semantic invalidation.
-- A live/reserved HTTP/2 slot converts in place to a generation-bound rejection
-  tombstone or preflights cutoff storage before release; an accepted ID is never
-  untracked, and tracking failure retains it through typed bounded shutdown.
+- A live/reserved HTTP/2 slot preflights cutoff storage before release and is
+  never untracked. Rejection disposition, RFC wire state, and reset-output
+  progress remain independent; peer/local reset races update each explicitly,
+  and tracking failure retains the record through typed bounded shutdown.
 - Assembly-enabled local correlation reserves a linear engine-only target/
   principal/partition/navigation invalidation handle before request output.
   Accepted push atomically preflights its slot, handle, independent minimal
   immutable `PushedAssemblyProvenance`, and rejection/cutoff tracking after
   complete HPACK/semantic validation and before publication. Local exhaustion
   returns zero-byte/no-correlation AssemblyInvalidationCapacity backpressure;
-  push capacity failure converts the provisional slot in place, publishes
-  nothing, and uses mandatory-control RST_STREAM(CANCEL), or tracked shutdown if
-  rejection state is unavailable. Hold the handle/provenance through terminal
+  push capacity failure marks the provisional slot rejecting without changing
+  its wire state, publishes nothing, and uses the exact queued/partial/committed/
+  superseded RST_STREAM(CANCEL) lifecycle or tracked shutdown if rejection state
+  is unavailable. Hold the handle/provenance through terminal
   backpressure, release it once at a terminal disposition, and reserve
   independently for retries. A completed valid 200 invalidates by exact key or
   within that namespace; absent coding/domain refinement widens only its
@@ -384,6 +386,14 @@ Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
+Keep policy disposition orthogonal to the RFC stream state and reset-output
+progress. Reserved(remote) rejection still accepts HEADERS and transitions,
+but DATA is connection PROTOCOL_ERROR; half-closed(local) rejected DATA uses
+normal discard credit, and post-reset tolerated DATA restores connection credit
+only. Queue resets withdrawably until byte zero commits, finish one partially
+serialized frame if the connection survives, and suppress it when peer reset or
+connection failure wins before serialization. Drive every combination through
+a total no-default disposition table shared with exhaustive model/fuzz oracles.
 Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
 post-initial-HEADERS DATA into fixed-capacity PendingConnect while
 AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without
@@ -403,10 +413,13 @@ isolated to the promised stream, reserved slots/work are bounded separately,
 reservation is legal at peer concurrency zero, and concurrency applies only
 when the promised response opens. Sender/receiver associated-state,
 ID/GOAWAY/opening commit is atomic. Keep validated promised input/provenance and
-the slot rollback-capable until publication; its slot converts directly to a
-rejection tombstone and is never temporarily idle. v0.181.0 atomically adds the
-invalidation handle, independently leased pushed provenance, and rejection/
-cutoff capacity at this gate. Non-cacheable responses are unstorable.
+the slot rollback-capable until publication; rejection changes policy in place
+without pretending its reserved(remote) wire state is closed. Retain a locally
+reset associated stream's tombstone long enough to decode and reject an
+in-flight PUSH_PROMISE without recreating application authority; illegal IDs and
+HPACK failures retain connection scope. v0.181.0 atomically adds the invalidation
+handle, independently leased pushed provenance, and rejection/cutoff capacity at
+this gate. Non-cacheable responses are unstorable.
 Retain independent budgets, mandatory ACK tracking, reserved output, and flood
 defenses.
 
@@ -476,11 +489,14 @@ semantics, derives identity only from the associated local request/caller policy
 then atomically preflights the promised slot, handle, independent minimal
 immutable provenance lease/copy, and rejection/cutoff tracking before publication.
 Local exhaustion produces zero-byte AssemblyInvalidationCapacity backpressure;
-push capacity failure publishes no correlation, converts the provisional slot
-in place, and issues mandatory-control stream-local CANCEL while retaining the
-tombstone through output/peer-state classification and draining header blocks/
-DATA safely. Unrepresentable tracking retains the slot through typed bounded
-shutdown. Neither rotates an arena. The exact correlation holds its handle and
+push capacity failure publishes no correlation, changes the provisional slot's
+policy to rejecting, and queues mandatory-control stream-local CANCEL without
+changing its wire state. Apply the Phase 3 frame matrix: synchronize legal
+HEADERS and transition wire state, make reserved(remote) DATA/duplicate IDs
+connection errors, supersede only a zero-byte queued reset, finish one partially
+serialized reset, and give tolerated closed-stream DATA connection credit only.
+Unrepresentable tracking retains the slot through typed bounded shutdown.
+Neither rotates an arena. The exact correlation holds its handle and
 provenance independently of associated-stream teardown, buffer reuse, or later
 policy changes through terminal-event backpressure and releases once; a retry
 reserves independently. Completed 200

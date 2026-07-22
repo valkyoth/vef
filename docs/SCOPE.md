@@ -59,14 +59,18 @@ combination requires safely
 frozen transfer-decoded/content-encoded storage, trailer-finalized strong
 validators, an engine-derived semantic exact-request/Vary/principal/privacy/
 navigation identity plus separately fresh provenance evidence and immutable
-exact-value leases/caller storage. Sensitive values remain redacted; no
-truncation,
-digest equality, or token substitution is allowed; capacity/release locally
-downgrades to NoRecombine. A caller-requested overlap budget becomes usable
+exact-value leases or exclusive-slice/sealed-arena caller storage. Storage is
+anti-aliased and DMA-fenced; sensitive raw/canonical values remain redacted and
+caller-scrubbed after release. Normalization occurs once under profile caps, and
+no truncation, digest equality, token substitution, or comparison-time reparsing
+is allowed; capacity/release locally downgrades to NoRecombine. A caller-requested overlap budget becomes usable
 only through a resource-profile-capped engine permit.
 Equal overlap deduplicates; conflicting bytes publish nothing and
 quarantine the context under a dedicated comparison budget until complete 200
 replacement or a destroyed-and-new different-validator representation context.
+Every completed framing- and semantics-valid 200 invalidates by exact key,
+conservative sibling scope, or assembly-arena rotation when identity/scope
+storage is unavailable.
 Physical arena generations affect leases, not semantic replacement; `Vary: *`,
 input/output aliasing, in-place transformation, multipart, and unknown units
 never enter combination.

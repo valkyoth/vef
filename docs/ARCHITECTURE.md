@@ -348,10 +348,14 @@ ETag but cannot change range/domain or the head-published ordinal. A
 generation-safe assembly context compares an engine-derived semantic variant
 identity from bounded Vary, exact original-request values, principal, privacy
 partition, and navigation identity. Exact values live in immutable original-
-request leases or engine-written caller fixed storage; there is no truncation,
-digest authority, or opaque-token substitution, and sensitive Vary values stay
-redacted. Each segment separately carries fresh request/response and storage
-provenance evidence; releasing storage invalidates admission, while generations
+request leases or engine-written exclusive-slice/sealed-arena caller storage;
+there is no alias/trust constructor, truncation, digest authority, or opaque-token
+substitution. DMA remains fenced for the lease, sensitive raw/canonical values
+stay redacted, and callers scrub copied values after release. Sealed semantic
+normalizers run once under profile-capped work/output accounting and store their
+complete canonical bytes; candidate comparisons never parse again. Each segment
+separately carries fresh request/response/storage provenance evidence; releasing
+storage invalidates admission, while generations
 never enter identity equality. Coding/domain, length, and strong-validator
 constraints still apply, and `Vary: *` never matches. Physical storage
 generation stays in leases, not semantic replacement identity. Output comes
@@ -364,6 +368,11 @@ emit no output, return `ConflictingPartialContent`, and quarantine the full
 context and validator association. Only complete same-key 200 replacement or
 destruction followed by a different-validator/new-generation empty context can
 clear it; 304, unchanged revalidation, and separate selection contexts cannot.
+When a completed 200 lacks an exact variant key because of Vary `*`, capacity,
+normalization, or released storage, it still carries a conservative target/
+principal/partition/navigation/coding/domain invalidation scope. If that scope
+cannot be retained, the assembly arena generation rotates; key loss never leaves
+an older potentially replaced context usable.
 Multipart and unknown units remain outside recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage

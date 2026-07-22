@@ -58,20 +58,30 @@ require an engine-selected permit and can stream without retention. Optional
 combination requires safely
 frozen transfer-decoded/content-encoded storage, trailer-finalized strong
 validators, an engine-derived semantic exact-request/Vary/principal/privacy/
-navigation identity plus separately fresh provenance evidence and immutable
-exact-value leases or exclusive-slice/sealed-arena caller storage. Storage is
-anti-aliased and DMA-fenced; sensitive raw/canonical values remain redacted and
-caller-scrubbed after release. Normalization occurs once under profile caps, and
+navigation identity plus separately fresh provenance evidence. Unnormalized
+equality bytes may use immutable exact-value request leases; normalized output
+uses exclusive-slice/sealed-arena caller storage. Storage is
+anti-aliased and DMA-fenced; sensitive canonical values remain redacted and
+caller-scrubbed after release. Normalization occurs once under profile caps,
+retains canonical bytes plus provenance without a redundant sensitive raw copy,
+and
 no truncation, digest equality, token substitution, or comparison-time reparsing
-is allowed; capacity/release locally downgrades to NoRecombine. A caller-requested overlap budget becomes usable
+is allowed; capacity/release locally downgrades to NoRecombine. A caller-
+requested overlap budget becomes usable
 only through a resource-profile-capped engine permit.
 Equal overlap deduplicates; conflicting bytes publish nothing and
 quarantine the context under a dedicated comparison budget until complete 200
 replacement or a destroyed-and-new different-validator representation context.
-Every completed framing- and semantics-valid 200 invalidates by exact key,
-conservative sibling scope, or assembly-arena rotation when identity/scope
-storage is unavailable.
-Physical arena generations affect leases, not semantic replacement; `Vary: *`,
+Every assembly-enabled correlation reserves an engine-only target/principal/
+partition/navigation invalidation namespace before optional Vary/normalization
+work. Every completed framing- and semantics-valid 200 invalidates by exact key
+or across all Vary/validator siblings in that namespace, widening only across
+its coding/domain children when refinement is unavailable. Peer input cannot
+select arena rotation; it is limited to reserve failure, internal corruption,
+or explicit caller policy, and principal/tenant sharding bounds the blast radius.
+Physical arena generations affect leases, not semantic replacement. Semantic
+invalidation rejects stale operations at once, but physical reuse waits for all
+body/identity/output leases and otherwise returns local LeaseHeld/capacity. `Vary: *`,
 input/output aliasing, in-place transformation, multipart, and unknown units
 never enter combination.
 

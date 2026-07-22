@@ -347,13 +347,16 @@ Combination eligibility waits through validated trailers, which may supply
 ETag but cannot change range/domain or the head-published ordinal. A
 generation-safe assembly context compares an engine-derived semantic variant
 identity from bounded Vary, exact original-request values, principal, privacy
-partition, and navigation identity. Exact values live in immutable original-
-request leases or engine-written exclusive-slice/sealed-arena caller storage;
+partition, and navigation identity. Unnormalized equality bytes can live in an
+immutable original-request lease; normalized canonical output lives in engine-
+written exclusive-slice/sealed-arena caller storage;
 there is no alias/trust constructor, truncation, digest authority, or opaque-token
-substitution. DMA remains fenced for the lease, sensitive raw/canonical values
-stay redacted, and callers scrub copied values after release. Sealed semantic
-normalizers run once under profile-capped work/output accounting and store their
-complete canonical bytes; candidate comparisons never parse again. Each segment
+substitution. DMA remains fenced for the lease, sensitive values stay redacted,
+and callers scrub copied values after release. Sealed semantic normalizers run
+once under profile-capped work/output accounting and store complete canonical
+bytes plus provenance; unnormalized raw bytes are already canonical, and no
+second sensitive raw copy is retained merely for equality. Candidate
+comparisons never parse again. Each segment
 separately carries fresh request/response/storage provenance evidence; releasing
 storage invalidates admission, while generations
 never enter identity equality. Coding/domain, length, and strong-validator
@@ -368,11 +371,18 @@ emit no output, return `ConflictingPartialContent`, and quarantine the full
 context and validator association. Only complete same-key 200 replacement or
 destruction followed by a different-validator/new-generation empty context can
 clear it; 304, unchanged revalidation, and separate selection contexts cannot.
-When a completed 200 lacks an exact variant key because of Vary `*`, capacity,
-normalization, or released storage, it still carries a conservative target/
-principal/partition/navigation/coding/domain invalidation scope. If that scope
-cannot be retained, the assembly arena generation rotates; key loss never leaves
-an older potentially replaced context usable.
+At correlation admission, assembly-enabled requests reserve an engine-only,
+non-forgeable target/principal/partition/navigation invalidation handle that
+optional peer-driven work cannot consume. When a completed 200 lacks an exact
+variant key because of Vary `*`, capacity, normalization, or released storage,
+the handle invalidates every Vary/validator sibling in that namespace; absent
+coding/domain refinement widens only across those children. Whole-arena rotation
+is limited to mandatory-reserve failure, internal corruption, or explicit caller
+policy, and arenas are principal/tenant sharded. Key loss never leaves an older
+potentially replaced context usable. Semantic invalidation immediately rejects
+stale capabilities, but arena rotation never ends a Rust lifetime: storage is
+physically reclaimable only after all body, identity, and output leases drop or
+acknowledge, otherwise allocation returns local LeaseHeld/capacity.
 Multipart and unknown units remain outside recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage

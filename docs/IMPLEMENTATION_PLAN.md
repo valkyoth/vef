@@ -91,10 +91,15 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   publication/acknowledgement, and unequal overlaps quarantine the assembly
   context without publishing bytes or synthesized metadata.
 - Vary identity copies use the same exclusive-storage, anti-aliasing, generation,
-  DMA-fencing, logical-invalidation, and caller-scrub rules as retained bytes;
-  normalization runs once under profile caps and comparisons never reparse.
-- A completed framing- and semantics-valid 200 always invalidates through an
-  exact replacement key, bounded conservative sibling scope, or arena rotation.
+  DMA-fencing, semantic-invalidation, and caller-scrub rules as retained bytes;
+  normalization runs once under profile caps, retains canonical bytes without a
+  redundant sensitive raw copy, and comparisons never reparse. Physical reuse
+  waits for every body/identity/output lease despite semantic invalidation.
+- Assembly-enabled correlation reserves an engine-only target/principal/
+  partition/navigation invalidation handle before optional peer-driven work. A
+  completed valid 200 invalidates by exact key or within that namespace; absent
+  coding/domain refinement widens only across its children. Arena rotation is
+  limited to mandatory-reserve failure, internal corruption, or caller policy.
 - Mandatory generated responses retain engine-only semantic-validation slots
   and frozen-head storage that application work cannot consume; total reserve
   failure commits one deterministic close/shutdown action with no partial head.
@@ -165,8 +170,9 @@ final outbound request validation, single-range planning, individual partial
 head/chunk/completion streaming, optional retained-prefix validation,
 generation-safe cross-request assembly contexts, structurally safe stored-byte/
 output leases, exact redacted Vary identity leases/fixed storage, trailer-
-finalized combination refinement, one-time canonical normalization, keyed/
-conservative/arena-wide full-200 replacement evidence, requested/profile-capped
+finalized combination refinement, one-time canonical normalization, reserved-
+namespace/keyed full-200 replacement evidence, borrow-aware reclamation,
+requested/profile-capped
 active work budgets, and bounded copy/header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
 caller-supplied representation existence, metadata, length, validator, and
@@ -435,18 +441,25 @@ accepts a public preference but requires an engine-selected delivery permit; it
 can stream without storage or a strong validator. Only opt-in exclusive-slice/
 sealed-arena retention freezes bytes for assembly.
 Trailer processing finalizes stored validators without changing head decisions.
-Assembly contexts retain exact Vary-selected bytes in immutable request leases
-or structurally safe fixed caller storage with redaction, DMA fencing, caller
-scrub ownership, and no digest/token substitution. They normalize once into
-complete canonical storage under profile caps, compare
+Assembly contexts retain canonical Vary-selected equality bytes in immutable
+request leases or structurally safe fixed caller storage with redaction, DMA
+fencing, caller scrub ownership, and no digest/token substitution. They normalize once into
+complete canonical storage plus provenance under profile caps, avoid redundant
+sensitive raw copies, compare
 semantic request/Vary/principal/privacy/navigation identities only after
 validating request/response/storage provenance, reject `Vary: *`, acquire
 non-aliasing output safely, and compare sorted overlaps only after activating a
 profile-capped non-resettable budget. Conflicting bytes are quarantined with
 zero output until complete replacement or a
-destroyed-and-new different-validator representation context. Completed 200
-fallbacks invalidate by exact key, conservative sibling scope, or arena rotation
-when identity/scope storage is unavailable. Header selection uses the ordinal
+destroyed-and-new different-validator representation context. Correlation
+admission reserves a target/principal/partition/navigation invalidation handle
+from capacity optional Vary/normalization work cannot consume. Completed 200
+fallbacks invalidate by exact key or that namespace, widening only its coding/
+domain children when refinement is unavailable; whole-arena rotation is limited
+to reserve failure, corruption, or caller policy and is principal/tenant sharded.
+Invalidation is immediately semantic, while slot reuse waits for all live body,
+identity, and output leases and otherwise returns LeaseHeld. Header selection
+uses the ordinal
 minted when the correlation engine publishes each validated head. v0.183.0
 exposes only the
 read-only pending selection view before those permits and suppresses early 100,

@@ -15,6 +15,7 @@ scripts/validate-modularity-policy.sh check
 scripts/validate-security-policy.sh
 python3 scripts/check_dependency_policy.py
 scripts/check_packages.sh
+scripts/generate-sbom.sh --check
 cargo check --workspace --all-targets --all-features --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --all-features --locked

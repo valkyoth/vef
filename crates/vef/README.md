@@ -40,7 +40,7 @@ clocks, tasks, or application handlers.
 
 VEF 1.0.0 targets:
 
-- explicit HTTP/0.9 compatibility, disabled by default;
+- explicit HTTP/0.9 compatibility in a separate package, disabled by default;
 - HTTP/1.0 and HTTP/1.1, including RFC 9931 security updates;
 - HTTP/2 and HPACK;
 - shared HTTP semantics for clients, origin servers, intermediaries, proxies,
@@ -60,15 +60,17 @@ HTTP/3 and QUIC are explicitly outside VEF 1.x.
 | --- | --- | --- |
 | `vef` | Small feature-controlled facade | `no_std` |
 | `vef-core` | Shared semantics, types, limits, policies, diagnostics | `no_std` |
-| `vef-http1` | HTTP/0.9, HTTP/1.0, and HTTP/1.1 engines | `no_std` |
+| `vef-http1` | HTTP/1.0 and HTTP/1.1 engines | `no_std` |
 | `vef-hpack` | Bounded HPACK encoder and decoder | `no_std` |
 | `vef-http2` | HTTP/2 framing, stream state, flow control, semantics | `no_std` |
 | `vef-io` | Runtime-neutral I/O, polling, clock, and deadline contracts | `no_std` |
 
-The current workspace contains no third-party Rust crates. Runtime and TLS
-integrations described in the roadmap are separate future trust boundaries;
-they cannot be admitted without an explicit policy decision and never become
-dependencies of the protocol crates.
+The current workspace contains no third-party Rust crates. The isolated
+`vef-http09` package is created at milestone `0.67.0`; it will not be included
+by the facade's `http1` or `full` features. Runtime and TLS integrations
+described in the roadmap are separate future trust boundaries; they cannot be
+admitted without an explicit policy decision and never become dependencies of
+the protocol crates.
 
 ## Rust version support
 

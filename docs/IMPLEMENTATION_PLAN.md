@@ -10,10 +10,11 @@ contract with goal, deliverables, verification, exit criteria, and pentest stop.
 ## 1. Product outcome
 
 `1.0.0` is the first serious production-ready HTTP crate. It implements
-explicit HTTP/0.9 compatibility, HTTP/1.0, HTTP/1.1 plus RFC 9931, HPACK, and
-HTTP/2 for client, origin-server, intermediary, proxy, gateway, and tunnel
-roles. It is sans-I/O, runtime-neutral, `no_std`, safe Rust, and dependency-free
-in its protocol and I/O-contract crates.
+HTTP/1.0, HTTP/1.1 plus RFC 9931, HPACK, and HTTP/2 for client, origin-server,
+intermediary, proxy, gateway, and tunnel roles. Explicit HTTP/0.9 compatibility
+lives in a separate package and cannot be selected through an HTTP/1 fallback.
+The protocol engines are sans-I/O, runtime-neutral, `no_std`, safe Rust, and
+dependency-free in their protocol and I/O-contract crates.
 
 HTTP/3 is reserved for a later QUIC-native 2.x architecture. No 1.x abstraction
 pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
@@ -54,9 +55,13 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Every accepted message has one framing and routing interpretation.
 - Every peer-controlled length, count, table, queue, response, and work unit is
   bounded independently.
-- Successful incremental calls make observable progress.
+- Successful incremental calls make non-zero observable progress; input,
+  output, event, transition, and blocked states remain distinguishable.
 - Applications receive no request before framing/routing control data is
   complete and validated.
+- Parsing and validation produce typed deltas before state is committed.
+- Reusable storage and stream slots carry generations, and borrowed events are
+  acknowledged before the underlying slot can be recycled.
 - No HTTP/0.9, CONNECT, Upgrade, ALPN, or cleartext HTTP/2 transition is guessed.
 - Every behavior has a deterministic socket-free test oracle.
 - Every parser milestone includes negative, truncation, all-single-split,
@@ -76,8 +81,16 @@ structured diagnostics.
 
 ### `vef-http1`
 
-Owns explicit HTTP/0.9, HTTP/1.0, and HTTP/1.1 parsing, serialization, framing,
-bodies, persistence, transitions, and connection state.
+Owns HTTP/1.0 and HTTP/1.1 parsing, serialization, framing, bodies,
+persistence, transitions, and connection state. It cannot parse or select
+HTTP/0.9.
+
+### `vef-http09` (planned at `0.67.0`)
+
+Owns the exact HTTP/0.9 grammar, explicit client and server roles, and the
+dedicated-listener policy. It has no HTTP/1 fallback, pipelining, forwarding,
+or persistent-connection mode and is not enabled by the facade's `http1` or
+`full` features.
 
 ### `vef-hpack`
 
@@ -94,6 +107,13 @@ control, push, errors, priority signals, and hostile-control budgets.
 Owns minimal synchronous and poll-based byte progress, injected time,
 deadlines, cancellation, and backpressure contracts. Protocol crates do not
 depend on it; drivers compose from outside.
+
+### `vef-brynja` (planned at `0.161.0`)
+
+Owns the optional first-party Brynja TLS integration after its separate
+admission review. It points inward to `vef-io` and protocol crates, returns
+authenticated ALPN and peer metadata after the handshake, and does not add a
+TLS dependency to the facade or protocol crates.
 
 ### External integrations
 
@@ -114,69 +134,51 @@ repository requires an explicit future policy change and cannot affect core.
 8. Run the full gate, stop implementation, and pentest the exact commit.
 
 RFC 9112 and RFC 9931 are one effective HTTP/1.1 set. RFC 1945 is an explicit
-historical compatibility profile, not a modern standards-track claim.
+historical compatibility profile, not a modern standards-track claim. The
+ledger also records verified/held RFC 9112 and RFC 9113 errata, the RFC 9298
+non-applicability decision unless HTTP/1.1 CONNECT-UDP is added, RFC 9111
+cache-preservation duties, and the RFC 3986, RFC 7301, and RFC 8446 mappings.
 
 ## 5. Phase sequence
 
-### Phase 1 — Foundation and shared types (`0.1.0`–`0.16.0`)
+### Phase 1 — Foundation and shared semantics (`0.1.0`–`0.24.0`)
 
-Establish repository integrity, checked parsing primitives, budgets, errors,
-and shared byte-oriented HTTP types before accepting a complete message. The
-phase exit is a full foundation audit and executable conformance harness.
+Establish repository integrity, non-zero progress, checked parsing primitives,
+independent budgets, caller-owned storage, shared byte-oriented HTTP types,
+role policies, sync/poll I/O capabilities, fake transports, and executable
+requirements/errata evidence before accepting a complete message.
 
-### Phase 2 — HTTP/1 heads (`0.17.0`–`0.32.0`)
+### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.25.0`–`0.72.0`)
 
-Implement role-aware start lines and field sections with strict CRLF,
-whitespace/control rejection, Host validation, Content-Length and
-Transfer-Encoding grammar, one TE/CL decision, and serializer round trips.
+Implement distinct request and response state machines, strict octet parsing,
+all framing and body modes, bounded pipelines, typed connection-close actions,
+RFC 9931 and WebSocket opening-transition barriers, safe reframing, hardened
+HTTP/1.0, and an isolated `vef-http09` package. End with smuggling,
+cross-protocol, conformance, and pentest campaigns.
 
-### Phase 3 — HTTP/1 bodies (`0.33.0`–`0.48.0`)
+### Phase 3 — HPACK and HTTP/2 (`0.73.0`–`0.131.0`)
 
-Centralize message-body length, fixed/close/chunked bodies, trailers,
-persistence, bounded pipelining, informational responses, 100-continue, EOF,
-and truncation. End with a full smuggling and body-framing audit.
+Implement bounded HPACK, every HTTP/2 frame and semantic mapping, typed
+validate-then-commit deltas, generation-checked streams and tombstones, atomic
+header blocks, independent flow-control and work budgets, mandatory ACK
+tracking, reserved control output, and focused rapid-reset and flood defenses.
 
-### Phase 4 — Roles, transitions, and legacy (`0.49.0`–`0.64.0`)
+### Phase 4 — Proxy, client, server, and public APIs (`0.132.0`–`0.157.0`)
 
-Complete HEAD/status body rules, CONNECT/Upgrade, RFC 9931 behavior,
-hop-by-hop forwarding, HTTP/1.0, explicit HTTP/0.9, cross-protocol rejection,
-and the full HTTP/0.9–1.1 pentest.
+Complete HTTP/1↔HTTP/2 translation, authority and effective-URI validation,
+hop stripping, Via and cache preservation, CONNECT/WebSocket bridges,
+Structured Fields and priorities, explicit client correlation and retry
+tokens, role facades, half-close behavior, caller-storage and optional `alloc`
+APIs, diagnostics, interop, compile-fail tests, fuzzing, and soak campaigns.
 
-### Phase 5 — I/O and secure adapter contracts (`0.65.0`–`0.80.0`)
+### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.158.0`–`0.181.0`)
 
-Build dependency-free sync/poll I/O, clocks, cancellation, fake transports,
-generic drivers, TLS/ALPN metadata and prerequisite contracts, and downstream
-adapter conformance kits. Concrete third-party runtime/TLS crates remain out of
-the workspace under the current policy.
-
-### Phase 6 — HPACK (`0.81.0`–`0.96.0`)
-
-Implement the complete checked integer/string/Huffman/table/representation
-stack with caller storage, independent limits, sensitive indexing policy,
-official vectors, differential evidence, fuzzing, and pentest.
-
-### Phase 7 — HTTP/2 framing and state (`0.97.0`–`0.112.0`)
-
-Implement every core frame, unknown extension handling, stream ID rules,
-exhaustive stream state, connection sequencing, and header-block atomicity.
-
-### Phase 8 — HTTP/2 semantics and flow (`0.113.0`–`0.128.0`)
-
-Integrate HPACK, pseudo-field rules, message mapping, trailers, Cookie mapping,
-connection/stream flow control, settings, admission, scheduling, push, GOAWAY,
-ALPN/prior knowledge, and full RFC 9113 conformance.
-
-### Phase 9 — HTTP/2 hardening and translation (`0.129.0`–`0.144.0`)
-
-Add independent flood/work/output budgets, rapid-reset defenses, decompression
-bomb controls, H1/H2 translation, authority consistency, CONNECT, Structured
-Fields, RFC 9218 priority, hostile-peer campaigns, and intermediary audit.
-
-### Phase 10 — Stable APIs and release hardening (`0.145.0`–`0.160.0`)
-
-Stabilize role facades, owned and fixed-capacity APIs, diagnostics, features,
-MSRV/no-default builds, 32-bit/big-endian/architecture/platform matrices,
-long-running soak, independent audit, remediation, and API freeze.
+Add standard blocking/nonblocking adapters, admit Brynja only through a
+separate first-party adapter, require authenticated ALPN, prohibit TLS 1.3
+early data for 1.0, and prove the fixed-memory Aesynx capability model. Finish
+the target/architecture matrix, Kani and stateful fuzz campaigns,
+interoperability, whole-project pentest, independent audit, remediation, API
+freeze, packaging, SBOM, provenance, and release-candidate readiness.
 
 ## 6. Release candidates and 1.0
 
@@ -205,7 +207,7 @@ Every `0.N.0`, patch, and release candidate follows the same loop:
 6. Verify CI and CodeQL default setup on both commits.
 7. Run release readiness before tagging; never tag or publish implicitly.
 
-Phase boundaries every 16 releases add a full-repository review, stateful fuzz
+Every phase-ending release adds a full-repository review, stateful fuzz
 campaign, corpus minimization, interoperability campaign, resource-exhaustion
 assessment, manual review, and conformance-decision audit. The pre-1.0 audit is
 independent of the primary implementers.

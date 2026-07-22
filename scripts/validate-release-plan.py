@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the compact and detailed plans cover exactly v0.1.0..v0.160.0."""
+"""Check that the compact and detailed plans cover exactly v0.1.0..v0.181.0."""
 
 from __future__ import annotations
 
@@ -16,24 +16,35 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     detailed = (root / "docs/RELEASE_PLAN.md").read_text(encoding="utf-8")
     compact = (root / "docs/VERSION_PLAN.md").read_text(encoding="utf-8")
-    expected = list(range(1, 161))
+    expected = list(range(1, 182))
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
     failures: list[str] = []
     if detailed_versions != expected:
-        failures.append("detailed plan does not cover v0.1.0 through v0.160.0 exactly")
+        failures.append("detailed plan does not cover v0.1.0 through v0.181.0 exactly")
     if compact_versions != expected:
-        failures.append("version index does not cover v0.1.0 through v0.160.0 exactly")
+        failures.append("version index does not cover v0.1.0 through v0.181.0 exactly")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 160:
-            failures.append(f"expected 160 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 162:
+        if detailed.count(f"#### {heading}") != 181:
+            failures.append(f"expected 181 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 183:
         failures.append("expected one pentest stop for each milestone and release candidate")
+    required_markers = (
+        "Non-zero parser progress",
+        "Separate vef-http09 package",
+        "Transactional HPACK context",
+        "Generation-checked stream table",
+        "TLS 1.3 early-data prohibition",
+        "Independent security audit",
+    )
+    for marker in required_markers:
+        if marker not in detailed or marker not in compact:
+            failures.append(f"missing gap-closure milestone: {marker}")
     if failures:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 160 detailed milestones plus two release candidates")
+    print("release plan: 181 detailed milestones plus two release candidates")
     return 0
 
 

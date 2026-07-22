@@ -1,6 +1,6 @@
 [package]
 name = "vef-http1"
-description = "Dependency-free HTTP/0.9, HTTP/1.0, and HTTP/1.1 engines for VEF"
+description = "Dependency-free HTTP/1.0 and HTTP/1.1 engines for VEF"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

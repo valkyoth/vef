@@ -1,5 +1,5 @@
 <p align="center">
-  <b>deterministic HTTP/0.9, HTTP/1.0, and HTTP/1.1 engines for VEF.</b><br>
+  <b>deterministic HTTP/1.0 and HTTP/1.1 engines for VEF.</b><br>
   Small auditable boundaries, no_std operation, explicit limits, and security-gated release evidence.
 </p>
 
@@ -25,7 +25,7 @@
 
 # vef-http1
 
-Support crate for `vef`: deterministic HTTP/0.9, HTTP/1.0, and HTTP/1.1 engines.
+Support crate for `vef`: deterministic HTTP/1.0 and HTTP/1.1 engines.
 
 Most users should depend on the facade crate:
 
@@ -40,9 +40,10 @@ block until the facade documentation declares its public surface stable.
 
 ## Responsibility
 
-Incremental start-line, field, framing, body, persistence, CONNECT, Upgrade, and legacy-profile state machines.
+Incremental start-line, field, framing, body, persistence, CONNECT, Upgrade, and HTTP/1.0 compatibility-profile state machines.
 
-HTTP/0.9 is explicit and disabled by default; malformed HTTP/1 input is never reinterpreted as HTTP/0.9.
+HTTP/0.9 belongs to the separately planned `vef-http09` package. This crate
+never reinterprets malformed HTTP/1 input as HTTP/0.9.
 
 ## Foundation status
 

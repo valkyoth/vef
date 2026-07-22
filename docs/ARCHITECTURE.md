@@ -18,6 +18,7 @@ and diagnostics while retaining protocol-appropriate state machines.
 
 ```text
 vef facade
+  |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
   |-- vef-http1 -----> vef-core
   |-- vef-http2 -----> vef-core
   |       `----------> vef-hpack -----> vef-core
@@ -46,12 +47,16 @@ heads, trailers, limits, policies, roles, and structured diagnostics. Ordered
 field lines remain authoritative: duplicate order is preserved and values are
 never combined automatically.
 
-## HTTP/1 family
+## HTTP/0.9 and HTTP/1 boundaries
 
-`vef-http1` contains HTTP/0.9, HTTP/1.0, and HTTP/1.1 because they share a
-line-oriented messaging family. HTTP/0.9 has dedicated constructors, no
-automatic fallback, no proxy forwarding by default, and no persistent
-connection. Framing is decided exactly once after complete field validation.
+The planned `vef-http09` package owns only the exact HTTP/0.9 grammar, explicit
+client/server construction, and dedicated-listener policy. It has no automatic
+fallback, proxy forwarding, pipelining, or persistent connection and is not
+enabled by the facade's `http1` or `full` features.
+
+`vef-http1` contains HTTP/1.0 and HTTP/1.1. Framing is decided exactly once
+after complete field validation; malformed HTTP/1 is never reinterpreted as
+HTTP/0.9.
 
 The parser is an incremental byte-state machine. It does not decode the whole
 message as UTF-8, reparse accepted bytes, scan without limits, allocate from a
@@ -82,5 +87,5 @@ The repository currently permits no third-party Rust crates. Planned Tokio,
 Rustls, OpenSSL, and s2n integration names describe future boundaries, not
 current dependencies. Admission requires explicit maintainer approval and a
 release-plan update. Such crates remain optional, separately published, and
-outward-facing so `vef`, `vef-core`, `vef-http1`, `vef-hpack`, `vef-http2`, and
-the base `vef-io` remain independent.
+outward-facing so `vef`, `vef-core`, `vef-http09`, `vef-http1`, `vef-hpack`,
+`vef-http2`, and the base `vef-io` remain independent.

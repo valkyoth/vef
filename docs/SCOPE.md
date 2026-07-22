@@ -12,7 +12,7 @@ I/O contracts, not an opinionated application framework.
 | Area | Specification | 1.0 disposition |
 | --- | --- | --- |
 | Requirement language | RFC 2119 and RFC 8174 | Applied to requirement ledger |
-| HTTP/0.9 and HTTP/1.0 | RFC 1945 | Explicit historical compatibility profiles |
+| HTTP/0.9 and HTTP/1.0 | RFC 1945 | Explicit historical profiles; HTTP/0.9 is an isolated package |
 | URI syntax | RFC 3986 | Validated components without implicit normalization |
 | ALPN | RFC 7301 | Adapter selection metadata |
 | HPACK | RFC 7541 | Complete bounded encoder and decoder |

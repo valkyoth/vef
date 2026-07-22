@@ -2,41 +2,58 @@
 
 Status: planning document
 
-This plan is intentionally granular. VEF parses attacker-controlled protocol
-traffic, so every milestone must be small enough to implement, review, test,
-pentest, and stop cleanly before tagging. Split a milestone or add patch
-releases whenever its security argument no longer fits one review pass.
+This is the authoritative implementation sequence. VEF handles
+attacker-controlled protocol traffic, so each milestone has one primary
+capability and a dependency boundary that can be implemented, reviewed, tested,
+pentested, and stopped independently. Split work into patch releases whenever a
+security argument no longer fits one review pass.
 
 ## Release principles
 
-Every release requires a clear outcome, applicable RFC/errata evidence,
-bounded-resource behavior, positive and negative tests, fragmentation where
-input is incremental, adversarial and regression evidence, documentation,
-release notes, portability evidence, dependency-policy proof, a clean SBOM,
-full-SHA CI pins, CodeQL default-setup review, and an exact-commit pentest.
+Every release requires applicable RFC and errata evidence, explicit
+non-applicability decisions, bounded-resource behavior, positive and negative
+tests, fragmentation coverage for incremental input, adversarial and regression
+evidence, documentation, release notes, portability evidence, dependency-policy
+proof, a clean SBOM, full-SHA CI pins, CodeQL default-setup review, and an
+exact-commit pentest.
 
-The repository currently permits no third-party Rust crates. A release cannot
-weaken that rule implicitly. Protocol crates remain `no_std`, safe Rust, and
-independent of sockets, runtimes, TLS implementations, and wall clocks.
+Protocol and I/O-contract crates remain `no_std`, safe Rust, and free of
+third-party Rust crates. Tool-only fuzzers, model checkers, and interop peers do
+not enter the production dependency graph. A first-party Brynja integration is
+permitted only through the separately reviewed, non-default `vef-brynja`
+adapter milestone.
 
-## Required milestone format and pentest flow
+## Requirement and state rules binding every milestone
 
-Each contract below has Status, Goal, Deliverables, Verification, and Exit
-criteria. Release-specific verification is additive to `scripts/checks.sh`,
-the full Rust 1.90.0–1.97.1 matrix, live tool checks, Cargo policy/audit, SBOM,
-package inspection, CI, CodeQL default setup, and release readiness.
+- A profile is compliant only when every applicable MUST/MUST NOT is linked to
+  verification, every SHOULD decision is recorded, verified/held errata are
+  dispositioned, and deviations are explicit.
+- Incremental calls consume input, produce output, emit an event, commit a state
+  transition, or return a typed blocked condition. Success can never report
+  zero progress.
+- Peer-controlled sizes and work use checked domains plus reserve, commit, and
+  refund accounting. Capacity exhaustion is explicit and never triggers hidden
+  growth.
+- Parsing and validation produce typed deltas before state commit. Failed work
+  cannot partially mutate unrelated state or publish an application-visible
+  message.
+- Reusable stream/storage slots carry generations; application-held borrowed
+  data must be acknowledged before recycling.
+- Every source file remains below 500 lines, with module authority and
+  cross-module transition tests documented.
 
-At the implementation stop, do not tag. Pentest the exact commit, remediate
+## Pentest flow
+
+At each implementation stop, do not tag. Pentest the exact commit, remediate
 findings with regression tests, repeat all gates, then add the permanent passing
 report as the only file in the direct child of the reviewed commit. Critical or
-high findings block release. Phase-ending releases additionally require a
-full-repository manual review, stateful fuzz campaign, corpus minimization,
-multi-peer interoperability, resource-exhaustion assessment, and review of all
-open conformance decisions.
+high findings block release. Phase exits add full-repository manual review,
+stateful fuzzing, corpus minimization, multi-peer interoperability,
+resource-exhaustion assessment, and a review of all conformance decisions.
 
-## Phase 1 — Foundation and shared types
+## Phase 1 — Foundation and shared semantics
 
-Phase goal: complete foundation and shared types without weakening prior security, portability, or conformance evidence.
+Phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
 
 ### v0.1.0 — Workspace, crate boundaries, licenses, security policy, and release evidence
 
@@ -44,57 +61,77 @@ Status: foundation implementation in progress
 
 #### Goal
 
-Deliver workspace, crate boundaries, licenses, security policy, and release evidence as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Workspace, crate boundaries, licenses, security policy, and release evidence** as the only primary capability in this stop. It builds
+on the repository foundation and must be independently trustworthy before v0.2.0 (Core module skeleton and authority boundaries) begins.
 
 #### Deliverables
 
-- Implement and document workspace, crate boundaries, licenses, security policy, and release evidence in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Workspace, crate boundaries, licenses, security policy, and release evidence in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Workspace, crate boundaries, licenses, security policy, and release evidence.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Workspace, crate boundaries, licenses, security policy, and release evidence contract is complete, its named evidence is reproducible, the repository foundation
+still passes, no capability assigned to v0.2.0 (Core module skeleton and authority boundaries) is claimed, and no critical or
+high finding remains open.
 
 `0.1.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.2.0 — Empty vef-core with strict no_std and unsafe prohibition
+### v0.2.0 — Core module skeleton and authority boundaries
 
 Status: planned
 
 #### Goal
 
-Deliver empty vef-core with strict no_std and unsafe prohibition as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Core module skeleton and authority boundaries** as the only primary capability in this stop. It builds
+on v0.1.0 (Workspace, crate boundaries, licenses, security policy, and release evidence) and must be independently trustworthy before v0.3.0 (Checked byte cursor with no unchecked indexing) begins.
 
 #### Deliverables
 
-- Implement and document empty vef-core with strict no_std and unsafe prohibition in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Core module skeleton and authority boundaries in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Core module skeleton and authority boundaries.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Core module skeleton and authority boundaries contract is complete, its named evidence is reproducible, v0.1.0 (Workspace, crate boundaries, licenses, security policy, and release evidence)
+still passes, no capability assigned to v0.3.0 (Checked byte cursor with no unchecked indexing) is claimed, and no critical or
+high finding remains open.
 
 `0.2.0 implementation stop reached. Run pentest for this exact commit.`
 
@@ -104,4775 +141,7175 @@ Status: planned
 
 #### Goal
 
-Deliver checked byte cursor with no unchecked indexing as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Checked byte cursor with no unchecked indexing** as the only primary capability in this stop. It builds
+on v0.2.0 (Core module skeleton and authority boundaries) and must be independently trustworthy before v0.4.0 (Non-zero parser progress and explicit blocked states) begins.
 
 #### Deliverables
 
-- Implement and document checked byte cursor with no unchecked indexing in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Checked byte cursor with no unchecked indexing in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Checked byte cursor with no unchecked indexing.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Checked byte cursor with no unchecked indexing contract is complete, its named evidence is reproducible, v0.2.0 (Core module skeleton and authority boundaries)
+still passes, no capability assigned to v0.4.0 (Non-zero parser progress and explicit blocked states) is claimed, and no critical or
+high finding remains open.
 
 `0.3.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.4.0 — Parser progress contract and NeedMore model
+### v0.4.0 — Non-zero parser progress and explicit blocked states
 
 Status: planned
 
 #### Goal
 
-Deliver parser progress contract and needmore model as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Non-zero parser progress and explicit blocked states** as the only primary capability in this stop. It builds
+on v0.3.0 (Checked byte cursor with no unchecked indexing) and must be independently trustworthy before v0.5.0 (Checked protocol-size domains) begins.
 
 #### Deliverables
 
-- Implement and document parser progress contract and needmore model in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Non-zero parser progress and explicit blocked states in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Non-zero parser progress and explicit blocked states.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Non-zero parser progress and explicit blocked states contract is complete, its named evidence is reproducible, v0.3.0 (Checked byte cursor with no unchecked indexing)
+still passes, no capability assigned to v0.5.0 (Checked protocol-size domains) is claimed, and no critical or
+high finding remains open.
 
 `0.4.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.5.0 — Configurable limits and checked size domains
+### v0.5.0 — Checked protocol-size domains
 
 Status: planned
 
 #### Goal
 
-Deliver configurable limits and checked size domains as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Checked protocol-size domains** as the only primary capability in this stop. It builds
+on v0.4.0 (Non-zero parser progress and explicit blocked states) and must be independently trustworthy before v0.6.0 (Decode, work, transition, and response budgets) begins.
 
 #### Deliverables
 
-- Implement and document configurable limits and checked size domains in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Checked protocol-size domains in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Checked protocol-size domains.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Checked protocol-size domains contract is complete, its named evidence is reproducible, v0.4.0 (Non-zero parser progress and explicit blocked states)
+still passes, no capability assigned to v0.6.0 (Decode, work, transition, and response budgets) is claimed, and no critical or
+high finding remains open.
 
 `0.5.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.6.0 — Work, transition, and allocation budget counters
+### v0.6.0 — Decode, work, transition, and response budgets
 
 Status: planned
 
 #### Goal
 
-Deliver work, transition, and allocation budget counters as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Decode, work, transition, and response budgets** as the only primary capability in this stop. It builds
+on v0.5.0 (Checked protocol-size domains) and must be independently trustworthy before v0.7.0 (Caller-owned arenas and fixed-capacity stores) begins.
 
 #### Deliverables
 
-- Implement and document work, transition, and allocation budget counters in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Decode, work, transition, and response budgets in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Decode, work, transition, and response budgets.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Decode, work, transition, and response budgets contract is complete, its named evidence is reproducible, v0.5.0 (Checked protocol-size domains)
+still passes, no capability assigned to v0.7.0 (Caller-owned arenas and fixed-capacity stores) is claimed, and no critical or
+high finding remains open.
 
 `0.6.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.7.0 — Structured error and diagnostic taxonomy
+### v0.7.0 — Caller-owned arenas and fixed-capacity stores
 
 Status: planned
 
 #### Goal
 
-Deliver structured error and diagnostic taxonomy as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Caller-owned arenas and fixed-capacity stores** as the only primary capability in this stop. It builds
+on v0.6.0 (Decode, work, transition, and response budgets) and must be independently trustworthy before v0.8.0 (Structured errors and error-scope taxonomy) begins.
 
 #### Deliverables
 
-- Implement and document structured error and diagnostic taxonomy in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Caller-owned arenas and fixed-capacity stores in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Caller-owned arenas and fixed-capacity stores.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Caller-owned arenas and fixed-capacity stores contract is complete, its named evidence is reproducible, v0.6.0 (Decode, work, transition, and response budgets)
+still passes, no capability assigned to v0.8.0 (Structured errors and error-scope taxonomy) is claimed, and no critical or
+high finding remains open.
 
 `0.7.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.8.0 — Case-sensitive extension-capable Method
+### v0.8.0 — Structured errors and error-scope taxonomy
 
 Status: planned
 
 #### Goal
 
-Deliver case-sensitive extension-capable method as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Structured errors and error-scope taxonomy** as the only primary capability in this stop. It builds
+on v0.7.0 (Caller-owned arenas and fixed-capacity stores) and must be independently trustworthy before v0.9.0 (Case-sensitive extension-capable Method) begins.
 
 #### Deliverables
 
-- Implement and document case-sensitive extension-capable method in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Structured errors and error-scope taxonomy in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Structured errors and error-scope taxonomy.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Structured errors and error-scope taxonomy contract is complete, its named evidence is reproducible, v0.7.0 (Caller-owned arenas and fixed-capacity stores)
+still passes, no capability assigned to v0.9.0 (Case-sensitive extension-capable Method) is claimed, and no critical or
+high finding remains open.
 
 `0.8.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.9.0 — Validated StatusCode with unknown-code preservation
+### v0.9.0 — Case-sensitive extension-capable Method
 
 Status: planned
 
 #### Goal
 
-Deliver validated statuscode with unknown-code preservation as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Case-sensitive extension-capable Method** as the only primary capability in this stop. It builds
+on v0.8.0 (Structured errors and error-scope taxonomy) and must be independently trustworthy before v0.10.0 (Validated StatusCode with unknown-code preservation) begins.
 
 #### Deliverables
 
-- Implement and document validated statuscode with unknown-code preservation in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Case-sensitive extension-capable Method in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Case-sensitive extension-capable Method.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Case-sensitive extension-capable Method contract is complete, its named evidence is reproducible, v0.8.0 (Structured errors and error-scope taxonomy)
+still passes, no capability assigned to v0.10.0 (Validated StatusCode with unknown-code preservation) is claimed, and no critical or
+high finding remains open.
 
 `0.9.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.10.0 — Version and wire-version representation
+### v0.10.0 — Validated StatusCode with unknown-code preservation
 
 Status: planned
 
 #### Goal
 
-Deliver version and wire-version representation as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Validated StatusCode with unknown-code preservation** as the only primary capability in this stop. It builds
+on v0.9.0 (Case-sensitive extension-capable Method) and must be independently trustworthy before v0.11.0 (HTTP version and wire-version representation) begins.
 
 #### Deliverables
 
-- Implement and document version and wire-version representation in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Validated StatusCode with unknown-code preservation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Validated StatusCode with unknown-code preservation.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Validated StatusCode with unknown-code preservation contract is complete, its named evidence is reproducible, v0.9.0 (Case-sensitive extension-capable Method)
+still passes, no capability assigned to v0.11.0 (HTTP version and wire-version representation) is claimed, and no critical or
+high finding remains open.
 
 `0.10.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.11.0 — Case-insensitive validated FieldName
+### v0.11.0 — HTTP version and wire-version representation
 
 Status: planned
 
 #### Goal
 
-Deliver case-insensitive validated fieldname as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP version and wire-version representation** as the only primary capability in this stop. It builds
+on v0.10.0 (Validated StatusCode with unknown-code preservation) and must be independently trustworthy before v0.12.0 (Case-insensitive validated FieldName) begins.
 
 #### Deliverables
 
-- Implement and document case-insensitive validated fieldname in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP version and wire-version representation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP version and wire-version representation.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP version and wire-version representation contract is complete, its named evidence is reproducible, v0.10.0 (Validated StatusCode with unknown-code preservation)
+still passes, no capability assigned to v0.12.0 (Case-insensitive validated FieldName) is claimed, and no critical or
+high finding remains open.
 
 `0.11.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.12.0 — Byte-oriented FieldValue with raw and semantic views
+### v0.12.0 — Case-insensitive validated FieldName
 
 Status: planned
 
 #### Goal
 
-Deliver byte-oriented fieldvalue with raw and semantic views as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Case-insensitive validated FieldName** as the only primary capability in this stop. It builds
+on v0.11.0 (HTTP version and wire-version representation) and must be independently trustworthy before v0.13.0 (Byte-oriented FieldValue with raw and semantic views) begins.
 
 #### Deliverables
 
-- Implement and document byte-oriented fieldvalue with raw and semantic views in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Case-insensitive validated FieldName in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Case-insensitive validated FieldName.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Case-insensitive validated FieldName contract is complete, its named evidence is reproducible, v0.11.0 (HTTP version and wire-version representation)
+still passes, no capability assigned to v0.13.0 (Byte-oriented FieldValue with raw and semantic views) is claimed, and no critical or
+high finding remains open.
 
 `0.12.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.13.0 — Ordered FieldLine and FieldSection
+### v0.13.0 — Byte-oriented FieldValue with raw and semantic views
 
 Status: planned
 
 #### Goal
 
-Deliver ordered fieldline and fieldsection as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Byte-oriented FieldValue with raw and semantic views** as the only primary capability in this stop. It builds
+on v0.12.0 (Case-insensitive validated FieldName) and must be independently trustworthy before v0.14.0 (Ordered FieldLine and FieldSection storage) begins.
 
 #### Deliverables
 
-- Implement and document ordered fieldline and fieldsection in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Byte-oriented FieldValue with raw and semantic views in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Byte-oriented FieldValue with raw and semantic views.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Byte-oriented FieldValue with raw and semantic views contract is complete, its named evidence is reproducible, v0.12.0 (Case-insensitive validated FieldName)
+still passes, no capability assigned to v0.14.0 (Ordered FieldLine and FieldSection storage) is claimed, and no critical or
+high finding remains open.
 
 `0.13.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.14.0 — Four request-target forms without normalization
+### v0.14.0 — Ordered FieldLine and FieldSection storage
 
 Status: planned
 
 #### Goal
 
-Deliver four request-target forms without normalization as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Ordered FieldLine and FieldSection storage** as the only primary capability in this stop. It builds
+on v0.13.0 (Byte-oriented FieldValue with raw and semantic views) and must be independently trustworthy before v0.15.0 (Request-target, URI, and authority types) begins.
 
 #### Deliverables
 
-- Implement and document four request-target forms without normalization in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Ordered FieldLine and FieldSection storage in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Ordered FieldLine and FieldSection storage.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Ordered FieldLine and FieldSection storage contract is complete, its named evidence is reproducible, v0.13.0 (Byte-oriented FieldValue with raw and semantic views)
+still passes, no capability assigned to v0.15.0 (Request-target, URI, and authority types) is claimed, and no critical or
+high finding remains open.
 
 `0.14.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.15.0 — Request and response control-data types
+### v0.15.0 — Request-target, URI, and authority types
 
 Status: planned
 
 #### Goal
 
-Deliver request and response control-data types as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Request-target, URI, and authority types** as the only primary capability in this stop. It builds
+on v0.14.0 (Ordered FieldLine and FieldSection storage) and must be independently trustworthy before v0.16.0 (Request and response control-data types) begins.
 
 #### Deliverables
 
-- Implement and document request and response control-data types in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Request-target, URI, and authority types in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Request-target, URI, and authority types.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Request-target, URI, and authority types contract is complete, its named evidence is reproducible, v0.14.0 (Ordered FieldLine and FieldSection storage)
+still passes, no capability assigned to v0.16.0 (Request and response control-data types) is claimed, and no critical or
+high finding remains open.
 
 `0.15.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.16.0 — Requirement manifest, conformance harness, and full foundation audit
+### v0.16.0 — Request and response control-data types
 
 Status: planned
 
 #### Goal
 
-Deliver requirement manifest, conformance harness, and full foundation audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Request and response control-data types** as the only primary capability in this stop. It builds
+on v0.15.0 (Request-target, URI, and authority types) and must be independently trustworthy before v0.17.0 (Role, profile, and policy types) begins.
 
 #### Deliverables
 
-- Implement and document requirement manifest, conformance harness, and full foundation audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 2119, RFC 8174, and the complete source/conformance policy.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Request and response control-data types in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Request and response control-data types.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Request and response control-data types contract is complete, its named evidence is reproducible, v0.15.0 (Request-target, URI, and authority types)
+still passes, no capability assigned to v0.17.0 (Role, profile, and policy types) is claimed, and no critical or
+high finding remains open.
 
 `0.16.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 2 — HTTP/1 start lines and field sections
-
-Phase goal: complete http/1 start lines and field sections without weakening prior security, portability, or conformance evidence.
-
-### v0.17.0 — Client, server, and intermediary role types and parser profiles
+### v0.17.0 — Role, profile, and policy types
 
 Status: planned
 
 #### Goal
 
-Deliver client, server, and intermediary role types and parser profiles as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Role, profile, and policy types** as the only primary capability in this stop. It builds
+on v0.16.0 (Request and response control-data types) and must be independently trustworthy before v0.18.0 (Minimal synchronous I/O contracts) begins.
 
 #### Deliverables
 
-- Implement and document client, server, and intermediary role types and parser profiles in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Role, profile, and policy types in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Role, profile, and policy types.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Role, profile, and policy types contract is complete, its named evidence is reproducible, v0.16.0 (Request and response control-data types)
+still passes, no capability assigned to v0.18.0 (Minimal synchronous I/O contracts) is claimed, and no critical or
+high finding remains open.
 
 `0.17.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.18.0 — Incremental request-line state machine
+### v0.18.0 — Minimal synchronous I/O contracts
 
 Status: planned
 
 #### Goal
 
-Deliver incremental request-line state machine as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Minimal synchronous I/O contracts** as the only primary capability in this stop. It builds
+on v0.17.0 (Role, profile, and policy types) and must be independently trustworthy before v0.19.0 (Runtime-neutral readiness and poll contracts) begins.
 
 #### Deliverables
 
-- Implement and document incremental request-line state machine in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Minimal synchronous I/O contracts in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Minimal synchronous I/O contracts.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Minimal synchronous I/O contracts contract is complete, its named evidence is reproducible, v0.17.0 (Role, profile, and policy types)
+still passes, no capability assigned to v0.19.0 (Runtime-neutral readiness and poll contracts) is claimed, and no critical or
+high finding remains open.
 
 `0.18.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.19.0 — Incremental status-line state machine
+### v0.19.0 — Runtime-neutral readiness and poll contracts
 
 Status: planned
 
 #### Goal
 
-Deliver incremental status-line state machine as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Runtime-neutral readiness and poll contracts** as the only primary capability in this stop. It builds
+on v0.18.0 (Minimal synchronous I/O contracts) and must be independently trustworthy before v0.20.0 (Injected monotonic clock and deadline contracts) begins.
 
 #### Deliverables
 
-- Implement and document incremental status-line state machine in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Runtime-neutral readiness and poll contracts in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Runtime-neutral readiness and poll contracts.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Runtime-neutral readiness and poll contracts contract is complete, its named evidence is reproducible, v0.18.0 (Minimal synchronous I/O contracts)
+still passes, no capability assigned to v0.20.0 (Injected monotonic clock and deadline contracts) is claimed, and no critical or
+high finding remains open.
 
 `0.19.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.20.0 — Every-byte-boundary fragmentation support
+### v0.20.0 — Injected monotonic clock and deadline contracts
 
 Status: planned
 
 #### Goal
 
-Deliver every-byte-boundary fragmentation support as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Injected monotonic clock and deadline contracts** as the only primary capability in this stop. It builds
+on v0.19.0 (Runtime-neutral readiness and poll contracts) and must be independently trustworthy before v0.21.0 (Cancellation, close, and bounded-backpressure contracts) begins.
 
 #### Deliverables
 
-- Implement and document every-byte-boundary fragmentation support in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Injected monotonic clock and deadline contracts in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Injected monotonic clock and deadline contracts.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Injected monotonic clock and deadline contracts contract is complete, its named evidence is reproducible, v0.19.0 (Runtime-neutral readiness and poll contracts)
+still passes, no capability assigned to v0.21.0 (Cancellation, close, and bounded-backpressure contracts) is claimed, and no critical or
+high finding remains open.
 
 `0.20.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.21.0 — Strict CRLF and incomplete-line handling
+### v0.21.0 — Cancellation, close, and bounded-backpressure contracts
 
 Status: planned
 
 #### Goal
 
-Deliver strict crlf and incomplete-line handling as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Cancellation, close, and bounded-backpressure contracts** as the only primary capability in this stop. It builds
+on v0.20.0 (Injected monotonic clock and deadline contracts) and must be independently trustworthy before v0.22.0 (Deterministic fake transport and driver harness) begins.
 
 #### Deliverables
 
-- Implement and document strict crlf and incomplete-line handling in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Cancellation, close, and bounded-backpressure contracts in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Cancellation, close, and bounded-backpressure contracts.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Cancellation, close, and bounded-backpressure contracts contract is complete, its named evidence is reproducible, v0.20.0 (Injected monotonic clock and deadline contracts)
+still passes, no capability assigned to v0.22.0 (Deterministic fake transport and driver harness) is claimed, and no critical or
+high finding remains open.
 
 `0.21.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.22.0 — Incremental field-line parser
+### v0.22.0 — Deterministic fake transport and driver harness
 
 Status: planned
 
 #### Goal
 
-Deliver incremental field-line parser as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Deterministic fake transport and driver harness** as the only primary capability in this stop. It builds
+on v0.21.0 (Cancellation, close, and bounded-backpressure contracts) and must be independently trustworthy before v0.23.0 (Requirement, applicability, and errata evidence system) begins.
 
 #### Deliverables
 
-- Implement and document incremental field-line parser in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Deterministic fake transport and driver harness in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Deterministic fake transport and driver harness.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Deterministic fake transport and driver harness contract is complete, its named evidence is reproducible, v0.21.0 (Cancellation, close, and bounded-backpressure contracts)
+still passes, no capability assigned to v0.23.0 (Requirement, applicability, and errata evidence system) is claimed, and no critical or
+high finding remains open.
 
 `0.22.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.23.0 — Explicit OWS removal with raw-value preservation
+### v0.23.0 — Requirement, applicability, and errata evidence system
 
 Status: planned
 
 #### Goal
 
-Deliver explicit ows removal with raw-value preservation as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Requirement, applicability, and errata evidence system** as the only primary capability in this stop. It builds
+on v0.22.0 (Deterministic fake transport and driver harness) and must be independently trustworthy before v0.24.0 (Foundation Kani campaign, audit, and pentest) begins.
 
 #### Deliverables
 
-- Implement and document explicit ows removal with raw-value preservation in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Requirement, applicability, and errata evidence system in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Requirement, applicability, and errata evidence system.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Requirement, applicability, and errata evidence system contract is complete, its named evidence is reproducible, v0.22.0 (Deterministic fake transport and driver harness)
+still passes, no capability assigned to v0.24.0 (Foundation Kani campaign, audit, and pentest) is claimed, and no critical or
+high finding remains open.
 
 `0.23.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.24.0 — obs-fold, whitespace-before-colon, and control-byte rejection
+### v0.24.0 — Foundation Kani campaign, audit, and pentest
 
 Status: planned
 
 #### Goal
 
-Deliver obs-fold, whitespace-before-colon, and control-byte rejection as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Foundation Kani campaign, audit, and pentest** as the only primary capability in this stop. It builds
+on v0.23.0 (Requirement, applicability, and errata evidence system) and must be independently trustworthy before v0.25.0 (HTTP/1 role and parser profiles) begins.
 
 #### Deliverables
 
-- Implement and document obs-fold, whitespace-before-colon, and control-byte rejection in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Foundation Kani campaign, audit, and pentest in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: No parser may publish protocol state until checked progress, storage, limits, roles, and evidence contracts exist.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 2119, RFC 8174, RFC 3986, RFC 7301, RFC 8446, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9298, RFC 9931, and applicable verified or held errata.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Foundation Kani campaign, audit, and pentest.
+- Exercise checked arithmetic, every capacity boundary, zero-progress rejection, reserve/commit/refund accounting, borrowed-lifetime rules, cancellation, and deterministic fake-transport behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Foundation Kani campaign, audit, and pentest contract is complete, its named evidence is reproducible, v0.23.0 (Requirement, applicability, and errata evidence system)
+still passes, no capability assigned to v0.25.0 (HTTP/1 role and parser profiles) is claimed, and no critical or
+high finding remains open.
 
 `0.24.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.25.0 — Field count, line, and section limit enforcement
+## Phase 2 — HTTP/1 and isolated HTTP/0.9
+
+Phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+
+### v0.25.0 — HTTP/1 role and parser profiles
 
 Status: planned
 
 #### Goal
 
-Deliver field count, line, and section limit enforcement as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1 role and parser profiles** as the only primary capability in this stop. It builds
+on v0.24.0 (Foundation Kani campaign, audit, and pentest) and must be independently trustworthy before v0.26.0 (Incremental HTTP/1 request-line parser) begins.
 
 #### Deliverables
 
-- Implement and document field count, line, and section limit enforcement in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1 role and parser profiles in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1 role and parser profiles.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1 role and parser profiles contract is complete, its named evidence is reproducible, v0.24.0 (Foundation Kani campaign, audit, and pentest)
+still passes, no capability assigned to v0.26.0 (Incremental HTTP/1 request-line parser) is claimed, and no critical or
+high finding remains open.
 
 `0.25.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.26.0 — HTTP/1.1 Host validation and duplicate rejection
+### v0.26.0 — Incremental HTTP/1 request-line parser
 
 Status: planned
 
 #### Goal
 
-Deliver http/1.1 host validation and duplicate rejection as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Incremental HTTP/1 request-line parser** as the only primary capability in this stop. It builds
+on v0.25.0 (HTTP/1 role and parser profiles) and must be independently trustworthy before v0.27.0 (Incremental HTTP/1 status-line parser) begins.
 
 #### Deliverables
 
-- Implement and document http/1.1 host validation and duplicate rejection in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Incremental HTTP/1 request-line parser in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Incremental HTTP/1 request-line parser.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Incremental HTTP/1 request-line parser contract is complete, its named evidence is reproducible, v0.25.0 (HTTP/1 role and parser profiles)
+still passes, no capability assigned to v0.27.0 (Incremental HTTP/1 status-line parser) is claimed, and no critical or
+high finding remains open.
 
 `0.26.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.27.0 — Method and request-target-form coherence
+### v0.27.0 — Incremental HTTP/1 status-line parser
 
 Status: planned
 
 #### Goal
 
-Deliver method and request-target-form coherence as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Incremental HTTP/1 status-line parser** as the only primary capability in this stop. It builds
+on v0.26.0 (Incremental HTTP/1 request-line parser) and must be independently trustworthy before v0.28.0 (Every-byte fragmentation support) begins.
 
 #### Deliverables
 
-- Implement and document method and request-target-form coherence in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Incremental HTTP/1 status-line parser in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Incremental HTTP/1 status-line parser.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Incremental HTTP/1 status-line parser contract is complete, its named evidence is reproducible, v0.26.0 (Incremental HTTP/1 request-line parser)
+still passes, no capability assigned to v0.28.0 (Every-byte fragmentation support) is claimed, and no critical or
+high finding remains open.
 
 `0.27.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.28.0 — Checked Content-Length grammar
+### v0.28.0 — Every-byte fragmentation support
 
 Status: planned
 
 #### Goal
 
-Deliver checked content-length grammar as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Every-byte fragmentation support** as the only primary capability in this stop. It builds
+on v0.27.0 (Incremental HTTP/1 status-line parser) and must be independently trustworthy before v0.29.0 (Strict CRLF and separately named LF compatibility) begins.
 
 #### Deliverables
 
-- Implement and document checked content-length grammar in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Every-byte fragmentation support in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Every-byte fragmentation support.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Every-byte fragmentation support contract is complete, its named evidence is reproducible, v0.27.0 (Incremental HTTP/1 status-line parser)
+still passes, no capability assigned to v0.29.0 (Strict CRLF and separately named LF compatibility) is claimed, and no critical or
+high finding remains open.
 
 `0.28.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.29.0 — Repeated and comma-list Content-Length resolution
+### v0.29.0 — Strict CRLF and separately named LF compatibility
 
 Status: planned
 
 #### Goal
 
-Deliver repeated and comma-list content-length resolution as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Strict CRLF and separately named LF compatibility** as the only primary capability in this stop. It builds
+on v0.28.0 (Every-byte fragmentation support) and must be independently trustworthy before v0.30.0 (Incremental HTTP/1 field-line parser) begins.
 
 #### Deliverables
 
-- Implement and document repeated and comma-list content-length resolution in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Strict CRLF and separately named LF compatibility in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Strict CRLF and separately named LF compatibility.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Strict CRLF and separately named LF compatibility contract is complete, its named evidence is reproducible, v0.28.0 (Every-byte fragmentation support)
+still passes, no capability assigned to v0.30.0 (Incremental HTTP/1 field-line parser) is claimed, and no critical or
+high finding remains open.
 
 `0.29.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.30.0 — Transfer-Encoding grammar and ordering
+### v0.30.0 — Incremental HTTP/1 field-line parser
 
 Status: planned
 
 #### Goal
 
-Deliver transfer-encoding grammar and ordering as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Incremental HTTP/1 field-line parser** as the only primary capability in this stop. It builds
+on v0.29.0 (Strict CRLF and separately named LF compatibility) and must be independently trustworthy before v0.31.0 (Explicit OWS handling with raw-value preservation) begins.
 
 #### Deliverables
 
-- Implement and document transfer-encoding grammar and ordering in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Incremental HTTP/1 field-line parser in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Incremental HTTP/1 field-line parser.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Incremental HTTP/1 field-line parser contract is complete, its named evidence is reproducible, v0.29.0 (Strict CRLF and separately named LF compatibility)
+still passes, no capability assigned to v0.31.0 (Explicit OWS handling with raw-value preservation) is claimed, and no critical or
+high finding remains open.
 
 `0.30.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.31.0 — TE/CL conflict resolution and mandatory close action
+### v0.31.0 — Explicit OWS handling with raw-value preservation
 
 Status: planned
 
 #### Goal
 
-Deliver te/cl conflict resolution and mandatory close action as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Explicit OWS handling with raw-value preservation** as the only primary capability in this stop. It builds
+on v0.30.0 (Incremental HTTP/1 field-line parser) and must be independently trustworthy before v0.32.0 (Injection-proof HTTP/1 serialization) begins.
 
 #### Deliverables
 
-- Implement and document te/cl conflict resolution and mandatory close action in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Explicit OWS handling with raw-value preservation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Explicit OWS handling with raw-value preservation.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Explicit OWS handling with raw-value preservation contract is complete, its named evidence is reproducible, v0.30.0 (Incremental HTTP/1 field-line parser)
+still passes, no capability assigned to v0.32.0 (Injection-proof HTTP/1 serialization) is claimed, and no critical or
+high finding remains open.
 
 `0.31.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.32.0 — Head serialization, round-trip properties, and full phase audit
+### v0.32.0 — Injection-proof HTTP/1 serialization
 
 Status: planned
 
 #### Goal
 
-Deliver head serialization, round-trip properties, and full phase audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Injection-proof HTTP/1 serialization** as the only primary capability in this stop. It builds
+on v0.31.0 (Explicit OWS handling with raw-value preservation) and must be independently trustworthy before v0.33.0 (obs-fold, bad colon whitespace, and control-byte rejection) begins.
 
 #### Deliverables
 
-- Implement and document head serialization, round-trip properties, and full phase audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 3986, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Injection-proof HTTP/1 serialization in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Injection-proof HTTP/1 serialization.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Injection-proof HTTP/1 serialization contract is complete, its named evidence is reproducible, v0.31.0 (Explicit OWS handling with raw-value preservation)
+still passes, no capability assigned to v0.33.0 (obs-fold, bad colon whitespace, and control-byte rejection) is claimed, and no critical or
+high finding remains open.
 
 `0.32.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 3 — HTTP/1 body framing and persistence
-
-Phase goal: complete http/1 body framing and persistence without weakening prior security, portability, or conformance evidence.
-
-### v0.33.0 — Central message-body-length decision algorithm
+### v0.33.0 — obs-fold, bad colon whitespace, and control-byte rejection
 
 Status: planned
 
 #### Goal
 
-Deliver central message-body-length decision algorithm as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **obs-fold, bad colon whitespace, and control-byte rejection** as the only primary capability in this stop. It builds
+on v0.32.0 (Injection-proof HTTP/1 serialization) and must be independently trustworthy before v0.34.0 (Field count, line, and section caps) begins.
 
 #### Deliverables
 
-- Implement and document central message-body-length decision algorithm in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document obs-fold, bad colon whitespace, and control-byte rejection in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for obs-fold, bad colon whitespace, and control-byte rejection.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The obs-fold, bad colon whitespace, and control-byte rejection contract is complete, its named evidence is reproducible, v0.32.0 (Injection-proof HTTP/1 serialization)
+still passes, no capability assigned to v0.34.0 (Field count, line, and section caps) is claimed, and no critical or
+high finding remains open.
 
 `0.33.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.34.0 — Fixed-length body decoder
+### v0.34.0 — Field count, line, and section caps
 
 Status: planned
 
 #### Goal
 
-Deliver fixed-length body decoder as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Field count, line, and section caps** as the only primary capability in this stop. It builds
+on v0.33.0 (obs-fold, bad colon whitespace, and control-byte rejection) and must be independently trustworthy before v0.35.0 (HTTP/1.1 Host validation and duplicate rejection) begins.
 
 #### Deliverables
 
-- Implement and document fixed-length body decoder in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Field count, line, and section caps in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Field count, line, and section caps.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Field count, line, and section caps contract is complete, its named evidence is reproducible, v0.33.0 (obs-fold, bad colon whitespace, and control-byte rejection)
+still passes, no capability assigned to v0.35.0 (HTTP/1.1 Host validation and duplicate rejection) is claimed, and no critical or
+high finding remains open.
 
 `0.34.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.35.0 — Close-delimited response decoder
+### v0.35.0 — HTTP/1.1 Host validation and duplicate rejection
 
 Status: planned
 
 #### Goal
 
-Deliver close-delimited response decoder as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1.1 Host validation and duplicate rejection** as the only primary capability in this stop. It builds
+on v0.34.0 (Field count, line, and section caps) and must be independently trustworthy before v0.36.0 (Method and request-target-form coherence) begins.
 
 #### Deliverables
 
-- Implement and document close-delimited response decoder in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1.1 Host validation and duplicate rejection in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1.1 Host validation and duplicate rejection.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1.1 Host validation and duplicate rejection contract is complete, its named evidence is reproducible, v0.34.0 (Field count, line, and section caps)
+still passes, no capability assigned to v0.36.0 (Method and request-target-form coherence) is claimed, and no critical or
+high finding remains open.
 
 `0.35.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.36.0 — Checked hexadecimal chunk-size parser
+### v0.36.0 — Method and request-target-form coherence
 
 Status: planned
 
 #### Goal
 
-Deliver checked hexadecimal chunk-size parser as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Method and request-target-form coherence** as the only primary capability in this stop. It builds
+on v0.35.0 (HTTP/1.1 Host validation and duplicate rejection) and must be independently trustworthy before v0.37.0 (Checked Content-Length grammar) begins.
 
 #### Deliverables
 
-- Implement and document checked hexadecimal chunk-size parser in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Method and request-target-form coherence in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Method and request-target-form coherence.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Method and request-target-form coherence contract is complete, its named evidence is reproducible, v0.35.0 (HTTP/1.1 Host validation and duplicate rejection)
+still passes, no capability assigned to v0.37.0 (Checked Content-Length grammar) is claimed, and no critical or
+high finding remains open.
 
 `0.36.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.37.0 — Incremental chunk-data and CRLF state
+### v0.37.0 — Checked Content-Length grammar
 
 Status: planned
 
 #### Goal
 
-Deliver incremental chunk-data and crlf state as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Checked Content-Length grammar** as the only primary capability in this stop. It builds
+on v0.36.0 (Method and request-target-form coherence) and must be independently trustworthy before v0.38.0 (Repeated and comma-list Content-Length resolution) begins.
 
 #### Deliverables
 
-- Implement and document incremental chunk-data and crlf state in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Checked Content-Length grammar in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Checked Content-Length grammar.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Checked Content-Length grammar contract is complete, its named evidence is reproducible, v0.36.0 (Method and request-target-form coherence)
+still passes, no capability assigned to v0.38.0 (Repeated and comma-list Content-Length resolution) is claimed, and no critical or
+high finding remains open.
 
 `0.37.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.38.0 — Bounded chunk-extension parser
+### v0.38.0 — Repeated and comma-list Content-Length resolution
 
 Status: planned
 
 #### Goal
 
-Deliver bounded chunk-extension parser as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Repeated and comma-list Content-Length resolution** as the only primary capability in this stop. It builds
+on v0.37.0 (Checked Content-Length grammar) and must be independently trustworthy before v0.39.0 (Transfer-Encoding grammar and ordering) begins.
 
 #### Deliverables
 
-- Implement and document bounded chunk-extension parser in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Repeated and comma-list Content-Length resolution in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Repeated and comma-list Content-Length resolution.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Repeated and comma-list Content-Length resolution contract is complete, its named evidence is reproducible, v0.37.0 (Checked Content-Length grammar)
+still passes, no capability assigned to v0.39.0 (Transfer-Encoding grammar and ordering) is claimed, and no critical or
+high finding remains open.
 
 `0.38.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.39.0 — Last-chunk and trailer transition
+### v0.39.0 — Transfer-Encoding grammar and ordering
 
 Status: planned
 
 #### Goal
 
-Deliver last-chunk and trailer transition as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Transfer-Encoding grammar and ordering** as the only primary capability in this stop. It builds
+on v0.38.0 (Repeated and comma-list Content-Length resolution) and must be independently trustworthy before v0.40.0 (TE/CL conflict resolution and mandatory close action) begins.
 
 #### Deliverables
 
-- Implement and document last-chunk and trailer transition in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Transfer-Encoding grammar and ordering in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Transfer-Encoding grammar and ordering.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Transfer-Encoding grammar and ordering contract is complete, its named evidence is reproducible, v0.38.0 (Repeated and comma-list Content-Length resolution)
+still passes, no capability assigned to v0.40.0 (TE/CL conflict resolution and mandatory close action) is claimed, and no critical or
+high finding remains open.
 
 `0.39.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.40.0 — Trailer declarations and prohibited-trailer policy
+### v0.40.0 — TE/CL conflict resolution and mandatory close action
 
 Status: planned
 
 #### Goal
 
-Deliver trailer declarations and prohibited-trailer policy as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **TE/CL conflict resolution and mandatory close action** as the only primary capability in this stop. It builds
+on v0.39.0 (Transfer-Encoding grammar and ordering) and must be independently trustworthy before v0.41.0 (Central HTTP/1 message-body-length algorithm) begins.
 
 #### Deliverables
 
-- Implement and document trailer declarations and prohibited-trailer policy in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document TE/CL conflict resolution and mandatory close action in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for TE/CL conflict resolution and mandatory close action.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The TE/CL conflict resolution and mandatory close action contract is complete, its named evidence is reproducible, v0.39.0 (Transfer-Encoding grammar and ordering)
+still passes, no capability assigned to v0.41.0 (Central HTTP/1 message-body-length algorithm) is claimed, and no critical or
+high finding remains open.
 
 `0.40.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.41.0 — Chunked encoder and caller-owned output buffering
+### v0.41.0 — Central HTTP/1 message-body-length algorithm
 
 Status: planned
 
 #### Goal
 
-Deliver chunked encoder and caller-owned output buffering as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Central HTTP/1 message-body-length algorithm** as the only primary capability in this stop. It builds
+on v0.40.0 (TE/CL conflict resolution and mandatory close action) and must be independently trustworthy before v0.42.0 (Fixed-length body decoder) begins.
 
 #### Deliverables
 
-- Implement and document chunked encoder and caller-owned output buffering in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Central HTTP/1 message-body-length algorithm in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Central HTTP/1 message-body-length algorithm.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Central HTTP/1 message-body-length algorithm contract is complete, its named evidence is reproducible, v0.40.0 (TE/CL conflict resolution and mandatory close action)
+still passes, no capability assigned to v0.42.0 (Fixed-length body decoder) is claimed, and no critical or
+high finding remains open.
 
 `0.41.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.42.0 — HTTP/1.1 persistence and Connection semantics
+### v0.42.0 — Fixed-length body decoder
 
 Status: planned
 
 #### Goal
 
-Deliver http/1.1 persistence and connection semantics as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Fixed-length body decoder** as the only primary capability in this stop. It builds
+on v0.41.0 (Central HTTP/1 message-body-length algorithm) and must be independently trustworthy before v0.43.0 (Close-delimited response decoder) begins.
 
 #### Deliverables
 
-- Implement and document http/1.1 persistence and connection semantics in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Fixed-length body decoder in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Fixed-length body decoder.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Fixed-length body decoder contract is complete, its named evidence is reproducible, v0.41.0 (Central HTTP/1 message-body-length algorithm)
+still passes, no capability assigned to v0.43.0 (Close-delimited response decoder) is claimed, and no critical or
+high finding remains open.
 
 `0.42.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.43.0 — Sequential request/response connection state
+### v0.43.0 — Close-delimited response decoder
 
 Status: planned
 
 #### Goal
 
-Deliver sequential request/response connection state as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Close-delimited response decoder** as the only primary capability in this stop. It builds
+on v0.42.0 (Fixed-length body decoder) and must be independently trustworthy before v0.44.0 (Checked chunk-size parser) begins.
 
 #### Deliverables
 
-- Implement and document sequential request/response connection state in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Close-delimited response decoder in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Close-delimited response decoder.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Close-delimited response decoder contract is complete, its named evidence is reproducible, v0.42.0 (Fixed-length body decoder)
+still passes, no capability assigned to v0.44.0 (Checked chunk-size parser) is claimed, and no critical or
+high finding remains open.
 
 `0.43.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.44.0 — Optional bounded pipelining queue
+### v0.44.0 — Checked chunk-size parser
 
 Status: planned
 
 #### Goal
 
-Deliver optional bounded pipelining queue as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Checked chunk-size parser** as the only primary capability in this stop. It builds
+on v0.43.0 (Close-delimited response decoder) and must be independently trustworthy before v0.45.0 (Incremental chunk-data state) begins.
 
 #### Deliverables
 
-- Implement and document optional bounded pipelining queue in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Checked chunk-size parser in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Checked chunk-size parser.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Checked chunk-size parser contract is complete, its named evidence is reproducible, v0.43.0 (Close-delimited response decoder)
+still passes, no capability assigned to v0.45.0 (Incremental chunk-data state) is claimed, and no critical or
+high finding remains open.
 
 `0.44.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.45.0 — Informational response lifecycle
+### v0.45.0 — Incremental chunk-data state
 
 Status: planned
 
 #### Goal
 
-Deliver informational response lifecycle as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Incremental chunk-data state** as the only primary capability in this stop. It builds
+on v0.44.0 (Checked chunk-size parser) and must be independently trustworthy before v0.46.0 (Bounded chunk-extension parser) begins.
 
 #### Deliverables
 
-- Implement and document informational response lifecycle in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Incremental chunk-data state in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Incremental chunk-data state.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Incremental chunk-data state contract is complete, its named evidence is reproducible, v0.44.0 (Checked chunk-size parser)
+still passes, no capability assigned to v0.46.0 (Bounded chunk-extension parser) is claimed, and no critical or
+high finding remains open.
 
 `0.45.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.46.0 — Expect: 100-continue state
+### v0.46.0 — Bounded chunk-extension parser
 
 Status: planned
 
 #### Goal
 
-Deliver expect: 100-continue state as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Bounded chunk-extension parser** as the only primary capability in this stop. It builds
+on v0.45.0 (Incremental chunk-data state) and must be independently trustworthy before v0.47.0 (Last-chunk and trailer transition) begins.
 
 #### Deliverables
 
-- Implement and document expect: 100-continue state in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Bounded chunk-extension parser in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Bounded chunk-extension parser.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Bounded chunk-extension parser contract is complete, its named evidence is reproducible, v0.45.0 (Incremental chunk-data state)
+still passes, no capability assigned to v0.47.0 (Last-chunk and trailer transition) is claimed, and no critical or
+high finding remains open.
 
 `0.46.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.47.0 — EOF, truncation, and incomplete-message rules
+### v0.47.0 — Last-chunk and trailer transition
 
 Status: planned
 
 #### Goal
 
-Deliver eof, truncation, and incomplete-message rules as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Last-chunk and trailer transition** as the only primary capability in this stop. It builds
+on v0.46.0 (Bounded chunk-extension parser) and must be independently trustworthy before v0.48.0 (Trailer declarations and prohibited-trailer policy) begins.
 
 #### Deliverables
 
-- Implement and document eof, truncation, and incomplete-message rules in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Last-chunk and trailer transition in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Last-chunk and trailer transition.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Last-chunk and trailer transition contract is complete, its named evidence is reproducible, v0.46.0 (Bounded chunk-extension parser)
+still passes, no capability assigned to v0.48.0 (Trailer declarations and prohibited-trailer policy) is claimed, and no critical or
+high finding remains open.
 
 `0.47.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.48.0 — Full framing, persistence, and body audit
+### v0.48.0 — Trailer declarations and prohibited-trailer policy
 
 Status: planned
 
 #### Goal
 
-Deliver full framing, persistence, and body audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Trailer declarations and prohibited-trailer policy** as the only primary capability in this stop. It builds
+on v0.47.0 (Last-chunk and trailer transition) and must be independently trustworthy before v0.49.0 (Chunked encoder with partial-output state) begins.
 
 #### Deliverables
 
-- Implement and document full framing, persistence, and body audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Trailer declarations and prohibited-trailer policy in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Trailer declarations and prohibited-trailer policy.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Trailer declarations and prohibited-trailer policy contract is complete, its named evidence is reproducible, v0.47.0 (Last-chunk and trailer transition)
+still passes, no capability assigned to v0.49.0 (Chunked encoder with partial-output state) is claimed, and no critical or
+high finding remains open.
 
 `0.48.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 4 — HTTP/1 roles, transitions, and legacy profiles
-
-Phase goal: complete http/1 roles, transitions, and legacy profiles without weakening prior security, portability, or conformance evidence.
-
-### v0.49.0 — HEAD request response-framing context
+### v0.49.0 — Chunked encoder with partial-output state
 
 Status: planned
 
 #### Goal
 
-Deliver head request response-framing context as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Chunked encoder with partial-output state** as the only primary capability in this stop. It builds
+on v0.48.0 (Trailer declarations and prohibited-trailer policy) and must be independently trustworthy before v0.50.0 (HTTP/1.1 persistence and Connection semantics) begins.
 
 #### Deliverables
 
-- Implement and document head request response-framing context in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Chunked encoder with partial-output state in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Chunked encoder with partial-output state.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Chunked encoder with partial-output state contract is complete, its named evidence is reproducible, v0.48.0 (Trailer declarations and prohibited-trailer policy)
+still passes, no capability assigned to v0.50.0 (HTTP/1.1 persistence and Connection semantics) is claimed, and no critical or
+high finding remains open.
 
 `0.49.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.50.0 — 1xx, 204, 304, and body-forbidden response handling
+### v0.50.0 — HTTP/1.1 persistence and Connection semantics
 
 Status: planned
 
 #### Goal
 
-Deliver 1xx, 204, 304, and body-forbidden response handling as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1.1 persistence and Connection semantics** as the only primary capability in this stop. It builds
+on v0.49.0 (Chunked encoder with partial-output state) and must be independently trustworthy before v0.51.0 (Sequential request/response connection state) begins.
 
 #### Deliverables
 
-- Implement and document 1xx, 204, 304, and body-forbidden response handling in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1.1 persistence and Connection semantics in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1.1 persistence and Connection semantics.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1.1 persistence and Connection semantics contract is complete, its named evidence is reproducible, v0.49.0 (Chunked encoder with partial-output state)
+still passes, no capability assigned to v0.51.0 (Sequential request/response connection state) is claimed, and no critical or
+high finding remains open.
 
 `0.50.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.51.0 — CONNECT request and successful tunnel transition
+### v0.51.0 — Sequential request/response connection state
 
 Status: planned
 
 #### Goal
 
-Deliver connect request and successful tunnel transition as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Sequential request/response connection state** as the only primary capability in this stop. It builds
+on v0.50.0 (HTTP/1.1 persistence and Connection semantics) and must be independently trustworthy before v0.52.0 (Optional bounded pipelining queue) begins.
 
 #### Deliverables
 
-- Implement and document connect request and successful tunnel transition in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Sequential request/response connection state in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Sequential request/response connection state.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Sequential request/response connection state contract is complete, its named evidence is reproducible, v0.50.0 (HTTP/1.1 persistence and Connection semantics)
+still passes, no capability assigned to v0.52.0 (Optional bounded pipelining queue) is claimed, and no critical or
+high finding remains open.
 
 `0.51.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.52.0 — RFC 9931 optimistic CONNECT protections
+### v0.52.0 — Optional bounded pipelining queue
 
 Status: planned
 
 #### Goal
 
-Deliver rfc 9931 optimistic connect protections as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Optional bounded pipelining queue** as the only primary capability in this stop. It builds
+on v0.51.0 (Sequential request/response connection state) and must be independently trustworthy before v0.53.0 (Informational response lifecycle) begins.
 
 #### Deliverables
 
-- Implement and document rfc 9931 optimistic connect protections in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Optional bounded pipelining queue in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Optional bounded pipelining queue.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Optional bounded pipelining queue contract is complete, its named evidence is reproducible, v0.51.0 (Sequential request/response connection state)
+still passes, no capability assigned to v0.53.0 (Informational response lifecycle) is claimed, and no critical or
+high finding remains open.
 
 `0.52.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.53.0 — 101 Switching Protocols transition
+### v0.53.0 — Informational response lifecycle
 
 Status: planned
 
 #### Goal
 
-Deliver 101 switching protocols transition as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Informational response lifecycle** as the only primary capability in this stop. It builds
+on v0.52.0 (Optional bounded pipelining queue) and must be independently trustworthy before v0.54.0 (Expect: 100-continue state) begins.
 
 #### Deliverables
 
-- Implement and document 101 switching protocols transition in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Informational response lifecycle in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Informational response lifecycle.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Informational response lifecycle contract is complete, its named evidence is reproducible, v0.52.0 (Optional bounded pipelining queue)
+still passes, no capability assigned to v0.54.0 (Expect: 100-continue state) is claimed, and no critical or
+high finding remains open.
 
 `0.53.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.54.0 — Connection-nominated and hop-by-hop field handling
+### v0.54.0 — Expect: 100-continue state
 
 Status: planned
 
 #### Goal
 
-Deliver connection-nominated and hop-by-hop field handling as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Expect: 100-continue state** as the only primary capability in this stop. It builds
+on v0.53.0 (Informational response lifecycle) and must be independently trustworthy before v0.55.0 (EOF, truncation, and incomplete-message rules) begins.
 
 #### Deliverables
 
-- Implement and document connection-nominated and hop-by-hop field handling in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Expect: 100-continue state in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Expect: 100-continue state.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Expect: 100-continue state contract is complete, its named evidence is reproducible, v0.53.0 (Informational response lifecycle)
+still passes, no capability assigned to v0.55.0 (EOF, truncation, and incomplete-message rules) is claimed, and no critical or
+high finding remains open.
 
 `0.54.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.55.0 — Safe forwarding and connection-close action API
+### v0.55.0 — EOF, truncation, and incomplete-message rules
 
 Status: planned
 
 #### Goal
 
-Deliver safe forwarding and connection-close action api as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **EOF, truncation, and incomplete-message rules** as the only primary capability in this stop. It builds
+on v0.54.0 (Expect: 100-continue state) and must be independently trustworthy before v0.56.0 (HEAD response-framing context) begins.
 
 #### Deliverables
 
-- Implement and document safe forwarding and connection-close action api in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document EOF, truncation, and incomplete-message rules in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for EOF, truncation, and incomplete-message rules.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The EOF, truncation, and incomplete-message rules contract is complete, its named evidence is reproducible, v0.54.0 (Expect: 100-continue state)
+still passes, no capability assigned to v0.56.0 (HEAD response-framing context) is claimed, and no critical or
+high finding remains open.
 
 `0.55.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.56.0 — RFC 1945 HTTP/1.0 parser and serializer
+### v0.56.0 — HEAD response-framing context
 
 Status: planned
 
 #### Goal
 
-Deliver rfc 1945 http/1.0 parser and serializer as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HEAD response-framing context** as the only primary capability in this stop. It builds
+on v0.55.0 (EOF, truncation, and incomplete-message rules) and must be independently trustworthy before v0.57.0 (1xx, 204, 304, and body-forbidden response handling) begins.
 
 #### Deliverables
 
-- Implement and document rfc 1945 http/1.0 parser and serializer in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HEAD response-framing context in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HEAD response-framing context.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HEAD response-framing context contract is complete, its named evidence is reproducible, v0.55.0 (EOF, truncation, and incomplete-message rules)
+still passes, no capability assigned to v0.57.0 (1xx, 204, 304, and body-forbidden response handling) is claimed, and no critical or
+high finding remains open.
 
 `0.56.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.57.0 — HTTP/1.0 default connection-close lifecycle
+### v0.57.0 — 1xx, 204, 304, and body-forbidden response handling
 
 Status: planned
 
 #### Goal
 
-Deliver http/1.0 default connection-close lifecycle as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **1xx, 204, 304, and body-forbidden response handling** as the only primary capability in this stop. It builds
+on v0.56.0 (HEAD response-framing context) and must be independently trustworthy before v0.58.0 (CONNECT request and successful tunnel transition) begins.
 
 #### Deliverables
 
-- Implement and document http/1.0 default connection-close lifecycle in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document 1xx, 204, 304, and body-forbidden response handling in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for 1xx, 204, 304, and body-forbidden response handling.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The 1xx, 204, 304, and body-forbidden response handling contract is complete, its named evidence is reproducible, v0.56.0 (HEAD response-framing context)
+still passes, no capability assigned to v0.58.0 (CONNECT request and successful tunnel transition) is claimed, and no critical or
+high finding remains open.
 
 `0.57.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.58.0 — Explicit HTTP/1.0 keep-alive extension profile
+### v0.58.0 — CONNECT request and successful tunnel transition
 
 Status: planned
 
 #### Goal
 
-Deliver explicit http/1.0 keep-alive extension profile as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **CONNECT request and successful tunnel transition** as the only primary capability in this stop. It builds
+on v0.57.0 (1xx, 204, 304, and body-forbidden response handling) and must be independently trustworthy before v0.59.0 (RFC 9931 optimistic-data protections) begins.
 
 #### Deliverables
 
-- Implement and document explicit http/1.0 keep-alive extension profile in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document CONNECT request and successful tunnel transition in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for CONNECT request and successful tunnel transition.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The CONNECT request and successful tunnel transition contract is complete, its named evidence is reproducible, v0.57.0 (1xx, 204, 304, and body-forbidden response handling)
+still passes, no capability assigned to v0.59.0 (RFC 9931 optimistic-data protections) is claimed, and no critical or
+high finding remains open.
 
 `0.58.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.59.0 — Explicit HTTP/0.9 client
+### v0.59.0 — RFC 9931 optimistic-data protections
 
 Status: planned
 
 #### Goal
 
-Deliver explicit http/0.9 client as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **RFC 9931 optimistic-data protections** as the only primary capability in this stop. It builds
+on v0.58.0 (CONNECT request and successful tunnel transition) and must be independently trustworthy before v0.60.0 (101 Switching Protocols transition) begins.
 
 #### Deliverables
 
-- Implement and document explicit http/0.9 client in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document RFC 9931 optimistic-data protections in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for RFC 9931 optimistic-data protections.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The RFC 9931 optimistic-data protections contract is complete, its named evidence is reproducible, v0.58.0 (CONNECT request and successful tunnel transition)
+still passes, no capability assigned to v0.60.0 (101 Switching Protocols transition) is claimed, and no critical or
+high finding remains open.
 
 `0.59.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.60.0 — Explicit HTTP/0.9 server
+### v0.60.0 — 101 Switching Protocols transition
 
 Status: planned
 
 #### Goal
 
-Deliver explicit http/0.9 server as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **101 Switching Protocols transition** as the only primary capability in this stop. It builds
+on v0.59.0 (RFC 9931 optimistic-data protections) and must be independently trustworthy before v0.61.0 (RFC 6455 WebSocket opening handshake only) begins.
 
 #### Deliverables
 
-- Implement and document explicit http/0.9 server in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document 101 Switching Protocols transition in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for 101 Switching Protocols transition.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The 101 Switching Protocols transition contract is complete, its named evidence is reproducible, v0.59.0 (RFC 9931 optimistic-data protections)
+still passes, no capability assigned to v0.61.0 (RFC 6455 WebSocket opening handshake only) is claimed, and no critical or
+high finding remains open.
 
 `0.60.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.61.0 — HTTP/0.9 dedicated-listener and disabled-default policy
+### v0.61.0 — RFC 6455 WebSocket opening handshake only
 
 Status: planned
 
 #### Goal
 
-Deliver http/0.9 dedicated-listener and disabled-default policy as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **RFC 6455 WebSocket opening handshake only** as the only primary capability in this stop. It builds
+on v0.60.0 (101 Switching Protocols transition) and must be independently trustworthy before v0.62.0 (Connection-nominated and hop-by-hop field handling) begins.
 
 #### Deliverables
 
-- Implement and document http/0.9 dedicated-listener and disabled-default policy in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document RFC 6455 WebSocket opening handshake only in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for RFC 6455 WebSocket opening handshake only.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The RFC 6455 WebSocket opening handshake only contract is complete, its named evidence is reproducible, v0.60.0 (101 Switching Protocols transition)
+still passes, no capability assigned to v0.62.0 (Connection-nominated and hop-by-hop field handling) is claimed, and no critical or
+high finding remains open.
 
 `0.61.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.62.0 — HTTP/0.9 cross-protocol attack corpus
+### v0.62.0 — Connection-nominated and hop-by-hop field handling
 
 Status: planned
 
 #### Goal
 
-Deliver http/0.9 cross-protocol attack corpus as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Connection-nominated and hop-by-hop field handling** as the only primary capability in this stop. It builds
+on v0.61.0 (RFC 6455 WebSocket opening handshake only) and must be independently trustworthy before v0.63.0 (Safe forwarding and explicit reframing plan) begins.
 
 #### Deliverables
 
-- Implement and document http/0.9 cross-protocol attack corpus in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Connection-nominated and hop-by-hop field handling in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Connection-nominated and hop-by-hop field handling.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Connection-nominated and hop-by-hop field handling contract is complete, its named evidence is reproducible, v0.61.0 (RFC 6455 WebSocket opening handshake only)
+still passes, no capability assigned to v0.63.0 (Safe forwarding and explicit reframing plan) is claimed, and no critical or
+high finding remains open.
 
 `0.62.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.63.0 — Full CL.TE, TE.CL, duplicate, and whitespace smuggling corpus
+### v0.63.0 — Safe forwarding and explicit reframing plan
 
 Status: planned
 
 #### Goal
 
-Deliver full cl.te, te.cl, duplicate, and whitespace smuggling corpus as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Safe forwarding and explicit reframing plan** as the only primary capability in this stop. It builds
+on v0.62.0 (Connection-nominated and hop-by-hop field handling) and must be independently trustworthy before v0.64.0 (RFC 1945 HTTP/1.0 parser and hardened profile) begins.
 
 #### Deliverables
 
-- Implement and document full cl.te, te.cl, duplicate, and whitespace smuggling corpus in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Safe forwarding and explicit reframing plan in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Safe forwarding and explicit reframing plan.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Safe forwarding and explicit reframing plan contract is complete, its named evidence is reproducible, v0.62.0 (Connection-nominated and hop-by-hop field handling)
+still passes, no capability assigned to v0.64.0 (RFC 1945 HTTP/1.0 parser and hardened profile) is claimed, and no critical or
+high finding remains open.
 
 `0.63.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.64.0 — Full HTTP/0.9–1.1 pentest and conformance audit
+### v0.64.0 — RFC 1945 HTTP/1.0 parser and hardened profile
 
 Status: planned
 
 #### Goal
 
-Deliver full http/0.9–1.1 pentest and conformance audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **RFC 1945 HTTP/1.0 parser and hardened profile** as the only primary capability in this stop. It builds
+on v0.63.0 (Safe forwarding and explicit reframing plan) and must be independently trustworthy before v0.65.0 (HTTP/1.0 default-close lifecycle) begins.
 
 #### Deliverables
 
-- Implement and document full http/0.9–1.1 pentest and conformance audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 1945, RFC 9110, RFC 9112, and RFC 9931 as applicable.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document RFC 1945 HTTP/1.0 parser and hardened profile in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for RFC 1945 HTTP/1.0 parser and hardened profile.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The RFC 1945 HTTP/1.0 parser and hardened profile contract is complete, its named evidence is reproducible, v0.63.0 (Safe forwarding and explicit reframing plan)
+still passes, no capability assigned to v0.65.0 (HTTP/1.0 default-close lifecycle) is claimed, and no critical or
+high finding remains open.
 
 `0.64.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 5 — I/O and secure adapter contracts
-
-Phase goal: complete i/o and secure adapter contracts without weakening prior security, portability, or conformance evidence.
-
-### v0.65.0 — Minimal synchronous vef-io traits
+### v0.65.0 — HTTP/1.0 default-close lifecycle
 
 Status: planned
 
 #### Goal
 
-Deliver minimal synchronous vef-io traits as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1.0 default-close lifecycle** as the only primary capability in this stop. It builds
+on v0.64.0 (RFC 1945 HTTP/1.0 parser and hardened profile) and must be independently trustworthy before v0.66.0 (Explicit HTTP/1.0 keep-alive extension profile) begins.
 
 #### Deliverables
 
-- Implement and document minimal synchronous vef-io traits in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1.0 default-close lifecycle in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1.0 default-close lifecycle.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1.0 default-close lifecycle contract is complete, its named evidence is reproducible, v0.64.0 (RFC 1945 HTTP/1.0 parser and hardened profile)
+still passes, no capability assigned to v0.66.0 (Explicit HTTP/1.0 keep-alive extension profile) is claimed, and no critical or
+high finding remains open.
 
 `0.65.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.66.0 — Runtime-neutral poll traits
+### v0.66.0 — Explicit HTTP/1.0 keep-alive extension profile
 
 Status: planned
 
 #### Goal
 
-Deliver runtime-neutral poll traits as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Explicit HTTP/1.0 keep-alive extension profile** as the only primary capability in this stop. It builds
+on v0.65.0 (HTTP/1.0 default-close lifecycle) and must be independently trustworthy before v0.67.0 (Separate vef-http09 package and exact grammar) begins.
 
 #### Deliverables
 
-- Implement and document runtime-neutral poll traits in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Explicit HTTP/1.0 keep-alive extension profile in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Explicit HTTP/1.0 keep-alive extension profile.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Explicit HTTP/1.0 keep-alive extension profile contract is complete, its named evidence is reproducible, v0.65.0 (HTTP/1.0 default-close lifecycle)
+still passes, no capability assigned to v0.67.0 (Separate vef-http09 package and exact grammar) is claimed, and no critical or
+high finding remains open.
 
 `0.66.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.67.0 — External clock and deadline abstraction
+### v0.67.0 — Separate vef-http09 package and exact grammar
 
 Status: planned
 
 #### Goal
 
-Deliver external clock and deadline abstraction as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Separate vef-http09 package and exact grammar** as the only primary capability in this stop. It builds
+on v0.66.0 (Explicit HTTP/1.0 keep-alive extension profile) and must be independently trustworthy before v0.68.0 (Explicit HTTP/0.9 client API) begins.
 
 #### Deliverables
 
-- Implement and document external clock and deadline abstraction in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Separate vef-http09 package and exact grammar in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Separate vef-http09 package and exact grammar.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Separate vef-http09 package and exact grammar contract is complete, its named evidence is reproducible, v0.66.0 (Explicit HTTP/1.0 keep-alive extension profile)
+still passes, no capability assigned to v0.68.0 (Explicit HTTP/0.9 client API) is claimed, and no critical or
+high finding remains open.
 
 `0.67.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.68.0 — Cancellation and bounded backpressure contract
+### v0.68.0 — Explicit HTTP/0.9 client API
 
 Status: planned
 
 #### Goal
 
-Deliver cancellation and bounded backpressure contract as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Explicit HTTP/0.9 client API** as the only primary capability in this stop. It builds
+on v0.67.0 (Separate vef-http09 package and exact grammar) and must be independently trustworthy before v0.69.0 (Explicit HTTP/0.9 server and dedicated-listener API) begins.
 
 #### Deliverables
 
-- Implement and document cancellation and bounded backpressure contract in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Explicit HTTP/0.9 client API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Explicit HTTP/0.9 client API.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Explicit HTTP/0.9 client API contract is complete, its named evidence is reproducible, v0.67.0 (Separate vef-http09 package and exact grammar)
+still passes, no capability assigned to v0.69.0 (Explicit HTTP/0.9 server and dedicated-listener API) is claimed, and no critical or
+high finding remains open.
 
 `0.68.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.69.0 — Standard blocking-stream adapter
+### v0.69.0 — Explicit HTTP/0.9 server and dedicated-listener API
 
 Status: planned
 
 #### Goal
 
-Deliver standard blocking-stream adapter as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Explicit HTTP/0.9 server and dedicated-listener API** as the only primary capability in this stop. It builds
+on v0.68.0 (Explicit HTTP/0.9 client API) and must be independently trustworthy before v0.70.0 (HTTP/0.9 cross-protocol rejection corpus) begins.
 
 #### Deliverables
 
-- Implement and document standard blocking-stream adapter in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Explicit HTTP/0.9 server and dedicated-listener API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Explicit HTTP/0.9 server and dedicated-listener API.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Explicit HTTP/0.9 server and dedicated-listener API contract is complete, its named evidence is reproducible, v0.68.0 (Explicit HTTP/0.9 client API)
+still passes, no capability assigned to v0.70.0 (HTTP/0.9 cross-protocol rejection corpus) is claimed, and no critical or
+high finding remains open.
 
 `0.69.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.70.0 — Standard nonblocking-stream adapter
+### v0.70.0 — HTTP/0.9 cross-protocol rejection corpus
 
 Status: planned
 
 #### Goal
 
-Deliver standard nonblocking-stream adapter as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/0.9 cross-protocol rejection corpus** as the only primary capability in this stop. It builds
+on v0.69.0 (Explicit HTTP/0.9 server and dedicated-listener API) and must be independently trustworthy before v0.71.0 (HTTP/1 smuggling and ambiguity corpus) begins.
 
 #### Deliverables
 
-- Implement and document standard nonblocking-stream adapter in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/0.9 cross-protocol rejection corpus in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/0.9 cross-protocol rejection corpus.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/0.9 cross-protocol rejection corpus contract is complete, its named evidence is reproducible, v0.69.0 (Explicit HTTP/0.9 server and dedicated-listener API)
+still passes, no capability assigned to v0.71.0 (HTTP/1 smuggling and ambiguity corpus) is claimed, and no critical or
+high finding remains open.
 
 `0.70.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.71.0 — Generic async-poll driver and downstream runtime conformance contract
+### v0.71.0 — HTTP/1 smuggling and ambiguity corpus
 
 Status: planned
 
 #### Goal
 
-Deliver generic async-poll driver and downstream runtime conformance contract as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1 smuggling and ambiguity corpus** as the only primary capability in this stop. It builds
+on v0.70.0 (HTTP/0.9 cross-protocol rejection corpus) and must be independently trustworthy before v0.72.0 (HTTP/1 and HTTP/0.9 conformance audit and pentest) begins.
 
 #### Deliverables
 
-- Implement and document generic async-poll driver and downstream runtime conformance contract in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1 smuggling and ambiguity corpus in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1 smuggling and ambiguity corpus.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1 smuggling and ambiguity corpus contract is complete, its named evidence is reproducible, v0.70.0 (HTTP/0.9 cross-protocol rejection corpus)
+still passes, no capability assigned to v0.72.0 (HTTP/1 and HTTP/0.9 conformance audit and pentest) is claimed, and no critical or
+high finding remains open.
 
 `0.71.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.72.0 — Generic connection driver and deterministic fake transport
+### v0.72.0 — HTTP/1 and HTTP/0.9 conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
-Deliver generic connection driver and deterministic fake transport as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1 and HTTP/0.9 conformance audit and pentest** as the only primary capability in this stop. It builds
+on v0.71.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently trustworthy before v0.73.0 (HPACK prefix-integer decoder) begins.
 
 #### Deliverables
 
-- Implement and document generic connection driver and deterministic fake transport in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1 and HTTP/0.9 conformance audit and pentest in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HTTP/1 has one octet-level framing interpretation; HTTP/0.9 is a separate package and can never be selected by fallback.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 1945, RFC 6455 opening-handshake requirements, RFC 9110, RFC 9111 preservation requirements, RFC 9112 and errata, RFC 9298 applicability, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1 and HTTP/0.9 conformance audit and pentest.
+- Run every-byte split tests, strict-versus-compatibility policy tests, request/response differential cases, smuggling corpora, transition timing tests, bounded pipeline tests, and cross-protocol rejection.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1 and HTTP/0.9 conformance audit and pentest contract is complete, its named evidence is reproducible, v0.71.0 (HTTP/1 smuggling and ambiguity corpus)
+still passes, no capability assigned to v0.73.0 (HPACK prefix-integer decoder) is claimed, and no critical or
+high finding remains open.
 
 `0.72.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.73.0 — TLS metadata, peer identity, and ALPN interface
+## Phase 3 — HPACK and HTTP/2
+
+Phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+
+### v0.73.0 — HPACK prefix-integer decoder
 
 Status: planned
 
 #### Goal
 
-Deliver tls metadata, peer identity, and alpn interface as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK prefix-integer decoder** as the only primary capability in this stop. It builds
+on v0.72.0 (HTTP/1 and HTTP/0.9 conformance audit and pentest) and must be independently trustworthy before v0.74.0 (HPACK prefix-integer encoder) begins.
 
 #### Deliverables
 
-- Implement and document tls metadata, peer identity, and alpn interface in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK prefix-integer decoder in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK prefix-integer decoder.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK prefix-integer decoder contract is complete, its named evidence is reproducible, v0.72.0 (HTTP/1 and HTTP/0.9 conformance audit and pentest)
+still passes, no capability assigned to v0.74.0 (HPACK prefix-integer encoder) is claimed, and no critical or
+high finding remains open.
 
 `0.73.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.74.0 — Dependency-free TLS provider adapter contract
+### v0.74.0 — HPACK prefix-integer encoder
 
 Status: planned
 
 #### Goal
 
-Deliver dependency-free tls provider adapter contract as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK prefix-integer encoder** as the only primary capability in this stop. It builds
+on v0.73.0 (HPACK prefix-integer decoder) and must be independently trustworthy before v0.75.0 (HPACK integer overflow and minimality proofs) begins.
 
 #### Deliverables
 
-- Implement and document dependency-free tls provider adapter contract in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK prefix-integer encoder in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK prefix-integer encoder.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK prefix-integer encoder contract is complete, its named evidence is reproducible, v0.73.0 (HPACK prefix-integer decoder)
+still passes, no capability assigned to v0.75.0 (HPACK integer overflow and minimality proofs) is claimed, and no critical or
+high finding remains open.
 
 `0.74.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.75.0 — ALPN and provider-capability validation
+### v0.75.0 — HPACK integer overflow and minimality proofs
 
 Status: planned
 
 #### Goal
 
-Deliver alpn and provider-capability validation as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK integer overflow and minimality proofs** as the only primary capability in this stop. It builds
+on v0.74.0 (HPACK prefix-integer encoder) and must be independently trustworthy before v0.76.0 (HPACK string representation codec) begins.
 
 #### Deliverables
 
-- Implement and document alpn and provider-capability validation in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK integer overflow and minimality proofs in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK integer overflow and minimality proofs.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK integer overflow and minimality proofs contract is complete, its named evidence is reproducible, v0.74.0 (HPACK prefix-integer encoder)
+still passes, no capability assigned to v0.76.0 (HPACK string representation codec) is claimed, and no critical or
+high finding remains open.
 
 `0.75.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.76.0 — TLS session and certificate-metadata policy boundary
+### v0.76.0 — HPACK string representation codec
 
 Status: planned
 
 #### Goal
 
-Deliver tls session and certificate-metadata policy boundary as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK string representation codec** as the only primary capability in this stop. It builds
+on v0.75.0 (HPACK integer overflow and minimality proofs) and must be independently trustworthy before v0.77.0 (HPACK Huffman tables) begins.
 
 #### Deliverables
 
-- Implement and document tls session and certificate-metadata policy boundary in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK string representation codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK string representation codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK string representation codec contract is complete, its named evidence is reproducible, v0.75.0 (HPACK integer overflow and minimality proofs)
+still passes, no capability assigned to v0.77.0 (HPACK Huffman tables) is claimed, and no critical or
+high finding remains open.
 
 `0.76.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.77.0 — Downstream TLS adapter conformance kit
+### v0.77.0 — HPACK Huffman tables
 
 Status: planned
 
 #### Goal
 
-Deliver downstream tls adapter conformance kit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK Huffman tables** as the only primary capability in this stop. It builds
+on v0.76.0 (HPACK string representation codec) and must be independently trustworthy before v0.78.0 (HPACK Huffman decoder) begins.
 
 #### Deliverables
 
-- Implement and document downstream tls adapter conformance kit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK Huffman tables in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK Huffman tables.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK Huffman tables contract is complete, its named evidence is reproducible, v0.76.0 (HPACK string representation codec)
+still passes, no capability assigned to v0.78.0 (HPACK Huffman decoder) is claimed, and no critical or
+high finding remains open.
 
 `0.77.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.78.0 — HTTP/1 TLS and ALPN selection policy
+### v0.78.0 — HPACK Huffman decoder
 
 Status: planned
 
 #### Goal
 
-Deliver http/1 tls and alpn selection policy as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK Huffman decoder** as the only primary capability in this stop. It builds
+on v0.77.0 (HPACK Huffman tables) and must be independently trustworthy before v0.79.0 (HPACK Huffman encoder) begins.
 
 #### Deliverables
 
-- Implement and document http/1 tls and alpn selection policy in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK Huffman decoder in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK Huffman decoder.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK Huffman decoder contract is complete, its named evidence is reproducible, v0.77.0 (HPACK Huffman tables)
+still passes, no capability assigned to v0.79.0 (HPACK Huffman encoder) is claimed, and no critical or
+high finding remains open.
 
 `0.78.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.79.0 — HTTP/2 TLS prerequisites and rejection policy
+### v0.79.0 — HPACK Huffman encoder
 
 Status: planned
 
 #### Goal
 
-Deliver http/2 tls prerequisites and rejection policy as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK Huffman encoder** as the only primary capability in this stop. It builds
+on v0.78.0 (HPACK Huffman decoder) and must be independently trustworthy before v0.80.0 (HPACK static table) begins.
 
 #### Deliverables
 
-- Implement and document http/2 tls prerequisites and rejection policy in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK Huffman encoder in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK Huffman encoder.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK Huffman encoder contract is complete, its named evidence is reproducible, v0.78.0 (HPACK Huffman decoder)
+still passes, no capability assigned to v0.80.0 (HPACK static table) is claimed, and no critical or
+high finding remains open.
 
 `0.79.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.80.0 — Adapter, cancellation, timeout, and platform-boundary audit
+### v0.80.0 — HPACK static table
 
 Status: planned
 
 #### Goal
 
-Deliver adapter, cancellation, timeout, and platform-boundary audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK static table** as the only primary capability in this stop. It builds
+on v0.79.0 (HPACK Huffman encoder) and must be independently trustworthy before v0.81.0 (HPACK dynamic table storage) begins.
 
 #### Deliverables
 
-- Implement and document adapter, cancellation, timeout, and platform-boundary audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7301, RFC 8446, RFC 9112, and RFC 9113 transport prerequisites.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK static table in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK static table.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK static table contract is complete, its named evidence is reproducible, v0.79.0 (HPACK Huffman encoder)
+still passes, no capability assigned to v0.81.0 (HPACK dynamic table storage) is claimed, and no critical or
+high finding remains open.
 
 `0.80.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 6 — HPACK
-
-Phase goal: complete hpack without weakening prior security, portability, or conformance evidence.
-
-### v0.81.0 — Prefix-integer decoder
+### v0.81.0 — HPACK dynamic table storage
 
 Status: planned
 
 #### Goal
 
-Deliver prefix-integer decoder as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK dynamic table storage** as the only primary capability in this stop. It builds
+on v0.80.0 (HPACK static table) and must be independently trustworthy before v0.82.0 (HPACK eviction and oversize-entry behavior) begins.
 
 #### Deliverables
 
-- Implement and document prefix-integer decoder in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK dynamic table storage in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK dynamic table storage.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK dynamic table storage contract is complete, its named evidence is reproducible, v0.80.0 (HPACK static table)
+still passes, no capability assigned to v0.82.0 (HPACK eviction and oversize-entry behavior) is claimed, and no critical or
+high finding remains open.
 
 `0.81.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.82.0 — Prefix-integer encoder
+### v0.82.0 — HPACK eviction and oversize-entry behavior
 
 Status: planned
 
 #### Goal
 
-Deliver prefix-integer encoder as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK eviction and oversize-entry behavior** as the only primary capability in this stop. It builds
+on v0.81.0 (HPACK dynamic table storage) and must be independently trustworthy before v0.83.0 (HPACK table-size update and SETTINGS coupling) begins.
 
 #### Deliverables
 
-- Implement and document prefix-integer encoder in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK eviction and oversize-entry behavior in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK eviction and oversize-entry behavior.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK eviction and oversize-entry behavior contract is complete, its named evidence is reproducible, v0.81.0 (HPACK dynamic table storage)
+still passes, no capability assigned to v0.83.0 (HPACK table-size update and SETTINGS coupling) is claimed, and no critical or
+high finding remains open.
 
 `0.82.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.83.0 — Integer overflow, overlong encoding, and proof harnesses
+### v0.83.0 — HPACK table-size update and SETTINGS coupling
 
 Status: planned
 
 #### Goal
 
-Deliver integer overflow, overlong encoding, and proof harnesses as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK table-size update and SETTINGS coupling** as the only primary capability in this stop. It builds
+on v0.82.0 (HPACK eviction and oversize-entry behavior) and must be independently trustworthy before v0.84.0 (HPACK caller-owned ring lookup) begins.
 
 #### Deliverables
 
-- Implement and document integer overflow, overlong encoding, and proof harnesses in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK table-size update and SETTINGS coupling in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK table-size update and SETTINGS coupling.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK table-size update and SETTINGS coupling contract is complete, its named evidence is reproducible, v0.82.0 (HPACK eviction and oversize-entry behavior)
+still passes, no capability assigned to v0.84.0 (HPACK caller-owned ring lookup) is claimed, and no critical or
+high finding remains open.
 
 `0.83.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.84.0 — Bounded string-literal codec
+### v0.84.0 — HPACK caller-owned ring lookup
 
 Status: planned
 
 #### Goal
 
-Deliver bounded string-literal codec as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK caller-owned ring lookup** as the only primary capability in this stop. It builds
+on v0.83.0 (HPACK table-size update and SETTINGS coupling) and must be independently trustworthy before v0.85.0 (HPACK indexed representation) begins.
 
 #### Deliverables
 
-- Implement and document bounded string-literal codec in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK caller-owned ring lookup in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK caller-owned ring lookup.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK caller-owned ring lookup contract is complete, its named evidence is reproducible, v0.83.0 (HPACK table-size update and SETTINGS coupling)
+still passes, no capability assigned to v0.85.0 (HPACK indexed representation) is claimed, and no critical or
+high finding remains open.
 
 `0.84.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.85.0 — Reproducibly generated Huffman tables
+### v0.85.0 — HPACK indexed representation
 
 Status: planned
 
 #### Goal
 
-Deliver reproducibly generated huffman tables as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK indexed representation** as the only primary capability in this stop. It builds
+on v0.84.0 (HPACK caller-owned ring lookup) and must be independently trustworthy before v0.86.0 (HPACK incremental-indexing literal) begins.
 
 #### Deliverables
 
-- Implement and document reproducibly generated huffman tables in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK indexed representation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK indexed representation.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK indexed representation contract is complete, its named evidence is reproducible, v0.84.0 (HPACK caller-owned ring lookup)
+still passes, no capability assigned to v0.86.0 (HPACK incremental-indexing literal) is claimed, and no critical or
+high finding remains open.
 
 `0.85.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.86.0 — Constant-memory Huffman decoder
+### v0.86.0 — HPACK incremental-indexing literal
 
 Status: planned
 
 #### Goal
 
-Deliver constant-memory huffman decoder as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK incremental-indexing literal** as the only primary capability in this stop. It builds
+on v0.85.0 (HPACK indexed representation) and must be independently trustworthy before v0.87.0 (HPACK non-indexing and never-indexed literal) begins.
 
 #### Deliverables
 
-- Implement and document constant-memory huffman decoder in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK incremental-indexing literal in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK incremental-indexing literal.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK incremental-indexing literal contract is complete, its named evidence is reproducible, v0.85.0 (HPACK indexed representation)
+still passes, no capability assigned to v0.87.0 (HPACK non-indexing and never-indexed literal) is claimed, and no critical or
+high finding remains open.
 
 `0.86.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.87.0 — Huffman encoder
+### v0.87.0 — HPACK non-indexing and never-indexed literal
 
 Status: planned
 
 #### Goal
 
-Deliver huffman encoder as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK non-indexing and never-indexed literal** as the only primary capability in this stop. It builds
+on v0.86.0 (HPACK incremental-indexing literal) and must be independently trustworthy before v0.88.0 (Sensitive-field indexing policy) begins.
 
 #### Deliverables
 
-- Implement and document huffman encoder in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK non-indexing and never-indexed literal in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK non-indexing and never-indexed literal.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK non-indexing and never-indexed literal contract is complete, its named evidence is reproducible, v0.86.0 (HPACK incremental-indexing literal)
+still passes, no capability assigned to v0.88.0 (Sensitive-field indexing policy) is claimed, and no critical or
+high finding remains open.
 
 `0.87.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.88.0 — Static table
+### v0.88.0 — Sensitive-field indexing policy
 
 Status: planned
 
 #### Goal
 
-Deliver static table as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Sensitive-field indexing policy** as the only primary capability in this stop. It builds
+on v0.87.0 (HPACK non-indexing and never-indexed literal) and must be independently trustworthy before v0.89.0 (Independent HPACK decode limits) begins.
 
 #### Deliverables
 
-- Implement and document static table in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Sensitive-field indexing policy in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Sensitive-field indexing policy.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Sensitive-field indexing policy contract is complete, its named evidence is reproducible, v0.87.0 (HPACK non-indexing and never-indexed literal)
+still passes, no capability assigned to v0.89.0 (Independent HPACK decode limits) is claimed, and no critical or
+high finding remains open.
 
 `0.88.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.89.0 — Bounded dynamic table
+### v0.89.0 — Independent HPACK decode limits
 
 Status: planned
 
 #### Goal
 
-Deliver bounded dynamic table as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Independent HPACK decode limits** as the only primary capability in this stop. It builds
+on v0.88.0 (Sensitive-field indexing policy) and must be independently trustworthy before v0.90.0 (Transactional HPACK context and error scope) begins.
 
 #### Deliverables
 
-- Implement and document bounded dynamic table in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Independent HPACK decode limits in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Independent HPACK decode limits.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Independent HPACK decode limits contract is complete, its named evidence is reproducible, v0.88.0 (Sensitive-field indexing policy)
+still passes, no capability assigned to v0.90.0 (Transactional HPACK context and error scope) is claimed, and no critical or
+high finding remains open.
 
 `0.89.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.90.0 — Correct table eviction and size updates
+### v0.90.0 — Transactional HPACK context and error scope
 
 Status: planned
 
 #### Goal
 
-Deliver correct table eviction and size updates as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Transactional HPACK context and error scope** as the only primary capability in this stop. It builds
+on v0.89.0 (Independent HPACK decode limits) and must be independently trustworthy before v0.91.0 (HPACK conformance audit and pentest) begins.
 
 #### Deliverables
 
-- Implement and document correct table eviction and size updates in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Transactional HPACK context and error scope in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Transactional HPACK context and error scope.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Transactional HPACK context and error scope contract is complete, its named evidence is reproducible, v0.89.0 (Independent HPACK decode limits)
+still passes, no capability assigned to v0.91.0 (HPACK conformance audit and pentest) is claimed, and no critical or
+high finding remains open.
 
 `0.90.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.91.0 — Indexed representation
+### v0.91.0 — HPACK conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
-Deliver indexed representation as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HPACK conformance audit and pentest** as the only primary capability in this stop. It builds
+on v0.90.0 (Transactional HPACK context and error scope) and must be independently trustworthy before v0.92.0 (HTTP/2 client and server prefaces) begins.
 
 #### Deliverables
 
-- Implement and document indexed representation in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HPACK conformance audit and pentest in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HPACK conformance audit and pentest.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HPACK conformance audit and pentest contract is complete, its named evidence is reproducible, v0.90.0 (Transactional HPACK context and error scope)
+still passes, no capability assigned to v0.92.0 (HTTP/2 client and server prefaces) is claimed, and no critical or
+high finding remains open.
 
 `0.91.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.92.0 — Literal with incremental indexing
+### v0.92.0 — HTTP/2 client and server prefaces
 
 Status: planned
 
 #### Goal
 
-Deliver literal with incremental indexing as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/2 client and server prefaces** as the only primary capability in this stop. It builds
+on v0.91.0 (HPACK conformance audit and pentest) and must be independently trustworthy before v0.93.0 (HTTP/2 frame-header codec) begins.
 
 #### Deliverables
 
-- Implement and document literal with incremental indexing in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/2 client and server prefaces in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/2 client and server prefaces.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/2 client and server prefaces contract is complete, its named evidence is reproducible, v0.91.0 (HPACK conformance audit and pentest)
+still passes, no capability assigned to v0.93.0 (HTTP/2 frame-header codec) is claimed, and no critical or
+high finding remains open.
 
 `0.92.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.93.0 — Literal without indexing
+### v0.93.0 — HTTP/2 frame-header codec
 
 Status: planned
 
 #### Goal
 
-Deliver literal without indexing as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/2 frame-header codec** as the only primary capability in this stop. It builds
+on v0.92.0 (HTTP/2 client and server prefaces) and must be independently trustworthy before v0.94.0 (DATA frame codec) begins.
 
 #### Deliverables
 
-- Implement and document literal without indexing in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/2 frame-header codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/2 frame-header codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/2 frame-header codec contract is complete, its named evidence is reproducible, v0.92.0 (HTTP/2 client and server prefaces)
+still passes, no capability assigned to v0.94.0 (DATA frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.93.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.94.0 — Never-indexed representation and sensitive-field policy
+### v0.94.0 — DATA frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver never-indexed representation and sensitive-field policy as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **DATA frame codec** as the only primary capability in this stop. It builds
+on v0.93.0 (HTTP/2 frame-header codec) and must be independently trustworthy before v0.95.0 (HEADERS frame codec) begins.
 
 #### Deliverables
 
-- Implement and document never-indexed representation and sensitive-field policy in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document DATA frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for DATA frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The DATA frame codec contract is complete, its named evidence is reproducible, v0.93.0 (HTTP/2 frame-header codec)
+still passes, no capability assigned to v0.95.0 (HEADERS frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.94.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.95.0 — Encoded, decoded, table, count, and work limits
+### v0.95.0 — HEADERS frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver encoded, decoded, table, count, and work limits as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HEADERS frame codec** as the only primary capability in this stop. It builds
+on v0.94.0 (DATA frame codec) and must be independently trustworthy before v0.96.0 (CONTINUATION frame codec) begins.
 
 #### Deliverables
 
-- Implement and document encoded, decoded, table, count, and work limits in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HEADERS frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HEADERS frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HEADERS frame codec contract is complete, its named evidence is reproducible, v0.94.0 (DATA frame codec)
+still passes, no capability assigned to v0.96.0 (CONTINUATION frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.95.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.96.0 — Full HPACK interoperability, fuzzing, and pentest audit
+### v0.96.0 — CONTINUATION frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver full hpack interoperability, fuzzing, and pentest audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **CONTINUATION frame codec** as the only primary capability in this stop. It builds
+on v0.95.0 (HEADERS frame codec) and must be independently trustworthy before v0.97.0 (SETTINGS frame codec) begins.
 
 #### Deliverables
 
-- Implement and document full hpack interoperability, fuzzing, and pentest audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document CONTINUATION frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for CONTINUATION frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The CONTINUATION frame codec contract is complete, its named evidence is reproducible, v0.95.0 (HEADERS frame codec)
+still passes, no capability assigned to v0.97.0 (SETTINGS frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.96.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 7 — HTTP/2 framing and state
-
-Phase goal: complete http/2 framing and state without weakening prior security, portability, or conformance evidence.
-
-### v0.97.0 — Client and server connection prefaces
+### v0.97.0 — SETTINGS frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver client and server connection prefaces as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **SETTINGS frame codec** as the only primary capability in this stop. It builds
+on v0.96.0 (CONTINUATION frame codec) and must be independently trustworthy before v0.98.0 (PING frame codec) begins.
 
 #### Deliverables
 
-- Implement and document client and server connection prefaces in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document SETTINGS frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for SETTINGS frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The SETTINGS frame codec contract is complete, its named evidence is reproducible, v0.96.0 (CONTINUATION frame codec)
+still passes, no capability assigned to v0.98.0 (PING frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.97.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.98.0 — Nine-octet frame header and size validation
+### v0.98.0 — PING frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver nine-octet frame header and size validation as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **PING frame codec** as the only primary capability in this stop. It builds
+on v0.97.0 (SETTINGS frame codec) and must be independently trustworthy before v0.99.0 (GOAWAY frame codec) begins.
 
 #### Deliverables
 
-- Implement and document nine-octet frame header and size validation in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document PING frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for PING frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The PING frame codec contract is complete, its named evidence is reproducible, v0.97.0 (SETTINGS frame codec)
+still passes, no capability assigned to v0.99.0 (GOAWAY frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.98.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.99.0 — DATA frames and padding
+### v0.99.0 — GOAWAY frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver data frames and padding as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **GOAWAY frame codec** as the only primary capability in this stop. It builds
+on v0.98.0 (PING frame codec) and must be independently trustworthy before v0.100.0 (RST_STREAM frame codec) begins.
 
 #### Deliverables
 
-- Implement and document data frames and padding in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document GOAWAY frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for GOAWAY frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The GOAWAY frame codec contract is complete, its named evidence is reproducible, v0.98.0 (PING frame codec)
+still passes, no capability assigned to v0.100.0 (RST_STREAM frame codec) is claimed, and no critical or
+high finding remains open.
 
 `0.99.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.100.0 — HEADERS frames
+### v0.100.0 — RST_STREAM frame codec
 
 Status: planned
 
 #### Goal
 
-Deliver headers frames as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **RST_STREAM frame codec** as the only primary capability in this stop. It builds
+on v0.99.0 (GOAWAY frame codec) and must be independently trustworthy before v0.101.0 (WINDOW_UPDATE codec and checked windows) begins.
 
 #### Deliverables
 
-- Implement and document headers frames in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document RST_STREAM frame codec in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for RST_STREAM frame codec.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The RST_STREAM frame codec contract is complete, its named evidence is reproducible, v0.99.0 (GOAWAY frame codec)
+still passes, no capability assigned to v0.101.0 (WINDOW_UPDATE codec and checked windows) is claimed, and no critical or
+high finding remains open.
 
 `0.100.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.101.0 — CONTINUATION and field-block atomicity
+### v0.101.0 — WINDOW_UPDATE codec and checked windows
 
 Status: planned
 
 #### Goal
 
-Deliver continuation and field-block atomicity as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **WINDOW_UPDATE codec and checked windows** as the only primary capability in this stop. It builds
+on v0.100.0 (RST_STREAM frame codec) and must be independently trustworthy before v0.102.0 (Legacy PRIORITY frame handling) begins.
 
 #### Deliverables
 
-- Implement and document continuation and field-block atomicity in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document WINDOW_UPDATE codec and checked windows in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for WINDOW_UPDATE codec and checked windows.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The WINDOW_UPDATE codec and checked windows contract is complete, its named evidence is reproducible, v0.100.0 (RST_STREAM frame codec)
+still passes, no capability assigned to v0.102.0 (Legacy PRIORITY frame handling) is claimed, and no critical or
+high finding remains open.
 
 `0.101.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.102.0 — SETTINGS parsing, validation, and acknowledgement
+### v0.102.0 — Legacy PRIORITY frame handling
 
 Status: planned
 
 #### Goal
 
-Deliver settings parsing, validation, and acknowledgement as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Legacy PRIORITY frame handling** as the only primary capability in this stop. It builds
+on v0.101.0 (WINDOW_UPDATE codec and checked windows) and must be independently trustworthy before v0.103.0 (PUSH_PROMISE frame handling) begins.
 
 #### Deliverables
 
-- Implement and document settings parsing, validation, and acknowledgement in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Legacy PRIORITY frame handling in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Legacy PRIORITY frame handling.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Legacy PRIORITY frame handling contract is complete, its named evidence is reproducible, v0.101.0 (WINDOW_UPDATE codec and checked windows)
+still passes, no capability assigned to v0.103.0 (PUSH_PROMISE frame handling) is claimed, and no critical or
+high finding remains open.
 
 `0.102.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.103.0 — PING
+### v0.103.0 — PUSH_PROMISE frame handling
 
 Status: planned
 
 #### Goal
 
-Deliver ping as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **PUSH_PROMISE frame handling** as the only primary capability in this stop. It builds
+on v0.102.0 (Legacy PRIORITY frame handling) and must be independently trustworthy before v0.104.0 (Unknown-frame extension policy) begins.
 
 #### Deliverables
 
-- Implement and document ping in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document PUSH_PROMISE frame handling in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for PUSH_PROMISE frame handling.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The PUSH_PROMISE frame handling contract is complete, its named evidence is reproducible, v0.102.0 (Legacy PRIORITY frame handling)
+still passes, no capability assigned to v0.104.0 (Unknown-frame extension policy) is claimed, and no critical or
+high finding remains open.
 
 `0.103.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.104.0 — GOAWAY
+### v0.104.0 — Unknown-frame extension policy
 
 Status: planned
 
 #### Goal
 
-Deliver goaway as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Unknown-frame extension policy** as the only primary capability in this stop. It builds
+on v0.103.0 (PUSH_PROMISE frame handling) and must be independently trustworthy before v0.105.0 (HTTP/2 stream-identifier rules) begins.
 
 #### Deliverables
 
-- Implement and document goaway in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Unknown-frame extension policy in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Unknown-frame extension policy.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Unknown-frame extension policy contract is complete, its named evidence is reproducible, v0.103.0 (PUSH_PROMISE frame handling)
+still passes, no capability assigned to v0.105.0 (HTTP/2 stream-identifier rules) is claimed, and no critical or
+high finding remains open.
 
 `0.104.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.105.0 — RST_STREAM
+### v0.105.0 — HTTP/2 stream-identifier rules
 
 Status: planned
 
 #### Goal
 
-Deliver rst_stream as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/2 stream-identifier rules** as the only primary capability in this stop. It builds
+on v0.104.0 (Unknown-frame extension policy) and must be independently trustworthy before v0.106.0 (Generation-checked stream table and tombstones) begins.
 
 #### Deliverables
 
-- Implement and document rst_stream in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/2 stream-identifier rules in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/2 stream-identifier rules.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/2 stream-identifier rules contract is complete, its named evidence is reproducible, v0.104.0 (Unknown-frame extension policy)
+still passes, no capability assigned to v0.106.0 (Generation-checked stream table and tombstones) is claimed, and no critical or
+high finding remains open.
 
 `0.105.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.106.0 — WINDOW_UPDATE and checked window arithmetic
+### v0.106.0 — Generation-checked stream table and tombstones
 
 Status: planned
 
 #### Goal
 
-Deliver window_update and checked window arithmetic as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Generation-checked stream table and tombstones** as the only primary capability in this stop. It builds
+on v0.105.0 (HTTP/2 stream-identifier rules) and must be independently trustworthy before v0.107.0 (Exhaustive stream-state graph) begins.
 
 #### Deliverables
 
-- Implement and document window_update and checked window arithmetic in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Generation-checked stream table and tombstones in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Generation-checked stream table and tombstones.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Generation-checked stream table and tombstones contract is complete, its named evidence is reproducible, v0.105.0 (HTTP/2 stream-identifier rules)
+still passes, no capability assigned to v0.107.0 (Exhaustive stream-state graph) is claimed, and no critical or
+high finding remains open.
 
 `0.106.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.107.0 — Legacy PRIORITY wire elements
+### v0.107.0 — Exhaustive stream-state graph
 
 Status: planned
 
 #### Goal
 
-Deliver legacy priority wire elements as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Exhaustive stream-state graph** as the only primary capability in this stop. It builds
+on v0.106.0 (Generation-checked stream table and tombstones) and must be independently trustworthy before v0.108.0 (Connection sequencing and error-scope deltas) begins.
 
 #### Deliverables
 
-- Implement and document legacy priority wire elements in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Exhaustive stream-state graph in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Exhaustive stream-state graph.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Exhaustive stream-state graph contract is complete, its named evidence is reproducible, v0.106.0 (Generation-checked stream table and tombstones)
+still passes, no capability assigned to v0.108.0 (Connection sequencing and error-scope deltas) is claimed, and no critical or
+high finding remains open.
 
 `0.107.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.108.0 — PUSH_PROMISE
+### v0.108.0 — Connection sequencing and error-scope deltas
 
 Status: planned
 
 #### Goal
 
-Deliver push_promise as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Connection sequencing and error-scope deltas** as the only primary capability in this stop. It builds
+on v0.107.0 (Exhaustive stream-state graph) and must be independently trustworthy before v0.109.0 (Atomic HPACK header-block integration) begins.
 
 #### Deliverables
 
-- Implement and document push_promise in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Connection sequencing and error-scope deltas in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Connection sequencing and error-scope deltas.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Connection sequencing and error-scope deltas contract is complete, its named evidence is reproducible, v0.107.0 (Exhaustive stream-state graph)
+still passes, no capability assigned to v0.109.0 (Atomic HPACK header-block integration) is claimed, and no critical or
+high finding remains open.
 
 `0.108.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.109.0 — Unknown and extension-frame handling
+### v0.109.0 — Atomic HPACK header-block integration
 
 Status: planned
 
 #### Goal
 
-Deliver unknown and extension-frame handling as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Atomic HPACK header-block integration** as the only primary capability in this stop. It builds
+on v0.108.0 (Connection sequencing and error-scope deltas) and must be independently trustworthy before v0.110.0 (Pseudo-field ordering and uniqueness) begins.
 
 #### Deliverables
 
-- Implement and document unknown and extension-frame handling in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Atomic HPACK header-block integration in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Atomic HPACK header-block integration.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Atomic HPACK header-block integration contract is complete, its named evidence is reproducible, v0.108.0 (Connection sequencing and error-scope deltas)
+still passes, no capability assigned to v0.110.0 (Pseudo-field ordering and uniqueness) is claimed, and no critical or
+high finding remains open.
 
 `0.109.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.110.0 — Stream-ID allocation, parity, and exhaustion
+### v0.110.0 — Pseudo-field ordering and uniqueness
 
 Status: planned
 
 #### Goal
 
-Deliver stream-id allocation, parity, and exhaustion as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Pseudo-field ordering and uniqueness** as the only primary capability in this stop. It builds
+on v0.109.0 (Atomic HPACK header-block integration) and must be independently trustworthy before v0.111.0 (Connection-specific field and TE validation) begins.
 
 #### Deliverables
 
-- Implement and document stream-id allocation, parity, and exhaustion in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Pseudo-field ordering and uniqueness in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Pseudo-field ordering and uniqueness.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Pseudo-field ordering and uniqueness contract is complete, its named evidence is reproducible, v0.109.0 (Atomic HPACK header-block integration)
+still passes, no capability assigned to v0.111.0 (Connection-specific field and TE validation) is claimed, and no critical or
+high finding remains open.
 
 `0.110.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.111.0 — Exhaustive stream-state machine
+### v0.111.0 — Connection-specific field and TE validation
 
 Status: planned
 
 #### Goal
 
-Deliver exhaustive stream-state machine as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Connection-specific field and TE validation** as the only primary capability in this stop. It builds
+on v0.110.0 (Pseudo-field ordering and uniqueness) and must be independently trustworthy before v0.112.0 (HTTP/2 request mapping) begins.
 
 #### Deliverables
 
-- Implement and document exhaustive stream-state machine in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Connection-specific field and TE validation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Connection-specific field and TE validation.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Connection-specific field and TE validation contract is complete, its named evidence is reproducible, v0.110.0 (Pseudo-field ordering and uniqueness)
+still passes, no capability assigned to v0.112.0 (HTTP/2 request mapping) is claimed, and no critical or
+high finding remains open.
 
 `0.111.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.112.0 — Connection state, frame sequencing, and full phase audit
+### v0.112.0 — HTTP/2 request mapping
 
 Status: planned
 
 #### Goal
 
-Deliver connection state, frame sequencing, and full phase audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/2 request mapping** as the only primary capability in this stop. It builds
+on v0.111.0 (Connection-specific field and TE validation) and must be independently trustworthy before v0.113.0 (HTTP/2 response mapping) begins.
 
 #### Deliverables
 
-- Implement and document connection state, frame sequencing, and full phase audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/2 request mapping in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/2 request mapping.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/2 request mapping contract is complete, its named evidence is reproducible, v0.111.0 (Connection-specific field and TE validation)
+still passes, no capability assigned to v0.113.0 (HTTP/2 response mapping) is claimed, and no critical or
+high finding remains open.
 
 `0.112.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 8 — HTTP/2 semantics and flow control
-
-Phase goal: complete http/2 semantics and flow control without weakening prior security, portability, or conformance evidence.
-
-### v0.113.0 — HPACK and field-block integration
+### v0.113.0 — HTTP/2 response mapping
 
 Status: planned
 
 #### Goal
 
-Deliver hpack and field-block integration as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/2 response mapping** as the only primary capability in this stop. It builds
+on v0.112.0 (HTTP/2 request mapping) and must be independently trustworthy before v0.114.0 (Informational responses and trailers) begins.
 
 #### Deliverables
 
-- Implement and document hpack and field-block integration in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/2 response mapping in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/2 response mapping.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/2 response mapping contract is complete, its named evidence is reproducible, v0.112.0 (HTTP/2 request mapping)
+still passes, no capability assigned to v0.114.0 (Informational responses and trailers) is claimed, and no critical or
+high finding remains open.
 
 `0.113.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.114.0 — Pseudo-field ordering, uniqueness, and context rules
+### v0.114.0 — Informational responses and trailers
 
 Status: planned
 
 #### Goal
 
-Deliver pseudo-field ordering, uniqueness, and context rules as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Informational responses and trailers** as the only primary capability in this stop. It builds
+on v0.113.0 (HTTP/2 response mapping) and must be independently trustworthy before v0.115.0 (Cookie field combination and Set-Cookie preservation) begins.
 
 #### Deliverables
 
-- Implement and document pseudo-field ordering, uniqueness, and context rules in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Informational responses and trailers in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Informational responses and trailers.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Informational responses and trailers contract is complete, its named evidence is reproducible, v0.113.0 (HTTP/2 response mapping)
+still passes, no capability assigned to v0.115.0 (Cookie field combination and Set-Cookie preservation) is claimed, and no critical or
+high finding remains open.
 
 `0.114.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.115.0 — Connection-specific field rejection and TE exception
+### v0.115.0 — Cookie field combination and Set-Cookie preservation
 
 Status: planned
 
 #### Goal
 
-Deliver connection-specific field rejection and te exception as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Cookie field combination and Set-Cookie preservation** as the only primary capability in this stop. It builds
+on v0.114.0 (Informational responses and trailers) and must be independently trustworthy before v0.116.0 (Stream flow control) begins.
 
 #### Deliverables
 
-- Implement and document connection-specific field rejection and te exception in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Cookie field combination and Set-Cookie preservation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Cookie field combination and Set-Cookie preservation.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Cookie field combination and Set-Cookie preservation contract is complete, its named evidence is reproducible, v0.114.0 (Informational responses and trailers)
+still passes, no capability assigned to v0.116.0 (Stream flow control) is claimed, and no critical or
+high finding remains open.
 
 `0.115.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.116.0 — HTTP request mapping
+### v0.116.0 — Stream flow control
 
 Status: planned
 
 #### Goal
 
-Deliver http request mapping as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Stream flow control** as the only primary capability in this stop. It builds
+on v0.115.0 (Cookie field combination and Set-Cookie preservation) and must be independently trustworthy before v0.117.0 (Connection flow control) begins.
 
 #### Deliverables
 
-- Implement and document http request mapping in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Stream flow control in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Stream flow control.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Stream flow control contract is complete, its named evidence is reproducible, v0.115.0 (Cookie field combination and Set-Cookie preservation)
+still passes, no capability assigned to v0.117.0 (Connection flow control) is claimed, and no critical or
+high finding remains open.
 
 `0.116.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.117.0 — HTTP response mapping
+### v0.117.0 — Connection flow control
 
 Status: planned
 
 #### Goal
 
-Deliver http response mapping as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Connection flow control** as the only primary capability in this stop. It builds
+on v0.116.0 (Stream flow control) and must be independently trustworthy before v0.118.0 (SETTINGS outstanding-ACK accounting) begins.
 
 #### Deliverables
 
-- Implement and document http response mapping in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Connection flow control in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Connection flow control.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Connection flow control contract is complete, its named evidence is reproducible, v0.116.0 (Stream flow control)
+still passes, no capability assigned to v0.118.0 (SETTINGS outstanding-ACK accounting) is claimed, and no critical or
+high finding remains open.
 
 `0.117.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.118.0 — Informational responses and trailers
+### v0.118.0 — SETTINGS outstanding-ACK accounting
 
 Status: planned
 
 #### Goal
 
-Deliver informational responses and trailers as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **SETTINGS outstanding-ACK accounting** as the only primary capability in this stop. It builds
+on v0.117.0 (Connection flow control) and must be independently trustworthy before v0.119.0 (Bounded stream admission) begins.
 
 #### Deliverables
 
-- Implement and document informational responses and trailers in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document SETTINGS outstanding-ACK accounting in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for SETTINGS outstanding-ACK accounting.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The SETTINGS outstanding-ACK accounting contract is complete, its named evidence is reproducible, v0.117.0 (Connection flow control)
+still passes, no capability assigned to v0.119.0 (Bounded stream admission) is claimed, and no critical or
+high finding remains open.
 
 `0.118.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.119.0 — HTTP/2 Cookie splitting and HTTP/1 joining
+### v0.119.0 — Bounded stream admission
 
 Status: planned
 
 #### Goal
 
-Deliver http/2 cookie splitting and http/1 joining as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Bounded stream admission** as the only primary capability in this stop. It builds
+on v0.118.0 (SETTINGS outstanding-ACK accounting) and must be independently trustworthy before v0.120.0 (Bounded outbound scheduling) begins.
 
 #### Deliverables
 
-- Implement and document http/2 cookie splitting and http/1 joining in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Bounded stream admission in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Bounded stream admission.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Bounded stream admission contract is complete, its named evidence is reproducible, v0.118.0 (SETTINGS outstanding-ACK accounting)
+still passes, no capability assigned to v0.120.0 (Bounded outbound scheduling) is claimed, and no critical or
+high finding remains open.
 
 `0.119.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.120.0 — Stream-level flow control
+### v0.120.0 — Bounded outbound scheduling
 
 Status: planned
 
 #### Goal
 
-Deliver stream-level flow control as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Bounded outbound scheduling** as the only primary capability in this stop. It builds
+on v0.119.0 (Bounded stream admission) and must be independently trustworthy before v0.121.0 (GOAWAY cutoff and retry classification) begins.
 
 #### Deliverables
 
-- Implement and document stream-level flow control in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Bounded outbound scheduling in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Bounded outbound scheduling.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Bounded outbound scheduling contract is complete, its named evidence is reproducible, v0.119.0 (Bounded stream admission)
+still passes, no capability assigned to v0.121.0 (GOAWAY cutoff and retry classification) is claimed, and no critical or
+high finding remains open.
 
 `0.120.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.121.0 — Connection-level flow control
+### v0.121.0 — GOAWAY cutoff and retry classification
 
 Status: planned
 
 #### Goal
 
-Deliver connection-level flow control as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **GOAWAY cutoff and retry classification** as the only primary capability in this stop. It builds
+on v0.120.0 (Bounded outbound scheduling) and must be independently trustworthy before v0.122.0 (Server-push lifecycle) begins.
 
 #### Deliverables
 
-- Implement and document connection-level flow control in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document GOAWAY cutoff and retry classification in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for GOAWAY cutoff and retry classification.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The GOAWAY cutoff and retry classification contract is complete, its named evidence is reproducible, v0.120.0 (Bounded outbound scheduling)
+still passes, no capability assigned to v0.122.0 (Server-push lifecycle) is claimed, and no critical or
+high finding remains open.
 
 `0.121.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.122.0 — SETTINGS synchronization and outstanding-state tracking
+### v0.122.0 — Server-push lifecycle
 
 Status: planned
 
 #### Goal
 
-Deliver settings synchronization and outstanding-state tracking as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Server-push lifecycle** as the only primary capability in this stop. It builds
+on v0.121.0 (GOAWAY cutoff and retry classification) and must be independently trustworthy before v0.123.0 (ALPN and cleartext prior-knowledge selection) begins.
 
 #### Deliverables
 
-- Implement and document settings synchronization and outstanding-state tracking in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Server-push lifecycle in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Server-push lifecycle.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Server-push lifecycle contract is complete, its named evidence is reproducible, v0.121.0 (GOAWAY cutoff and retry classification)
+still passes, no capability assigned to v0.123.0 (ALPN and cleartext prior-knowledge selection) is claimed, and no critical or
+high finding remains open.
 
 `0.122.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.123.0 — Concurrent-stream admission and refusal
+### v0.123.0 — ALPN and cleartext prior-knowledge selection
 
 Status: planned
 
 #### Goal
 
-Deliver concurrent-stream admission and refusal as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **ALPN and cleartext prior-knowledge selection** as the only primary capability in this stop. It builds
+on v0.122.0 (Server-push lifecycle) and must be independently trustworthy before v0.124.0 (Independent HTTP/2 rate and work budgets) begins.
 
 #### Deliverables
 
-- Implement and document concurrent-stream admission and refusal in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document ALPN and cleartext prior-knowledge selection in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for ALPN and cleartext prior-knowledge selection.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The ALPN and cleartext prior-knowledge selection contract is complete, its named evidence is reproducible, v0.122.0 (Server-push lifecycle)
+still passes, no capability assigned to v0.124.0 (Independent HTTP/2 rate and work budgets) is claimed, and no critical or
+high finding remains open.
 
 `0.123.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.124.0 — Outbound scheduling and queue backpressure
+### v0.124.0 — Independent HTTP/2 rate and work budgets
 
 Status: planned
 
 #### Goal
 
-Deliver outbound scheduling and queue backpressure as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Independent HTTP/2 rate and work budgets** as the only primary capability in this stop. It builds
+on v0.123.0 (ALPN and cleartext prior-knowledge selection) and must be independently trustworthy before v0.125.0 (Rapid-reset defenses) begins.
 
 #### Deliverables
 
-- Implement and document outbound scheduling and queue backpressure in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Independent HTTP/2 rate and work budgets in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Independent HTTP/2 rate and work budgets.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Independent HTTP/2 rate and work budgets contract is complete, its named evidence is reproducible, v0.123.0 (ALPN and cleartext prior-knowledge selection)
+still passes, no capability assigned to v0.125.0 (Rapid-reset defenses) is claimed, and no critical or
+high finding remains open.
 
 `0.124.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.125.0 — Graceful shutdown and retry-safe GOAWAY behavior
+### v0.125.0 — Rapid-reset defenses
 
 Status: planned
 
 #### Goal
 
-Deliver graceful shutdown and retry-safe goaway behavior as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Rapid-reset defenses** as the only primary capability in this stop. It builds
+on v0.124.0 (Independent HTTP/2 rate and work budgets) and must be independently trustworthy before v0.126.0 (SETTINGS amplification defenses) begins.
 
 #### Deliverables
 
-- Implement and document graceful shutdown and retry-safe goaway behavior in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Rapid-reset defenses in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Rapid-reset defenses.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Rapid-reset defenses contract is complete, its named evidence is reproducible, v0.124.0 (Independent HTTP/2 rate and work budgets)
+still passes, no capability assigned to v0.126.0 (SETTINGS amplification defenses) is claimed, and no critical or
+high finding remains open.
 
 `0.125.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.126.0 — Complete server-push lifecycle
+### v0.126.0 — SETTINGS amplification defenses
 
 Status: planned
 
 #### Goal
 
-Deliver complete server-push lifecycle as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **SETTINGS amplification defenses** as the only primary capability in this stop. It builds
+on v0.125.0 (Rapid-reset defenses) and must be independently trustworthy before v0.127.0 (PING flood defenses) begins.
 
 #### Deliverables
 
-- Implement and document complete server-push lifecycle in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document SETTINGS amplification defenses in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for SETTINGS amplification defenses.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The SETTINGS amplification defenses contract is complete, its named evidence is reproducible, v0.125.0 (Rapid-reset defenses)
+still passes, no capability assigned to v0.127.0 (PING flood defenses) is claimed, and no critical or
+high finding remains open.
 
 `0.126.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.127.0 — TLS h2 ALPN and cleartext prior-knowledge integration
+### v0.127.0 — PING flood defenses
 
 Status: planned
 
 #### Goal
 
-Deliver tls h2 alpn and cleartext prior-knowledge integration as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **PING flood defenses** as the only primary capability in this stop. It builds
+on v0.126.0 (SETTINGS amplification defenses) and must be independently trustworthy before v0.128.0 (CONTINUATION bomb defenses) begins.
 
 #### Deliverables
 
-- Implement and document tls h2 alpn and cleartext prior-knowledge integration in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document PING flood defenses in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for PING flood defenses.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The PING flood defenses contract is complete, its named evidence is reproducible, v0.126.0 (SETTINGS amplification defenses)
+still passes, no capability assigned to v0.128.0 (CONTINUATION bomb defenses) is claimed, and no critical or
+high finding remains open.
 
 `0.127.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.128.0 — Full RFC 9113 core conformance and pentest audit
+### v0.128.0 — CONTINUATION bomb defenses
 
 Status: planned
 
 #### Goal
 
-Deliver full rfc 9113 core conformance and pentest audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **CONTINUATION bomb defenses** as the only primary capability in this stop. It builds
+on v0.127.0 (PING flood defenses) and must be independently trustworthy before v0.129.0 (WINDOW_UPDATE churn defenses) begins.
 
 #### Deliverables
 
-- Implement and document full rfc 9113 core conformance and pentest audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 7541, RFC 9110, and RFC 9113.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document CONTINUATION bomb defenses in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for CONTINUATION bomb defenses.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The CONTINUATION bomb defenses contract is complete, its named evidence is reproducible, v0.127.0 (PING flood defenses)
+still passes, no capability assigned to v0.129.0 (WINDOW_UPDATE churn defenses) is claimed, and no critical or
+high finding remains open.
 
 `0.128.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 9 — HTTP/2 hardening, translation, and extensions
-
-Phase goal: complete http/2 hardening, translation, and extensions without weakening prior security, portability, or conformance evidence.
-
-### v0.129.0 — Frame-rate and state-transition budgets
+### v0.129.0 — WINDOW_UPDATE churn defenses
 
 Status: planned
 
 #### Goal
 
-Deliver frame-rate and state-transition budgets as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **WINDOW_UPDATE churn defenses** as the only primary capability in this stop. It builds
+on v0.128.0 (CONTINUATION bomb defenses) and must be independently trustworthy before v0.130.0 (Reserved control-output queues) begins.
 
 #### Deliverables
 
-- Implement and document frame-rate and state-transition budgets in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document WINDOW_UPDATE churn defenses in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for WINDOW_UPDATE churn defenses.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The WINDOW_UPDATE churn defenses contract is complete, its named evidence is reproducible, v0.128.0 (CONTINUATION bomb defenses)
+still passes, no capability assigned to v0.130.0 (Reserved control-output queues) is claimed, and no critical or
+high finding remains open.
 
 `0.129.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.130.0 — Rapid-reset and recently-closed-stream defenses
+### v0.130.0 — Reserved control-output queues
 
 Status: planned
 
 #### Goal
 
-Deliver rapid-reset and recently-closed-stream defenses as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Reserved control-output queues** as the only primary capability in this stop. It builds
+on v0.129.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy before v0.131.0 (HTTP/2 conformance audit and pentest) begins.
 
 #### Deliverables
 
-- Implement and document rapid-reset and recently-closed-stream defenses in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Reserved control-output queues in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Reserved control-output queues.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Reserved control-output queues contract is complete, its named evidence is reproducible, v0.129.0 (WINDOW_UPDATE churn defenses)
+still passes, no capability assigned to v0.131.0 (HTTP/2 conformance audit and pentest) is claimed, and no critical or
+high finding remains open.
 
 `0.130.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.131.0 — SETTINGS and PING acknowledgement amplification defenses
+### v0.131.0 — HTTP/2 conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
-Deliver settings and ping acknowledgement amplification defenses as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/2 conformance audit and pentest** as the only primary capability in this stop. It builds
+on v0.130.0 (Reserved control-output queues) and must be independently trustworthy before v0.132.0 (HTTP/1 and HTTP/2 translation model) begins.
 
 #### Deliverables
 
-- Implement and document settings and ping acknowledgement amplification defenses in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/2 conformance audit and pentest in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: HPACK and HTTP/2 mutations validate into typed deltas before commit; connection state, stream slots, and output reservations remain bounded and generation-safe.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7541, RFC 9110, RFC 9113 including verified/held errata disposition, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/2 conformance audit and pentest.
+- Run official vectors, every-byte fragmentation, malformed-frame and malformed-block corpora, exhaustive transition tests, generation-slot reuse tests, flow-control arithmetic tests, differential peers, and hostile control-frame campaigns.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/2 conformance audit and pentest contract is complete, its named evidence is reproducible, v0.130.0 (Reserved control-output queues)
+still passes, no capability assigned to v0.132.0 (HTTP/1 and HTTP/2 translation model) is claimed, and no critical or
+high finding remains open.
 
 `0.131.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.132.0 — CONTINUATION and decompressed-header bomb defenses
+## Phase 4 — Proxy, client, server, and public APIs
+
+Phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+
+### v0.132.0 — HTTP/1 and HTTP/2 translation model
 
 Status: planned
 
 #### Goal
 
-Deliver continuation and decompressed-header bomb defenses as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **HTTP/1 and HTTP/2 translation model** as the only primary capability in this stop. It builds
+on v0.131.0 (HTTP/2 conformance audit and pentest) and must be independently trustworthy before v0.133.0 (Effective URI and authority consistency) begins.
 
 #### Deliverables
 
-- Implement and document continuation and decompressed-header bomb defenses in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document HTTP/1 and HTTP/2 translation model in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for HTTP/1 and HTTP/2 translation model.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The HTTP/1 and HTTP/2 translation model contract is complete, its named evidence is reproducible, v0.131.0 (HTTP/2 conformance audit and pentest)
+still passes, no capability assigned to v0.133.0 (Effective URI and authority consistency) is claimed, and no critical or
+high finding remains open.
 
 `0.132.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.133.0 — Tiny WINDOW_UPDATE and flow-control churn defenses
+### v0.133.0 — Effective URI and authority consistency
 
 Status: planned
 
 #### Goal
 
-Deliver tiny window_update and flow-control churn defenses as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Effective URI and authority consistency** as the only primary capability in this stop. It builds
+on v0.132.0 (HTTP/1 and HTTP/2 translation model) and must be independently trustworthy before v0.134.0 (Connection-field stripping, Via, and cache preservation) begins.
 
 #### Deliverables
 
-- Implement and document tiny window_update and flow-control churn defenses in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Effective URI and authority consistency in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Effective URI and authority consistency.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Effective URI and authority consistency contract is complete, its named evidence is reproducible, v0.132.0 (HTTP/1 and HTTP/2 translation model)
+still passes, no capability assigned to v0.134.0 (Connection-field stripping, Via, and cache preservation) is claimed, and no critical or
+high finding remains open.
 
 `0.133.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.134.0 — Hard outbound queue ceilings
+### v0.134.0 — Connection-field stripping, Via, and cache preservation
 
 Status: planned
 
 #### Goal
 
-Deliver hard outbound queue ceilings as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Connection-field stripping, Via, and cache preservation** as the only primary capability in this stop. It builds
+on v0.133.0 (Effective URI and authority consistency) and must be independently trustworthy before v0.135.0 (CONNECT translation across HTTP versions) begins.
 
 #### Deliverables
 
-- Implement and document hard outbound queue ceilings in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Connection-field stripping, Via, and cache preservation in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Connection-field stripping, Via, and cache preservation.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Connection-field stripping, Via, and cache preservation contract is complete, its named evidence is reproducible, v0.133.0 (Effective URI and authority consistency)
+still passes, no capability assigned to v0.135.0 (CONNECT translation across HTTP versions) is claimed, and no critical or
+high finding remains open.
 
 `0.134.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.135.0 — First-class HTTP/1 to HTTP/2 translation engine
+### v0.135.0 — CONNECT translation across HTTP versions
 
 Status: planned
 
 #### Goal
 
-Deliver first-class http/1 to http/2 translation engine as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **CONNECT translation across HTTP versions** as the only primary capability in this stop. It builds
+on v0.134.0 (Connection-field stripping, Via, and cache preservation) and must be independently trustworthy before v0.136.0 (RFC 8441 extended CONNECT) begins.
 
 #### Deliverables
 
-- Implement and document first-class http/1 to http/2 translation engine in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document CONNECT translation across HTTP versions in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for CONNECT translation across HTTP versions.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The CONNECT translation across HTTP versions contract is complete, its named evidence is reproducible, v0.134.0 (Connection-field stripping, Via, and cache preservation)
+still passes, no capability assigned to v0.136.0 (RFC 8441 extended CONNECT) is claimed, and no critical or
+high finding remains open.
 
 `0.135.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.136.0 — Host, :authority, and effective-URI consistency
+### v0.136.0 — RFC 8441 extended CONNECT
 
 Status: planned
 
 #### Goal
 
-Deliver host, :authority, and effective-uri consistency as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **RFC 8441 extended CONNECT** as the only primary capability in this stop. It builds
+on v0.135.0 (CONNECT translation across HTTP versions) and must be independently trustworthy before v0.137.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) begins.
 
 #### Deliverables
 
-- Implement and document host, :authority, and effective-uri consistency in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document RFC 8441 extended CONNECT in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for RFC 8441 extended CONNECT.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The RFC 8441 extended CONNECT contract is complete, its named evidence is reproducible, v0.135.0 (CONNECT translation across HTTP versions)
+still passes, no capability assigned to v0.137.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) is claimed, and no critical or
+high finding remains open.
 
 `0.136.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.137.0 — HTTP/1-to-HTTP/2 connection-field stripping
+### v0.137.0 — WebSocket HTTP/1 to HTTP/2 handshake bridge
 
 Status: planned
 
 #### Goal
 
-Deliver http/1-to-http/2 connection-field stripping as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **WebSocket HTTP/1 to HTTP/2 handshake bridge** as the only primary capability in this stop. It builds
+on v0.136.0 (RFC 8441 extended CONNECT) and must be independently trustworthy before v0.138.0 (Structured Fields) begins.
 
 #### Deliverables
 
-- Implement and document http/1-to-http/2 connection-field stripping in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document WebSocket HTTP/1 to HTTP/2 handshake bridge in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for WebSocket HTTP/1 to HTTP/2 handshake bridge.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The WebSocket HTTP/1 to HTTP/2 handshake bridge contract is complete, its named evidence is reproducible, v0.136.0 (RFC 8441 extended CONNECT)
+still passes, no capability assigned to v0.138.0 (Structured Fields) is claimed, and no critical or
+high finding remains open.
 
 `0.137.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.138.0 — CONNECT and tunnel translation across HTTP versions
+### v0.138.0 — Structured Fields
 
 Status: planned
 
 #### Goal
 
-Deliver connect and tunnel translation across http versions as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Structured Fields** as the only primary capability in this stop. It builds
+on v0.137.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) and must be independently trustworthy before v0.139.0 (RFC 9218 priority semantics) begins.
 
 #### Deliverables
 
-- Implement and document connect and tunnel translation across http versions in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Structured Fields in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Structured Fields.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Structured Fields contract is complete, its named evidence is reproducible, v0.137.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge)
+still passes, no capability assigned to v0.139.0 (RFC 9218 priority semantics) is claimed, and no critical or
+high finding remains open.
 
 `0.138.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.139.0 — Optional RFC 8441 extended CONNECT
+### v0.139.0 — RFC 9218 priority semantics
 
 Status: planned
 
 #### Goal
 
-Deliver optional rfc 8441 extended connect as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **RFC 9218 priority semantics** as the only primary capability in this stop. It builds
+on v0.138.0 (Structured Fields) and must be independently trustworthy before v0.140.0 (PRIORITY_UPDATE frame support) begins.
 
 #### Deliverables
 
-- Implement and document optional rfc 8441 extended connect in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document RFC 9218 priority semantics in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for RFC 9218 priority semantics.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The RFC 9218 priority semantics contract is complete, its named evidence is reproducible, v0.138.0 (Structured Fields)
+still passes, no capability assigned to v0.140.0 (PRIORITY_UPDATE frame support) is claimed, and no critical or
+high finding remains open.
 
 `0.139.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.140.0 — RFC 9651 Structured Fields parser
+### v0.140.0 — PRIORITY_UPDATE frame support
 
 Status: planned
 
 #### Goal
 
-Deliver rfc 9651 structured fields parser as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **PRIORITY_UPDATE frame support** as the only primary capability in this stop. It builds
+on v0.139.0 (RFC 9218 priority semantics) and must be independently trustworthy before v0.141.0 (Client request builder and target forms) begins.
 
 #### Deliverables
 
-- Implement and document rfc 9651 structured fields parser in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document PRIORITY_UPDATE frame support in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for PRIORITY_UPDATE frame support.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The PRIORITY_UPDATE frame support contract is complete, its named evidence is reproducible, v0.139.0 (RFC 9218 priority semantics)
+still passes, no capability assigned to v0.141.0 (Client request builder and target forms) is claimed, and no critical or
+high finding remains open.
 
 `0.140.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.141.0 — RFC 9218 Priority field
+### v0.141.0 — Client request builder and target forms
 
 Status: planned
 
 #### Goal
 
-Deliver rfc 9218 priority field as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Client request builder and target forms** as the only primary capability in this stop. It builds
+on v0.140.0 (PRIORITY_UPDATE frame support) and must be independently trustworthy before v0.142.0 (Client correlation, cancellation, and retry tokens) begins.
 
 #### Deliverables
 
-- Implement and document rfc 9218 priority field in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Client request builder and target forms in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Client request builder and target forms.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Client request builder and target forms contract is complete, its named evidence is reproducible, v0.140.0 (PRIORITY_UPDATE frame support)
+still passes, no capability assigned to v0.142.0 (Client correlation, cancellation, and retry tokens) is claimed, and no critical or
+high finding remains open.
 
 `0.141.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.142.0 — PRIORITY_UPDATE and priority-settings behavior
+### v0.142.0 — Client correlation, cancellation, and retry tokens
 
 Status: planned
 
 #### Goal
 
-Deliver priority_update and priority-settings behavior as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Client correlation, cancellation, and retry tokens** as the only primary capability in this stop. It builds
+on v0.141.0 (Client request builder and target forms) and must be independently trustworthy before v0.143.0 (Origin-server role API) begins.
 
 #### Deliverables
 
-- Implement and document priority_update and priority-settings behavior in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Client correlation, cancellation, and retry tokens in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Client correlation, cancellation, and retry tokens.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Client correlation, cancellation, and retry tokens contract is complete, its named evidence is reproducible, v0.141.0 (Client request builder and target forms)
+still passes, no capability assigned to v0.143.0 (Origin-server role API) is claimed, and no critical or
+high finding remains open.
 
 `0.142.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.143.0 — Stateful hostile-peer and multi-implementation interop campaign
+### v0.143.0 — Origin-server role API
 
 Status: planned
 
 #### Goal
 
-Deliver stateful hostile-peer and multi-implementation interop campaign as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Origin-server role API** as the only primary capability in this stop. It builds
+on v0.142.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.144.0 (Forward-proxy role API) begins.
 
 #### Deliverables
 
-- Implement and document stateful hostile-peer and multi-implementation interop campaign in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Origin-server role API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Origin-server role API.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Origin-server role API contract is complete, its named evidence is reproducible, v0.142.0 (Client correlation, cancellation, and retry tokens)
+still passes, no capability assigned to v0.144.0 (Forward-proxy role API) is claimed, and no critical or
+high finding remains open.
 
 `0.143.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.144.0 — Full intermediary, extension, and denial-of-service audit
+### v0.144.0 — Forward-proxy role API
 
 Status: planned
 
 #### Goal
 
-Deliver full intermediary, extension, and denial-of-service audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Forward-proxy role API** as the only primary capability in this stop. It builds
+on v0.143.0 (Origin-server role API) and must be independently trustworthy before v0.145.0 (Reverse-proxy and gateway role API) begins.
 
 #### Deliverables
 
-- Implement and document full intermediary, extension, and denial-of-service audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for RFC 8441, RFC 9110, RFC 9112, RFC 9113, RFC 9218, and RFC 9651.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Forward-proxy role API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Forward-proxy role API.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Forward-proxy role API contract is complete, its named evidence is reproducible, v0.143.0 (Origin-server role API)
+still passes, no capability assigned to v0.145.0 (Reverse-proxy and gateway role API) is claimed, and no critical or
+high finding remains open.
 
 `0.144.0 implementation stop reached. Run pentest for this exact commit.`
 
-## Phase 10 — Stable APIs, portability, and production hardening
-
-Phase goal: complete stable apis, portability, and production hardening without weakening prior security, portability, or conformance evidence.
-
-### v0.145.0 — Stable client facade
+### v0.145.0 — Reverse-proxy and gateway role API
 
 Status: planned
 
 #### Goal
 
-Deliver stable client facade as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Reverse-proxy and gateway role API** as the only primary capability in this stop. It builds
+on v0.144.0 (Forward-proxy role API) and must be independently trustworthy before v0.146.0 (Tunnel lifecycle and half-close semantics) begins.
 
 #### Deliverables
 
-- Implement and document stable client facade in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Reverse-proxy and gateway role API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Reverse-proxy and gateway role API.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Reverse-proxy and gateway role API contract is complete, its named evidence is reproducible, v0.144.0 (Forward-proxy role API)
+still passes, no capability assigned to v0.146.0 (Tunnel lifecycle and half-close semantics) is claimed, and no critical or
+high finding remains open.
 
 `0.145.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.146.0 — Stable origin-server facade
+### v0.146.0 — Tunnel lifecycle and half-close semantics
 
 Status: planned
 
 #### Goal
 
-Deliver stable origin-server facade as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Tunnel lifecycle and half-close semantics** as the only primary capability in this stop. It builds
+on v0.145.0 (Reverse-proxy and gateway role API) and must be independently trustworthy before v0.147.0 (Upgrade transformation boundary) begins.
 
 #### Deliverables
 
-- Implement and document stable origin-server facade in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Tunnel lifecycle and half-close semantics in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Tunnel lifecycle and half-close semantics.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Tunnel lifecycle and half-close semantics contract is complete, its named evidence is reproducible, v0.145.0 (Reverse-proxy and gateway role API)
+still passes, no capability assigned to v0.147.0 (Upgrade transformation boundary) is claimed, and no critical or
+high finding remains open.
 
 `0.146.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.147.0 — Stable proxy, gateway, and tunnel facade
+### v0.147.0 — Upgrade transformation boundary
 
 Status: planned
 
 #### Goal
 
-Deliver stable proxy, gateway, and tunnel facade as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Upgrade transformation boundary** as the only primary capability in this stop. It builds
+on v0.146.0 (Tunnel lifecycle and half-close semantics) and must be independently trustworthy before v0.148.0 (GOAWAY, 421, and retry coordination) begins.
 
 #### Deliverables
 
-- Implement and document stable proxy, gateway, and tunnel facade in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Upgrade transformation boundary in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Upgrade transformation boundary.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Upgrade transformation boundary contract is complete, its named evidence is reproducible, v0.146.0 (Tunnel lifecycle and half-close semantics)
+still passes, no capability assigned to v0.148.0 (GOAWAY, 421, and retry coordination) is claimed, and no critical or
+high finding remains open.
 
 `0.147.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.148.0 — Ergonomic owned API under alloc
+### v0.148.0 — GOAWAY, 421, and retry coordination
 
 Status: planned
 
 #### Goal
 
-Deliver ergonomic owned api under alloc as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **GOAWAY, 421, and retry coordination** as the only primary capability in this stop. It builds
+on v0.147.0 (Upgrade transformation boundary) and must be independently trustworthy before v0.149.0 (Optional alloc-backed convenience API) begins.
 
 #### Deliverables
 
-- Implement and document ergonomic owned api under alloc in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document GOAWAY, 421, and retry coordination in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for GOAWAY, 421, and retry coordination.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The GOAWAY, 421, and retry coordination contract is complete, its named evidence is reproducible, v0.147.0 (Upgrade transformation boundary)
+still passes, no capability assigned to v0.149.0 (Optional alloc-backed convenience API) is claimed, and no critical or
+high finding remains open.
 
 `0.148.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.149.0 — Fixed-capacity caller-storage API without allocator
+### v0.149.0 — Optional alloc-backed convenience API
 
 Status: planned
 
 #### Goal
 
-Deliver fixed-capacity caller-storage api without allocator as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Optional alloc-backed convenience API** as the only primary capability in this stop. It builds
+on v0.148.0 (GOAWAY, 421, and retry coordination) and must be independently trustworthy before v0.150.0 (Fixed-capacity caller-storage public API) begins.
 
 #### Deliverables
 
-- Implement and document fixed-capacity caller-storage api without allocator in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Optional alloc-backed convenience API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Optional alloc-backed convenience API.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Optional alloc-backed convenience API contract is complete, its named evidence is reproducible, v0.148.0 (GOAWAY, 421, and retry coordination)
+still passes, no capability assigned to v0.150.0 (Fixed-capacity caller-storage public API) is claimed, and no critical or
+high finding remains open.
 
 `0.149.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.150.0 — Standard-error integration and stable diagnostics
+### v0.150.0 — Fixed-capacity caller-storage public API
 
 Status: planned
 
 #### Goal
 
-Deliver standard-error integration and stable diagnostics as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Fixed-capacity caller-storage public API** as the only primary capability in this stop. It builds
+on v0.149.0 (Optional alloc-backed convenience API) and must be independently trustworthy before v0.151.0 (Stable diagnostics and security events) begins.
 
 #### Deliverables
 
-- Implement and document standard-error integration and stable diagnostics in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Fixed-capacity caller-storage public API in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Fixed-capacity caller-storage public API.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Fixed-capacity caller-storage public API contract is complete, its named evidence is reproducible, v0.149.0 (Optional alloc-backed convenience API)
+still passes, no capability assigned to v0.151.0 (Stable diagnostics and security events) is claimed, and no critical or
+high finding remains open.
 
 `0.150.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.151.0 — Facade feature matrix and accidental-dependency tests
+### v0.151.0 — Stable diagnostics and security events
 
 Status: planned
 
 #### Goal
 
-Deliver facade feature matrix and accidental-dependency tests as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Stable diagnostics and security events** as the only primary capability in this stop. It builds
+on v0.150.0 (Fixed-capacity caller-storage public API) and must be independently trustworthy before v0.152.0 (Feature and dependency-policy surface) begins.
 
 #### Deliverables
 
-- Implement and document facade feature matrix and accidental-dependency tests in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Stable diagnostics and security events in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Stable diagnostics and security events.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Stable diagnostics and security events contract is complete, its named evidence is reproducible, v0.150.0 (Fixed-capacity caller-storage public API)
+still passes, no capability assigned to v0.152.0 (Feature and dependency-policy surface) is claimed, and no critical or
+high finding remains open.
 
 `0.151.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.152.0 — Minimal and no-default-feature build matrix
+### v0.152.0 — Feature and dependency-policy surface
 
 Status: planned
 
 #### Goal
 
-Deliver minimal and no-default-feature build matrix as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Feature and dependency-policy surface** as the only primary capability in this stop. It builds
+on v0.151.0 (Stable diagnostics and security events) and must be independently trustworthy before v0.153.0 (Multi-implementation interoperability) begins.
 
 #### Deliverables
 
-- Implement and document minimal and no-default-feature build matrix in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Feature and dependency-policy surface in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Feature and dependency-policy surface.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Feature and dependency-policy surface contract is complete, its named evidence is reproducible, v0.151.0 (Stable diagnostics and security events)
+still passes, no capability assigned to v0.153.0 (Multi-implementation interoperability) is claimed, and no critical or
+high finding remains open.
 
 `0.152.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.153.0 — Full 32-bit arithmetic and capacity matrix
+### v0.153.0 — Multi-implementation interoperability
 
 Status: planned
 
 #### Goal
 
-Deliver full 32-bit arithmetic and capacity matrix as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Multi-implementation interoperability** as the only primary capability in this stop. It builds
+on v0.152.0 (Feature and dependency-policy surface) and must be independently trustworthy before v0.154.0 (Adversarial and stateful fuzz campaign) begins.
 
 #### Deliverables
 
-- Implement and document full 32-bit arithmetic and capacity matrix in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Multi-implementation interoperability in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Multi-implementation interoperability.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Multi-implementation interoperability contract is complete, its named evidence is reproducible, v0.152.0 (Feature and dependency-policy surface)
+still passes, no capability assigned to v0.154.0 (Adversarial and stateful fuzz campaign) is claimed, and no critical or
+high finding remains open.
 
 `0.153.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.154.0 — Big-endian, unaligned-access, and serialization matrix
+### v0.154.0 — Adversarial and stateful fuzz campaign
 
 Status: planned
 
 #### Goal
 
-Deliver big-endian, unaligned-access, and serialization matrix as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Adversarial and stateful fuzz campaign** as the only primary capability in this stop. It builds
+on v0.153.0 (Multi-implementation interoperability) and must be independently trustworthy before v0.155.0 (Compile-fail state and lifetime tests) begins.
 
 #### Deliverables
 
-- Implement and document big-endian, unaligned-access, and serialization matrix in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Adversarial and stateful fuzz campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Adversarial and stateful fuzz campaign.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Adversarial and stateful fuzz campaign contract is complete, its named evidence is reproducible, v0.153.0 (Multi-implementation interoperability)
+still passes, no capability assigned to v0.155.0 (Compile-fail state and lifetime tests) is claimed, and no critical or
+high finding remains open.
 
 `0.154.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.155.0 — x86, Arm, AArch64, and RISC-V target campaign
+### v0.155.0 — Compile-fail state and lifetime tests
 
 Status: planned
 
 #### Goal
 
-Deliver x86, arm, aarch64, and risc-v target campaign as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Compile-fail state and lifetime tests** as the only primary capability in this stop. It builds
+on v0.154.0 (Adversarial and stateful fuzz campaign) and must be independently trustworthy before v0.156.0 (Long-running soak and exhaustion campaign) begins.
 
 #### Deliverables
 
-- Implement and document x86, arm, aarch64, and risc-v target campaign in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Compile-fail state and lifetime tests in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Compile-fail state and lifetime tests.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Compile-fail state and lifetime tests contract is complete, its named evidence is reproducible, v0.154.0 (Adversarial and stateful fuzz campaign)
+still passes, no capability assigned to v0.156.0 (Long-running soak and exhaustion campaign) is claimed, and no critical or
+high finding remains open.
 
 `0.155.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.156.0 — Linux, Windows, BSD, macOS, Android, iOS, and future Aesynx adapter contract
+### v0.156.0 — Long-running soak and exhaustion campaign
 
 Status: planned
 
 #### Goal
 
-Deliver linux, windows, bsd, macos, android, ios, and future aesynx adapter contract as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Long-running soak and exhaustion campaign** as the only primary capability in this stop. It builds
+on v0.155.0 (Compile-fail state and lifetime tests) and must be independently trustworthy before v0.157.0 (Role and API conformance audit and pentest) begins.
 
 #### Deliverables
 
-- Implement and document linux, windows, bsd, macos, android, ios, and future aesynx adapter contract in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Long-running soak and exhaustion campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Long-running soak and exhaustion campaign.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Long-running soak and exhaustion campaign contract is complete, its named evidence is reproducible, v0.155.0 (Compile-fail state and lifetime tests)
+still passes, no capability assigned to v0.157.0 (Role and API conformance audit and pentest) is claimed, and no critical or
+high finding remains open.
 
 `0.156.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.157.0 — Long-running HTTP/1 soak and fault-injection campaign
+### v0.157.0 — Role and API conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
-Deliver long-running http/1 soak and fault-injection campaign as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Role and API conformance audit and pentest** as the only primary capability in this stop. It builds
+on v0.156.0 (Long-running soak and exhaustion campaign) and must be independently trustworthy before v0.158.0 (Standard blocking-stream adapter) begins.
 
 #### Deliverables
 
-- Implement and document long-running http/1 soak and fault-injection campaign in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Role and API conformance audit and pentest in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Role APIs expose only validated messages and committed transitions; translation preserves semantics, ordering, cache metadata, half-close behavior, and explicit retry boundaries.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 3986, RFC 7239 where Via/forwarding behavior applies, RFC 8441, RFC 9110, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Role and API conformance audit and pentest.
+- Test role matrices, request correlation, reserialization across framing changes, authority consistency, hop stripping, cache-preservation metadata, retry classifications, tunnel half-closes, compile-fail misuse, interop, fuzzing, and soak behavior.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Role and API conformance audit and pentest contract is complete, its named evidence is reproducible, v0.156.0 (Long-running soak and exhaustion campaign)
+still passes, no capability assigned to v0.158.0 (Standard blocking-stream adapter) is claimed, and no critical or
+high finding remains open.
 
 `0.157.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.158.0 — Long-running HTTP/2 multiplexing and cancellation soak
+## Phase 5 — OS, Aesynx readiness, and 1.0 evidence
+
+Phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+
+### v0.158.0 — Standard blocking-stream adapter
 
 Status: planned
 
 #### Goal
 
-Deliver long-running http/2 multiplexing and cancellation soak as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Standard blocking-stream adapter** as the only primary capability in this stop. It builds
+on v0.157.0 (Role and API conformance audit and pentest) and must be independently trustworthy before v0.159.0 (Standard nonblocking-stream adapter) begins.
 
 #### Deliverables
 
-- Implement and document long-running http/2 multiplexing and cancellation soak in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Standard blocking-stream adapter in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Standard blocking-stream adapter.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Standard blocking-stream adapter contract is complete, its named evidence is reproducible, v0.157.0 (Role and API conformance audit and pentest)
+still passes, no capability assigned to v0.159.0 (Standard nonblocking-stream adapter) is claimed, and no critical or
+high finding remains open.
 
 `0.158.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.159.0 — Independent whole-project security and conformance audit
+### v0.159.0 — Standard nonblocking-stream adapter
 
 Status: planned
 
 #### Goal
 
-Deliver independent whole-project security and conformance audit as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Standard nonblocking-stream adapter** as the only primary capability in this stop. It builds
+on v0.158.0 (Standard blocking-stream adapter) and must be independently trustworthy before v0.160.0 (Brynja TLS provider contract and admission review) begins.
 
 #### Deliverables
 
-- Implement and document independent whole-project security and conformance audit in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Standard nonblocking-stream adapter in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Review the milestone delta for smuggling, ambiguity, panic, truncation, resource exhaustion, response amplification, and state-confusion risks.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Standard nonblocking-stream adapter.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Standard nonblocking-stream adapter contract is complete, its named evidence is reproducible, v0.158.0 (Standard blocking-stream adapter)
+still passes, no capability assigned to v0.160.0 (Brynja TLS provider contract and admission review) is claimed, and no critical or
+high finding remains open.
 
 `0.159.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.160.0 — Audit remediation, API freeze, and 1.0 release-candidate readiness
+### v0.160.0 — Brynja TLS provider contract and admission review
 
 Status: planned
 
 #### Goal
 
-Deliver audit remediation, api freeze, and 1.0 release-candidate readiness as one bounded, reviewable capability without claiming later protocol behavior.
+Deliver **Brynja TLS provider contract and admission review** as the only primary capability in this stop. It builds
+on v0.159.0 (Standard nonblocking-stream adapter) and must be independently trustworthy before v0.161.0 (Separate vef-brynja adapter crate) begins.
 
 #### Deliverables
 
-- Implement and document audit remediation, api freeze, and 1.0 release-candidate readiness in the authoritative crate boundary.
-- Add or update paragraph-addressable requirements and errata decisions for the complete declared VEF 1.0 effective specification set.
-- Define deterministic errors, progress, capacities, work budgets, and role/state preconditions before accepting hostile input.
-- Keep every Rust file below 500 lines, preserve `no_std`, forbid unsafe Rust, and admit no third-party crate.
-- Update the threat model, security controls, version index, changelog, release notes, and generated traceability evidence.
+- Implement and document Brynja TLS provider contract and admission review in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
 
 #### Verification
 
-- Add focused unit, positive, negative, boundary, truncation, and regression tests for the complete milestone surface.
-- Exercise incremental input/output at every single byte split when framing or streaming is involved; otherwise test every domain/state boundary exhaustively where practical.
-- Prove capacity exhaustion and invalid state fail before partial publication, unbounded work, panic, or unrelated-state mutation.
-- Perform the phase-boundary full-repository audit, stateful fuzz campaign, corpus review, interoperability campaign, and resource-exhaustion assessment.
-- Run the full supported Rust matrix, target/platform checks, documentation and package checks, dependency policy, Cargo deny/audit, SBOM comparison, CI, and CodeQL default setup.
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Brynja TLS provider contract and admission review.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
 
 #### Exit criteria
 
-All named deliverables and tests are complete; applicable MUST/MUST NOT records are verified; SHOULD decisions are reviewed; no critical or high finding is open; the exact implementation commit is frozen for assessment.
+The Brynja TLS provider contract and admission review contract is complete, its named evidence is reproducible, v0.159.0 (Standard nonblocking-stream adapter)
+still passes, no capability assigned to v0.161.0 (Separate vef-brynja adapter crate) is claimed, and no critical or
+high finding remains open.
 
 `0.160.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.161.0 — Separate vef-brynja adapter crate
+
+Status: planned
+
+#### Goal
+
+Deliver **Separate vef-brynja adapter crate** as the only primary capability in this stop. It builds
+on v0.160.0 (Brynja TLS provider contract and admission review) and must be independently trustworthy before v0.162.0 (Authenticated ALPN and HTTP/2 TLS prerequisites) begins.
+
+#### Deliverables
+
+- Implement and document Separate vef-brynja adapter crate in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Separate vef-brynja adapter crate.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Separate vef-brynja adapter crate contract is complete, its named evidence is reproducible, v0.160.0 (Brynja TLS provider contract and admission review)
+still passes, no capability assigned to v0.162.0 (Authenticated ALPN and HTTP/2 TLS prerequisites) is claimed, and no critical or
+high finding remains open.
+
+`0.161.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.162.0 — Authenticated ALPN and HTTP/2 TLS prerequisites
+
+Status: planned
+
+#### Goal
+
+Deliver **Authenticated ALPN and HTTP/2 TLS prerequisites** as the only primary capability in this stop. It builds
+on v0.161.0 (Separate vef-brynja adapter crate) and must be independently trustworthy before v0.163.0 (TLS 1.3 early-data prohibition and close semantics) begins.
+
+#### Deliverables
+
+- Implement and document Authenticated ALPN and HTTP/2 TLS prerequisites in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Authenticated ALPN and HTTP/2 TLS prerequisites.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Authenticated ALPN and HTTP/2 TLS prerequisites contract is complete, its named evidence is reproducible, v0.161.0 (Separate vef-brynja adapter crate)
+still passes, no capability assigned to v0.163.0 (TLS 1.3 early-data prohibition and close semantics) is claimed, and no critical or
+high finding remains open.
+
+`0.162.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.163.0 — TLS 1.3 early-data prohibition and close semantics
+
+Status: planned
+
+#### Goal
+
+Deliver **TLS 1.3 early-data prohibition and close semantics** as the only primary capability in this stop. It builds
+on v0.162.0 (Authenticated ALPN and HTTP/2 TLS prerequisites) and must be independently trustworthy before v0.164.0 (Aesynx fixed-memory capability profile) begins.
+
+#### Deliverables
+
+- Implement and document TLS 1.3 early-data prohibition and close semantics in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for TLS 1.3 early-data prohibition and close semantics.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The TLS 1.3 early-data prohibition and close semantics contract is complete, its named evidence is reproducible, v0.162.0 (Authenticated ALPN and HTTP/2 TLS prerequisites)
+still passes, no capability assigned to v0.164.0 (Aesynx fixed-memory capability profile) is claimed, and no critical or
+high finding remains open.
+
+`0.163.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.164.0 — Aesynx fixed-memory capability profile
+
+Status: planned
+
+#### Goal
+
+Deliver **Aesynx fixed-memory capability profile** as the only primary capability in this stop. It builds
+on v0.163.0 (TLS 1.3 early-data prohibition and close semantics) and must be independently trustworthy before v0.165.0 (Aesynx transport and readiness adapter) begins.
+
+#### Deliverables
+
+- Implement and document Aesynx fixed-memory capability profile in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Aesynx fixed-memory capability profile.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Aesynx fixed-memory capability profile contract is complete, its named evidence is reproducible, v0.163.0 (TLS 1.3 early-data prohibition and close semantics)
+still passes, no capability assigned to v0.165.0 (Aesynx transport and readiness adapter) is claimed, and no critical or
+high finding remains open.
+
+`0.164.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.165.0 — Aesynx transport and readiness adapter
+
+Status: planned
+
+#### Goal
+
+Deliver **Aesynx transport and readiness adapter** as the only primary capability in this stop. It builds
+on v0.164.0 (Aesynx fixed-memory capability profile) and must be independently trustworthy before v0.166.0 (Aesynx timer and deadline adapter) begins.
+
+#### Deliverables
+
+- Implement and document Aesynx transport and readiness adapter in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Aesynx transport and readiness adapter.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Aesynx transport and readiness adapter contract is complete, its named evidence is reproducible, v0.164.0 (Aesynx fixed-memory capability profile)
+still passes, no capability assigned to v0.166.0 (Aesynx timer and deadline adapter) is claimed, and no critical or
+high finding remains open.
+
+`0.165.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.166.0 — Aesynx timer and deadline adapter
+
+Status: planned
+
+#### Goal
+
+Deliver **Aesynx timer and deadline adapter** as the only primary capability in this stop. It builds
+on v0.165.0 (Aesynx transport and readiness adapter) and must be independently trustworthy before v0.167.0 (Aesynx kernel integration tests) begins.
+
+#### Deliverables
+
+- Implement and document Aesynx timer and deadline adapter in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Aesynx timer and deadline adapter.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Aesynx timer and deadline adapter contract is complete, its named evidence is reproducible, v0.165.0 (Aesynx transport and readiness adapter)
+still passes, no capability assigned to v0.167.0 (Aesynx kernel integration tests) is claimed, and no critical or
+high finding remains open.
+
+`0.166.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.167.0 — Aesynx kernel integration tests
+
+Status: planned
+
+#### Goal
+
+Deliver **Aesynx kernel integration tests** as the only primary capability in this stop. It builds
+on v0.166.0 (Aesynx timer and deadline adapter) and must be independently trustworthy before v0.168.0 (32-bit target campaign) begins.
+
+#### Deliverables
+
+- Implement and document Aesynx kernel integration tests in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Aesynx kernel integration tests.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Aesynx kernel integration tests contract is complete, its named evidence is reproducible, v0.166.0 (Aesynx timer and deadline adapter)
+still passes, no capability assigned to v0.168.0 (32-bit target campaign) is claimed, and no critical or
+high finding remains open.
+
+`0.167.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.168.0 — 32-bit target campaign
+
+Status: planned
+
+#### Goal
+
+Deliver **32-bit target campaign** as the only primary capability in this stop. It builds
+on v0.167.0 (Aesynx kernel integration tests) and must be independently trustworthy before v0.169.0 (Big-endian target campaign) begins.
+
+#### Deliverables
+
+- Implement and document 32-bit target campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for 32-bit target campaign.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The 32-bit target campaign contract is complete, its named evidence is reproducible, v0.167.0 (Aesynx kernel integration tests)
+still passes, no capability assigned to v0.169.0 (Big-endian target campaign) is claimed, and no critical or
+high finding remains open.
+
+`0.168.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.169.0 — Big-endian target campaign
+
+Status: planned
+
+#### Goal
+
+Deliver **Big-endian target campaign** as the only primary capability in this stop. It builds
+on v0.168.0 (32-bit target campaign) and must be independently trustworthy before v0.170.0 (Cross-architecture campaign) begins.
+
+#### Deliverables
+
+- Implement and document Big-endian target campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Big-endian target campaign.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Big-endian target campaign contract is complete, its named evidence is reproducible, v0.168.0 (32-bit target campaign)
+still passes, no capability assigned to v0.170.0 (Cross-architecture campaign) is claimed, and no critical or
+high finding remains open.
+
+`0.169.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.170.0 — Cross-architecture campaign
+
+Status: planned
+
+#### Goal
+
+Deliver **Cross-architecture campaign** as the only primary capability in this stop. It builds
+on v0.169.0 (Big-endian target campaign) and must be independently trustworthy before v0.171.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) begins.
+
+#### Deliverables
+
+- Implement and document Cross-architecture campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Cross-architecture campaign.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Cross-architecture campaign contract is complete, its named evidence is reproducible, v0.169.0 (Big-endian target campaign)
+still passes, no capability assigned to v0.171.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) is claimed, and no critical or
+high finding remains open.
+
+`0.170.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.171.0 — Linux, Windows, BSD, macOS, Android, and iOS matrix
+
+Status: planned
+
+#### Goal
+
+Deliver **Linux, Windows, BSD, macOS, Android, and iOS matrix** as the only primary capability in this stop. It builds
+on v0.170.0 (Cross-architecture campaign) and must be independently trustworthy before v0.172.0 (Kani shared-core proofs) begins.
+
+#### Deliverables
+
+- Implement and document Linux, Windows, BSD, macOS, Android, and iOS matrix in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Linux, Windows, BSD, macOS, Android, and iOS matrix.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Linux, Windows, BSD, macOS, Android, and iOS matrix contract is complete, its named evidence is reproducible, v0.170.0 (Cross-architecture campaign)
+still passes, no capability assigned to v0.172.0 (Kani shared-core proofs) is claimed, and no critical or
+high finding remains open.
+
+`0.171.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.172.0 — Kani shared-core proofs
+
+Status: planned
+
+#### Goal
+
+Deliver **Kani shared-core proofs** as the only primary capability in this stop. It builds
+on v0.171.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) and must be independently trustworthy before v0.173.0 (Kani HTTP/1 proofs) begins.
+
+#### Deliverables
+
+- Implement and document Kani shared-core proofs in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Kani shared-core proofs.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Kani shared-core proofs contract is complete, its named evidence is reproducible, v0.171.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix)
+still passes, no capability assigned to v0.173.0 (Kani HTTP/1 proofs) is claimed, and no critical or
+high finding remains open.
+
+`0.172.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.173.0 — Kani HTTP/1 proofs
+
+Status: planned
+
+#### Goal
+
+Deliver **Kani HTTP/1 proofs** as the only primary capability in this stop. It builds
+on v0.172.0 (Kani shared-core proofs) and must be independently trustworthy before v0.174.0 (Kani HPACK proofs) begins.
+
+#### Deliverables
+
+- Implement and document Kani HTTP/1 proofs in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Kani HTTP/1 proofs.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Kani HTTP/1 proofs contract is complete, its named evidence is reproducible, v0.172.0 (Kani shared-core proofs)
+still passes, no capability assigned to v0.174.0 (Kani HPACK proofs) is claimed, and no critical or
+high finding remains open.
+
+`0.173.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.174.0 — Kani HPACK proofs
+
+Status: planned
+
+#### Goal
+
+Deliver **Kani HPACK proofs** as the only primary capability in this stop. It builds
+on v0.173.0 (Kani HTTP/1 proofs) and must be independently trustworthy before v0.175.0 (Kani HTTP/2 proofs) begins.
+
+#### Deliverables
+
+- Implement and document Kani HPACK proofs in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Kani HPACK proofs.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Kani HPACK proofs contract is complete, its named evidence is reproducible, v0.173.0 (Kani HTTP/1 proofs)
+still passes, no capability assigned to v0.175.0 (Kani HTTP/2 proofs) is claimed, and no critical or
+high finding remains open.
+
+`0.174.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.175.0 — Kani HTTP/2 proofs
+
+Status: planned
+
+#### Goal
+
+Deliver **Kani HTTP/2 proofs** as the only primary capability in this stop. It builds
+on v0.174.0 (Kani HPACK proofs) and must be independently trustworthy before v0.176.0 (Stateful cargo-fuzz campaign) begins.
+
+#### Deliverables
+
+- Implement and document Kani HTTP/2 proofs in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Kani HTTP/2 proofs.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Kani HTTP/2 proofs contract is complete, its named evidence is reproducible, v0.174.0 (Kani HPACK proofs)
+still passes, no capability assigned to v0.176.0 (Stateful cargo-fuzz campaign) is claimed, and no critical or
+high finding remains open.
+
+`0.175.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.176.0 — Stateful cargo-fuzz campaign
+
+Status: planned
+
+#### Goal
+
+Deliver **Stateful cargo-fuzz campaign** as the only primary capability in this stop. It builds
+on v0.175.0 (Kani HTTP/2 proofs) and must be independently trustworthy before v0.177.0 (Differential and interoperability campaign) begins.
+
+#### Deliverables
+
+- Implement and document Stateful cargo-fuzz campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Stateful cargo-fuzz campaign.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Stateful cargo-fuzz campaign contract is complete, its named evidence is reproducible, v0.175.0 (Kani HTTP/2 proofs)
+still passes, no capability assigned to v0.177.0 (Differential and interoperability campaign) is claimed, and no critical or
+high finding remains open.
+
+`0.176.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.177.0 — Differential and interoperability campaign
+
+Status: planned
+
+#### Goal
+
+Deliver **Differential and interoperability campaign** as the only primary capability in this stop. It builds
+on v0.176.0 (Stateful cargo-fuzz campaign) and must be independently trustworthy before v0.178.0 (Whole-project conformance audit and pentest) begins.
+
+#### Deliverables
+
+- Implement and document Differential and interoperability campaign in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Differential and interoperability campaign.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Differential and interoperability campaign contract is complete, its named evidence is reproducible, v0.176.0 (Stateful cargo-fuzz campaign)
+still passes, no capability assigned to v0.178.0 (Whole-project conformance audit and pentest) is claimed, and no critical or
+high finding remains open.
+
+`0.177.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.178.0 — Whole-project conformance audit and pentest
+
+Status: planned
+
+#### Goal
+
+Deliver **Whole-project conformance audit and pentest** as the only primary capability in this stop. It builds
+on v0.177.0 (Differential and interoperability campaign) and must be independently trustworthy before v0.179.0 (Independent security audit) begins.
+
+#### Deliverables
+
+- Implement and document Whole-project conformance audit and pentest in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Whole-project conformance audit and pentest.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Whole-project conformance audit and pentest contract is complete, its named evidence is reproducible, v0.177.0 (Differential and interoperability campaign)
+still passes, no capability assigned to v0.179.0 (Independent security audit) is claimed, and no critical or
+high finding remains open.
+
+`0.178.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.179.0 — Independent security audit
+
+Status: planned
+
+#### Goal
+
+Deliver **Independent security audit** as the only primary capability in this stop. It builds
+on v0.178.0 (Whole-project conformance audit and pentest) and must be independently trustworthy before v0.180.0 (Audit remediation and API freeze) begins.
+
+#### Deliverables
+
+- Implement and document Independent security audit in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Independent security audit.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Independent security audit contract is complete, its named evidence is reproducible, v0.178.0 (Whole-project conformance audit and pentest)
+still passes, no capability assigned to v0.180.0 (Audit remediation and API freeze) is claimed, and no critical or
+high finding remains open.
+
+`0.179.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.180.0 — Audit remediation and API freeze
+
+Status: planned
+
+#### Goal
+
+Deliver **Audit remediation and API freeze** as the only primary capability in this stop. It builds
+on v0.179.0 (Independent security audit) and must be independently trustworthy before v0.181.0 (Documentation, packaging, SBOM, provenance, and RC readiness) begins.
+
+#### Deliverables
+
+- Implement and document Audit remediation and API freeze in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Audit remediation and API freeze.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Audit remediation and API freeze contract is complete, its named evidence is reproducible, v0.179.0 (Independent security audit)
+still passes, no capability assigned to v0.181.0 (Documentation, packaging, SBOM, provenance, and RC readiness) is claimed, and no critical or
+high finding remains open.
+
+`0.180.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.181.0 — Documentation, packaging, SBOM, provenance, and RC readiness
+
+Status: planned
+
+#### Goal
+
+Deliver **Documentation, packaging, SBOM, provenance, and RC readiness** as the only primary capability in this stop. It builds
+on v0.180.0 (Audit remediation and API freeze) and must be independently trustworthy before the 1.0 release-candidate sequence begins.
+
+#### Deliverables
+
+- Implement and document Documentation, packaging, SBOM, provenance, and RC readiness in the crate or module that owns the
+  capability; do not expose adjacent later-version behavior.
+- Enforce the phase contract: Platform adapters cannot alter protocol validity; authenticated selection, deadlines, cancellation, EOF, storage, and release evidence remain explicit across every supported target.
+- Update paragraph-addressable applicability, requirement, SHOULD-decision,
+  deviation, and verified/held errata records for RFC 7301, RFC 8446, platform ABI and target guarantees, the admitted Brynja contract, and all previously applicable HTTP requirements.
+- Define typed error scope, progress, capacity, cancellation, and state-commit
+  behavior for every new public operation.
+- Update the threat model, security controls, API documentation, release notes,
+  traceability evidence, and any conformance corpus affected by this outcome.
+
+#### Verification
+
+- Add focused positive, negative, boundary, truncation, invalid-state,
+  arbitrary-input no-panic, and regression tests specifically for Documentation, packaging, SBOM, provenance, and RC readiness.
+- Run blocking and nonblocking adapter suites, authenticated-ALPN cases, early-data rejection, clean-versus-truncated EOF, fixed-memory Aesynx simulations, 32-bit and big-endian targets, Kani, fuzzing, interop, audit remediation, packaging, SBOM, and provenance gates.
+- Prove failures do not publish partial application state, mutate unrelated
+  connection state, exceed declared work/output budgets, or require allocation.
+- Run the full Rust `1.90.0`–`1.97.1` matrix, `no_std` and target checks,
+  documentation/package checks, dependency policy, audit, SBOM, CI, and CodeQL
+  default-setup review.
+
+#### Exit criteria
+
+The Documentation, packaging, SBOM, provenance, and RC readiness contract is complete, its named evidence is reproducible, v0.180.0 (Audit remediation and API freeze)
+still passes, no capability assigned to the 1.0 release-candidate sequence is claimed, and no critical or
+high finding remains open.
+
+`0.181.0 implementation stop reached. Run pentest for this exact commit.`
 
 ## 1.0 release candidates
 
@@ -4880,13 +7317,19 @@ All named deliverables and tests are complete; applicable MUST/MUST NOT records 
 
 Status: planned
 
-Goal: freeze the public API and expose the complete candidate to public interoperability and documentation review.
+Goal: freeze the public API and expose the complete candidate to public
+interoperability, security, usability, and documentation review.
 
-Deliverables: API freeze, migration guidance, package dry runs, generated RFC coverage, published platform matrix, known limitations, and complete release evidence.
+Deliverables: API freeze, migration guidance, package dry runs, generated RFC
+and errata coverage, published platform matrix, known limitations, SBOM,
+provenance, and complete release evidence.
 
-Verification: repeat all repository gates, full stateful fuzzing, independent multi-implementation interop, full manual audit, and exact-commit pentest.
+Verification: repeat every repository gate, full stateful fuzzing, independent
+multi-implementation interoperability, full manual audit, and exact-commit
+pentest.
 
-Exit criteria: no new features are accepted and all candidate evidence is reproducible. `1.0.0-rc.1 implementation stop reached. Run pentest for this exact commit.`
+Exit criteria: no new features are accepted and all candidate evidence is
+reproducible. `1.0.0-rc.1 implementation stop reached. Run pentest for this exact commit.`
 
 ### v1.0.0-rc.2
 
@@ -4894,11 +7337,14 @@ Status: planned
 
 Goal: remediate RC1 findings without expanding scope.
 
-Deliverables: fixes, regression tests, final dependency/source review, final RFC coverage, final MSRV/target declarations, and refreshed evidence.
+Deliverables: fixes, regression tests, final dependency/source review, final
+RFC and errata coverage, final MSRV/target declarations, and refreshed evidence.
 
-Verification: repeat every fuzz, pentest, conformance, interop, portability, package, and provenance gate.
+Verification: repeat every fuzz, pentest, conformance, interoperability,
+portability, package, SBOM, and provenance gate.
 
-Exit criteria: no unresolved critical/high findings and no unreviewed behavior change. `1.0.0-rc.2 implementation stop reached. Run pentest for this exact commit.`
+Exit criteria: no unresolved critical/high findings and no unreviewed behavior
+change. `1.0.0-rc.2 implementation stop reached. Run pentest for this exact commit.`
 
 ### v1.0.0
 
@@ -4906,4 +7352,11 @@ Status: planned
 
 Goal: publish the first serious production-ready VEF HTTP crate.
 
-Release only when every applicable MUST/MUST NOT is verified, every SHOULD decision is documented, caller-storage builds work without an allocator, protocol cores are `no_std` and unsafe-free, HTTP/0.9 cannot activate accidentally, HTTP/1 has one framing interpretation, HTTP/2 state transitions and flow control pass exhaustive evidence, HPACK remains bounded, every declared role is covered, platform matrices are published, independent-audit remediation is verified, and HTTP/3 remains explicitly out of scope.
+Release only when every applicable MUST/MUST NOT is verified, every SHOULD
+decision and errata disposition is documented, fixed caller-storage operation
+works without an allocator, protocol cores are `no_std` and unsafe-free,
+HTTP/0.9 is isolated and cannot activate accidentally, HTTP/1 has one framing
+interpretation, HTTP/2 state transitions and flow control pass exhaustive
+evidence, HPACK remains bounded, TLS early data is disabled, every declared role
+is covered, platform matrices are published, independent-audit remediation is
+verified, and HTTP/3 remains explicitly out of scope.

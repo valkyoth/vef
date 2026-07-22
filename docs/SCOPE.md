@@ -88,14 +88,18 @@ HPACK-synchronized, publishes no promised request/correlation or partial
 authority, marks the already tracked slot rejecting without changing its RFC
 wire state, and schedules stream-local CANCEL through mandatory control
 capacity. Reserved(remote) HEADERS synchronizes and transitions to half-closed
-(local), reserved(remote) DATA and duplicate promised IDs are connection
-PROTOCOL_ERROR, peer reset supersedes only a zero-byte queued CANCEL, and
-one partially serialized CANCEL finishes without duplication if the connection
-survives; tolerated post-reset DATA restores connection credit without stream
-WINDOW_UPDATE. Locally reset associated streams retain bounded tombstones that
-decode in-flight PUSH_PROMISE/CONTINUATION and track/reject the promised ID
-without recreating application or assembly authority; illegal IDs and malformed
-HPACK retain connection scope. Tracking survives through reset serialization,
+(local); its separate END_STREAM event can immediately close while fragmented
+CONTINUATION/HPACK ownership remains active. Rejected half-closed(local)
+DATA+END_STREAM accounts/discards full payload and padding before closure.
+Reserved(remote) DATA and duplicate promised IDs are connection PROTOCOL_ERROR.
+Remote reset or END_STREAM supersedes only a zero-byte queued CANCEL with its
+cause recorded separately, and one partially serialized CANCEL finishes without
+duplication if the connection survives; tolerated post-reset DATA restores
+connection credit without stream WINDOW_UPDATE. Locally reset associated
+streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
+CONTINUATION and track/reject the promised ID without recreating application or
+assembly authority; illegal IDs and malformed HPACK retain connection scope.
+Tracking survives through reset serialization,
 active field blocks, and peer cutoff; unrepresentable tracking retains the slot
 through typed bounded shutdown. Neither path rotates an arena or admits an
 untracked request. The exact correlation holds its non-Copy/non-Clone handle and

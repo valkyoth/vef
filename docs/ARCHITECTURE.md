@@ -230,20 +230,25 @@ an unpublished rollback-capable admission transaction. The v0.117.0 stream slot
 contains its rejection/cutoff representation, so an accepted promised ID is
 continuously tracked—never idle again—but policy rejection is orthogonal to its
 RFC wire state and reset serialization. A rejected promise remains
-reserved(remote) until legal response HEADERS moves it to half-closed(local), a
-peer reset closes it, or the local CANCEL commits. Reserved(remote) DATA and
-reuse of its non-idle ID are connection PROTOCOL_ERROR. HEADERS always finishes
-HPACK synchronization; after local reset, tolerated late DATA restores only
-connection credit and never emits stream WINDOW_UPDATE. A peer reset supersedes
-a zero-byte queued CANCEL, whereas a partially serialized reset finishes once
-when the connection survives. A generation-checked associated-stream tombstone
+reserved(remote) until normalized HEADERS moves it to half-closed(local), then a
+separate END_STREAM event, peer reset, or local CANCEL can close it.
+HEADERS+END_STREAM performs both transitions even when END_HEADERS is absent;
+the closed wire state does not release the remaining CONTINUATION/HPACK owner.
+Rejected half-closed(local) DATA+END_STREAM accounts/discards its full payload
+and padding before closure. Reserved(remote) DATA and reuse of its non-idle ID
+are connection PROTOCOL_ERROR; tolerated post-reset DATA restores only
+connection credit and never emits stream WINDOW_UPDATE. Remote reset or
+END_STREAM supersedes a zero-byte queued CANCEL with a separate closure cause,
+whereas a partially serialized reset finishes once when the connection survives.
+A generation-checked associated-stream tombstone
 also accepts an in-flight PUSH_PROMISE after local reset: it completes every
 CONTINUATION and validates/tracks the promised ID but publishes no request or
 reconstructed authority. Missing recycled provenance selects safe rejection,
 while illegal IDs and malformed HPACK preserve connection-error scope.
 One total `RejectedPushFrameDisposition` matrix keys these decisions by policy,
-wire state, reset progress, frame kind, and field-block ownership; every cell
-fixes transition, HPACK, flow-credit, error-scope, publication, and reset action.
+wire state, reset progress, closure cause, normalized event and END flags,
+header-section phase, and field-block ownership; every cell fixes ordered
+transitions, HPACK, flow-credit, error-scope, publication, and reset action.
 
 Once partial assembly exists at v0.181.0, a receiving client completes
 PUSH_PROMISE/CONTINUATION and HPACK/semantic/authority/cacheability validation,

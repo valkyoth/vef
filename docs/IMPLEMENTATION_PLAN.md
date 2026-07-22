@@ -73,6 +73,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Peer protocol violations, configured policy excess, insufficient caller
   storage, output backpressure, and mandatory-control exhaustion are distinct.
 - Parsing and validation produce typed deltas before state is committed.
+- HTTP/2 stream errors are typed deltas that cannot mutate unrelated streams,
+  scheduler entries, flow windows, generations, compression state, or events;
+  connection-fatal decisions stop all later application publication.
 - Reusable storage and stream slots carry generations, and borrowed events are
   acknowledged before the underlying slot can be recycled.
 - No HTTP/0.9, CONNECT, Upgrade, ALPN, or cleartext HTTP/2 transition is guessed.
@@ -125,7 +128,7 @@ Owns frame codecs, exhaustive connection/stream state, message mapping, flow
 control, borrowed inbound DATA acknowledgement, outbound per-stream message
 commands, push, errors, priority signals, and hostile-control budgets.
 
-### `vef-structured-fields` (planned at `0.163.0`)
+### `vef-structured-fields` (planned at `0.164.0`)
 
 Owns the optional dependency-free RFC 9651 lexical cursor, item grammars,
 complete bare-item dispatcher, parameters, lists, dictionaries, canonical
@@ -138,7 +141,7 @@ Owns minimal synchronous and poll-based byte progress, injected time,
 deadlines, cancellation, and backpressure contracts. Protocol crates do not
 depend on it; drivers compose from outside.
 
-### `vef-brynja` (planned at `0.202.0`)
+### `vef-brynja` (planned at `0.203.0`)
 
 Owns the optional first-party Brynja TLS integration after its separate
 admission review. It points inward to `vef-io` and protocol crates, returns
@@ -195,11 +198,14 @@ pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
 isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
 
-### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.153.0`)
+### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.154.0`)
 
 Implement bounded HPACK with encoder-output atomicity, every HTTP/2 frame,
 activation and graceful shutdown, malformed publication barriers before
 mapping, generation-checked streams, and explicit cancellation/flow credit.
+Every frame codec owns exact length, stream-ID, flag, reserved-bit, padding,
+and error-scope contracts. A dedicated error-delta stop proves stream failures
+cannot mutate unrelated connection state before HPACK/header publication.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
@@ -208,7 +214,7 @@ Integrate ENABLE_PUSH in push ownership and apply MAX_FRAME_SIZE atomically
 before emitting its SETTINGS ACK. Retain independent budgets, mandatory ACK
 tracking, reserved output, and flood defenses.
 
-### Phase 4 — Proxy, client, server, and public APIs (`0.154.0`–`0.198.0`)
+### Phase 4 — Proxy, client, server, and public APIs (`0.155.0`–`0.199.0`)
 
 Build a representation-only translation IR, then effective URI, hop stripping,
 and a normative HTTP/1↔HTTP/2 matrix before emitting destination bytes. Add
@@ -219,7 +225,7 @@ priority/intermediary/flood behavior, replayability-aware retry tokens,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 
-### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.199.0`–`0.224.0`)
+### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.200.0`–`0.225.0`)
 
 Add standard blocking/nonblocking adapters, admit Brynja only through a
 separate first-party adapter, enforce concrete RFC 9113 TLS admission and

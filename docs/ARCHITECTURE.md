@@ -20,10 +20,10 @@ and diagnostics while retaining protocol-appropriate state machines.
 vef facade
   |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
   |-- vef-websocket-handshake --> vef-core  (planned optional extension)
-  |-- vef-structured-fields ---> vef-core  (planned optional RFC 9651 package)
   |-- vef-http1 -----> vef-core
   |-- vef-http2 -----> vef-core
   |       `----------> vef-hpack -----> vef-core
+  |       `-- priority feature --> vef-structured-fields --> vef-core
   `-- vef-io
 
 future runtime/TLS/Aesynx adapters -----> vef-io and protocol crates
@@ -101,6 +101,13 @@ Inbound DATA remains borrowed and releases stream and connection credit only
 when acknowledged or explicitly discarded. Outbound HEADERS, DATA, trailers,
 END_STREAM, partial HPACK/frame output, and cancellation share one per-stream
 command lifecycle.
+
+Frame codecs validate their complete wire envelope before exposing fragments:
+payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
+and optional-field minima. The connection then applies a typed RFC 9113 error
+delta. A stream-scoped delta may touch only its target stream; compression
+errors and connection-scoped violations stop publication and enqueue exactly
+one bounded GOAWAY action.
 
 The planned dependency-free `vef-structured-fields` crate owns RFC 9651
 lexing, item/container grammars, canonical serialization, and bounded

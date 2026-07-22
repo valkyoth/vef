@@ -12,27 +12,32 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review found HTTP/2 body ownership, initial-field validation,
-extension SETTINGS ownership, Structured Fields ordering, and several
-security-critical role contracts that the prior sequence did not make
-independently testable. No release tag exists, so the roadmap is renumbered now
-and ends at `0.224.0`.
+The latest design review found HTTP/2 error-scope isolation, frame-envelope
+rules, DATA-padding accounting, receive-limit ownership, HPACK wire legality,
+and SETTINGS ACK sequencing that the prior sequence did not make independently
+testable. No release tag exists, so the roadmap is renumbered now and ends at
+`0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
-| Early resource ceilings | `0.7.0`; replay at `0.210.0` | Set measurable ceilings before layouts/state machines land and verify every later component against them. |
+| Early resource ceilings | `0.7.0`; replay at `0.211.0` | Set measurable ceilings before layouts/state machines land and verify every later component against them. |
 | Capacity versus protocol errors | `0.10.0` | Local storage/backpressure/control-capacity failures never masquerade as peer protocol violations. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
-| SETTINGS dependency ordering | `0.108.0` then `0.123.0`, `0.134.0`, `0.140.0`, `0.142.0` | Parse/store early; integrate only after HPACK, streams/windows, admission, and scheduling exist. |
-| HTTP/2 publication order | `0.126.0` before `0.127.0` | Malformed names/values, pseudo-fields, context, and initial Content-Length are rejected before mapped messages can become observable. |
-| HTTP/2 DATA and command ownership | `0.135.0`–`0.136.0` | Application acknowledgement, not parsing, releases inbound credit; outbound HEADERS/DATA/trailers/END_STREAM and partial output use one per-stream lifecycle. |
-| HTTP/2 activation/shutdown | `0.119.0`–`0.121.0` | Make preface, first SETTINGS, frame legality, fragmentation, stream exhaustion, GOAWAY, retry cutoff, and backpressured shutdown explicit. |
-| Extension SETTINGS ownership | `0.142.0`, `0.144.0`, `0.161.0`, `0.174.0` | Apply MAX_FRAME_SIZE before ACK and integrate push, extended CONNECT, and priority settings only in their owning state machines. |
-| Intermediary and retry semantics | `0.157.0`, `0.158.0`, `0.181.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
-| Structured Fields and priority | `0.163.0`–`0.178.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
-| Translation and byte handoff | `0.154.0` then `0.159.0`; `0.187.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |
-| TLS and bare-metal contracts | `0.203.0`–`0.204.0` plus adapter milestones | Enumerate RFC 9113 TLS prerequisites and concrete short-I/O/readiness/deadline/EOF/alignment/scatter-gather behavior. |
+| HPACK wire legality | `0.82.0`–`0.93.0` | Accept non-shortest valid integers, emit canonical integers, reject illegal Huffman EOS/padding and invalid indices, and emit at most two ordered table-size changes. |
+| SETTINGS dependency ordering | `0.108.0` then `0.124.0`, `0.135.0`, `0.141.0`, `0.143.0` | Parse/store early; integrate only after HPACK, streams/windows, admission, and scheduling exist. |
+| HTTP/2 publication order | `0.127.0` before `0.128.0` | Malformed names/values, pseudo-fields, context, and initial Content-Length are rejected before mapped messages can become observable. |
+| HTTP/2 DATA and command ownership | `0.136.0`–`0.137.0` | Application acknowledgement, not parsing, releases inbound credit; outbound HEADERS/DATA/trailers/END_STREAM and partial output use one per-stream lifecycle. |
+| HTTP/2 activation/shutdown | `0.119.0`–`0.122.0` | Make preface, first SETTINGS, frame legality, fragmentation, stream exhaustion, GOAWAY, retry cutoff, and backpressured shutdown explicit. |
+| HTTP/2 error-scope isolation | `0.121.0` | Map every violation to exact code/scope, apply stream-only typed deltas, reserve one RST_STREAM/GOAWAY, and prove unrelated state is unchanged. |
+| HTTP/2 frame envelopes | `0.103.0`–`0.114.0` | Bind exact lengths, stream IDs, flags, reserved bits, padding arithmetic, optional minima, outbound zeroing, and RFC error scope per frame type. |
+| DATA padding and frame limits | `0.104.0`, `0.136.0`, `0.143.0` | Separate flow-controlled padded payload, application data, Content-Length bytes, local inbound limit, peer outbound limit, and absolute RFC ceiling. |
+| SETTINGS ACK sequencing | `0.139.0` | Track committed local SETTINGS in a bounded FIFO, ACK oldest first, reject unsolicited ACK, inject timeouts, and reserve mandatory output. |
+| Extension SETTINGS ownership | `0.143.0`, `0.145.0`, `0.162.0`, `0.175.0` | Apply MAX_FRAME_SIZE before ACK and integrate push, extended CONNECT, and priority settings only in their owning state machines. |
+| Intermediary and retry semantics | `0.158.0`, `0.159.0`, `0.182.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
+| Structured Fields and priority | `0.164.0`–`0.179.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
+| Translation and byte handoff | `0.155.0` then `0.160.0`; `0.188.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |
+| TLS and bare-metal contracts | `0.204.0`–`0.205.0` plus adapter milestones | Enumerate RFC 9113 TLS prerequisites and concrete short-I/O/readiness/deadline/EOF/alignment/scatter-gather behavior. |
 
 ## Standards disposition
 
@@ -145,16 +150,16 @@ HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownersh
 | `0.80.0` | HTTP/1 smuggling and ambiguity corpus | Requires HTTP/0.9 cross-protocol rejection corpus; Unlocks HTTP/1 and HTTP/0.9 conformance audit and pentest. |
 | `0.81.0` | HTTP/1 and HTTP/0.9 conformance audit and pentest | Requires HTTP/1 smuggling and ambiguity corpus; Unlocks HPACK prefix-integer decoder. |
 
-## Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.153.0`)
+## Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.154.0`)
 
 HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 
 | Version | Primary outcome | Sequence context |
 | --- | --- | --- |
 | `0.82.0` | HPACK prefix-integer decoder | Requires HTTP/1 and HTTP/0.9 conformance audit and pentest; Unlocks HPACK prefix-integer encoder. |
-| `0.83.0` | HPACK prefix-integer encoder | Requires HPACK prefix-integer decoder; Unlocks HPACK integer overflow and minimality proofs. |
-| `0.84.0` | HPACK integer overflow and minimality proofs | Requires HPACK prefix-integer encoder; Unlocks HPACK string representation codec. |
-| `0.85.0` | HPACK string representation codec | Requires HPACK integer overflow and minimality proofs; Unlocks HPACK Huffman tables. |
+| `0.83.0` | HPACK prefix-integer encoder | Requires HPACK prefix-integer decoder; Unlocks HPACK integer overflow and canonical encoder proofs. |
+| `0.84.0` | HPACK integer overflow and canonical encoder proofs | Requires HPACK prefix-integer encoder; Unlocks HPACK string representation codec. |
+| `0.85.0` | HPACK string representation codec | Requires HPACK integer overflow and canonical encoder proofs; Unlocks HPACK Huffman tables. |
 | `0.86.0` | HPACK Huffman tables | Requires HPACK string representation codec; Unlocks HPACK Huffman decoder. |
 | `0.87.0` | HPACK Huffman decoder | Requires HPACK Huffman tables; Unlocks HPACK Huffman encoder. |
 | `0.88.0` | HPACK Huffman encoder | Requires HPACK Huffman decoder; Unlocks HPACK static table. |
@@ -189,125 +194,126 @@ HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, valid
 | `0.117.0` | Generation-checked stream table and tombstones | Requires HTTP/2 stream-identifier rules; Unlocks Exhaustive stream-state graph. |
 | `0.118.0` | Exhaustive stream-state graph | Requires Generation-checked stream table and tombstones; Unlocks HTTP/2 activation preface, first-SETTINGS, and deadline sequencing. |
 | `0.119.0` | HTTP/2 activation preface, first-SETTINGS, and deadline sequencing | Requires Exhaustive stream-state graph; Unlocks HTTP/2 frame legality and fragmented-header-block sequencing. |
-| `0.120.0` | HTTP/2 frame legality and fragmented-header-block sequencing | Requires HTTP/2 activation preface, first-SETTINGS, and deadline sequencing; Unlocks HTTP/2 graceful GOAWAY and bounded shutdown sequencing. |
-| `0.121.0` | HTTP/2 graceful GOAWAY and bounded shutdown sequencing | Requires HTTP/2 frame legality and fragmented-header-block sequencing; Unlocks Atomic HPACK header-block integration. |
-| `0.122.0` | Atomic HPACK header-block integration | Requires HTTP/2 graceful GOAWAY and bounded shutdown sequencing; Unlocks SETTINGS header-table encoder and header-list policy coupling. |
-| `0.123.0` | SETTINGS header-table encoder and header-list policy coupling | Requires Atomic HPACK header-block integration; Unlocks Pseudo-field ordering and uniqueness. |
-| `0.124.0` | Pseudo-field ordering and uniqueness | Requires SETTINGS header-table encoder and header-list policy coupling; Unlocks Connection-specific field and TE validation. |
-| `0.125.0` | Connection-specific field and TE validation | Requires Pseudo-field ordering and uniqueness; Unlocks HTTP/2 malformed initial-field-block publication barrier. |
-| `0.126.0` | HTTP/2 malformed initial-field-block publication barrier | Requires Connection-specific field and TE validation; Unlocks HTTP/2 request mapping. |
-| `0.127.0` | HTTP/2 request mapping | Requires HTTP/2 malformed initial-field-block publication barrier; Unlocks HTTP/2 response mapping. |
-| `0.128.0` | HTTP/2 response mapping | Requires HTTP/2 request mapping; Unlocks HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliation. |
-| `0.129.0` | HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliation | Requires HTTP/2 response mapping; Unlocks Informational responses and trailers. |
-| `0.130.0` | Informational responses and trailers | Requires HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliation; Unlocks Cookie field combination and Set-Cookie preservation. |
-| `0.131.0` | Cookie field combination and Set-Cookie preservation | Requires Informational responses and trailers; Unlocks Stream flow control. |
-| `0.132.0` | Stream flow control | Requires Cookie field combination and Set-Cookie preservation; Unlocks Connection flow control. |
-| `0.133.0` | Connection flow control | Requires Stream flow control; Unlocks SETTINGS initial-window active-stream integration and atomic rollback. |
-| `0.134.0` | SETTINGS initial-window active-stream integration and atomic rollback | Requires Connection flow control; Unlocks HTTP/2 inbound DATA ownership, acknowledgement, and credit release. |
-| `0.135.0` | HTTP/2 inbound DATA ownership, acknowledgement, and credit release | Requires SETTINGS initial-window active-stream integration and atomic rollback; Unlocks HTTP/2 outbound per-stream message command lifecycle. |
-| `0.136.0` | HTTP/2 outbound per-stream message command lifecycle | Requires HTTP/2 inbound DATA ownership, acknowledgement, and credit release; Unlocks HTTP/2 body cancellation, reset, and flow-credit lifecycle. |
-| `0.137.0` | HTTP/2 body cancellation, reset, and flow-credit lifecycle | Requires HTTP/2 outbound per-stream message command lifecycle; Unlocks SETTINGS outstanding-ACK accounting. |
-| `0.138.0` | SETTINGS outstanding-ACK accounting | Requires HTTP/2 body cancellation, reset, and flow-credit lifecycle; Unlocks Bounded stream admission. |
-| `0.139.0` | Bounded stream admission | Requires SETTINGS outstanding-ACK accounting; Unlocks SETTINGS max-concurrent-streams admission integration. |
-| `0.140.0` | SETTINGS max-concurrent-streams admission integration | Requires Bounded stream admission; Unlocks Bounded outbound scheduling. |
-| `0.141.0` | Bounded outbound scheduling | Requires SETTINGS max-concurrent-streams admission integration; Unlocks SETTINGS max-frame-size outbound integration. |
-| `0.142.0` | SETTINGS max-frame-size outbound integration | Requires Bounded outbound scheduling; Unlocks GOAWAY cutoff and retry classification. |
-| `0.143.0` | GOAWAY cutoff and retry classification | Requires SETTINGS max-frame-size outbound integration; Unlocks Server-push lifecycle. |
-| `0.144.0` | Server-push lifecycle | Requires GOAWAY cutoff and retry classification; Unlocks ALPN and cleartext prior-knowledge selection. |
-| `0.145.0` | ALPN and cleartext prior-knowledge selection | Requires Server-push lifecycle; Unlocks Independent HTTP/2 rate and work budgets. |
-| `0.146.0` | Independent HTTP/2 rate and work budgets | Requires ALPN and cleartext prior-knowledge selection; Unlocks Rapid-reset defenses. |
-| `0.147.0` | Rapid-reset defenses | Requires Independent HTTP/2 rate and work budgets; Unlocks SETTINGS amplification defenses. |
-| `0.148.0` | SETTINGS amplification defenses | Requires Rapid-reset defenses; Unlocks PING flood defenses. |
-| `0.149.0` | PING flood defenses | Requires SETTINGS amplification defenses; Unlocks CONTINUATION bomb defenses. |
-| `0.150.0` | CONTINUATION bomb defenses | Requires PING flood defenses; Unlocks WINDOW_UPDATE churn defenses. |
-| `0.151.0` | WINDOW_UPDATE churn defenses | Requires CONTINUATION bomb defenses; Unlocks Reserved control-output queues. |
-| `0.152.0` | Reserved control-output queues | Requires WINDOW_UPDATE churn defenses; Unlocks HTTP/2 conformance audit and pentest. |
-| `0.153.0` | HTTP/2 conformance audit and pentest | Requires Reserved control-output queues; Unlocks Protocol-neutral HTTP translation representation. |
+| `0.120.0` | HTTP/2 frame legality and fragmented-header-block sequencing | Requires HTTP/2 activation preface, first-SETTINGS, and deadline sequencing; Unlocks HTTP/2 error scope, typed deltas, and isolated stream mutation. |
+| `0.121.0` | HTTP/2 error scope, typed deltas, and isolated stream mutation | Requires HTTP/2 frame legality and fragmented-header-block sequencing; Unlocks HTTP/2 graceful GOAWAY and bounded shutdown sequencing. |
+| `0.122.0` | HTTP/2 graceful GOAWAY and bounded shutdown sequencing | Requires HTTP/2 error scope, typed deltas, and isolated stream mutation; Unlocks Atomic HPACK header-block integration. |
+| `0.123.0` | Atomic HPACK header-block integration | Requires HTTP/2 graceful GOAWAY and bounded shutdown sequencing; Unlocks SETTINGS header-table encoder and header-list policy coupling. |
+| `0.124.0` | SETTINGS header-table encoder and header-list policy coupling | Requires Atomic HPACK header-block integration; Unlocks Pseudo-field ordering and uniqueness. |
+| `0.125.0` | Pseudo-field ordering and uniqueness | Requires SETTINGS header-table encoder and header-list policy coupling; Unlocks Connection-specific field and TE validation. |
+| `0.126.0` | Connection-specific field and TE validation | Requires Pseudo-field ordering and uniqueness; Unlocks HTTP/2 malformed initial-field-block publication barrier. |
+| `0.127.0` | HTTP/2 malformed initial-field-block publication barrier | Requires Connection-specific field and TE validation; Unlocks HTTP/2 request mapping. |
+| `0.128.0` | HTTP/2 request mapping | Requires HTTP/2 malformed initial-field-block publication barrier; Unlocks HTTP/2 response mapping. |
+| `0.129.0` | HTTP/2 response mapping | Requires HTTP/2 request mapping; Unlocks HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliation. |
+| `0.130.0` | HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliation | Requires HTTP/2 response mapping; Unlocks Informational responses and trailers. |
+| `0.131.0` | Informational responses and trailers | Requires HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliation; Unlocks Cookie field combination and Set-Cookie preservation. |
+| `0.132.0` | Cookie field combination and Set-Cookie preservation | Requires Informational responses and trailers; Unlocks Stream flow control. |
+| `0.133.0` | Stream flow control | Requires Cookie field combination and Set-Cookie preservation; Unlocks Connection flow control. |
+| `0.134.0` | Connection flow control | Requires Stream flow control; Unlocks SETTINGS initial-window active-stream integration and atomic rollback. |
+| `0.135.0` | SETTINGS initial-window active-stream integration and atomic rollback | Requires Connection flow control; Unlocks HTTP/2 inbound DATA ownership, acknowledgement, and credit release. |
+| `0.136.0` | HTTP/2 inbound DATA ownership, acknowledgement, and credit release | Requires SETTINGS initial-window active-stream integration and atomic rollback; Unlocks HTTP/2 outbound per-stream message command lifecycle. |
+| `0.137.0` | HTTP/2 outbound per-stream message command lifecycle | Requires HTTP/2 inbound DATA ownership, acknowledgement, and credit release; Unlocks HTTP/2 body cancellation, reset, and flow-credit lifecycle. |
+| `0.138.0` | HTTP/2 body cancellation, reset, and flow-credit lifecycle | Requires HTTP/2 outbound per-stream message command lifecycle; Unlocks SETTINGS outstanding-ACK accounting. |
+| `0.139.0` | SETTINGS outstanding-ACK accounting | Requires HTTP/2 body cancellation, reset, and flow-credit lifecycle; Unlocks Bounded stream admission. |
+| `0.140.0` | Bounded stream admission | Requires SETTINGS outstanding-ACK accounting; Unlocks SETTINGS max-concurrent-streams admission integration. |
+| `0.141.0` | SETTINGS max-concurrent-streams admission integration | Requires Bounded stream admission; Unlocks Bounded outbound scheduling. |
+| `0.142.0` | Bounded outbound scheduling | Requires SETTINGS max-concurrent-streams admission integration; Unlocks SETTINGS max-frame-size outbound integration. |
+| `0.143.0` | SETTINGS max-frame-size outbound integration | Requires Bounded outbound scheduling; Unlocks GOAWAY cutoff and retry classification. |
+| `0.144.0` | GOAWAY cutoff and retry classification | Requires SETTINGS max-frame-size outbound integration; Unlocks Server-push lifecycle. |
+| `0.145.0` | Server-push lifecycle | Requires GOAWAY cutoff and retry classification; Unlocks ALPN and cleartext prior-knowledge selection. |
+| `0.146.0` | ALPN and cleartext prior-knowledge selection | Requires Server-push lifecycle; Unlocks Independent HTTP/2 rate and work budgets. |
+| `0.147.0` | Independent HTTP/2 rate and work budgets | Requires ALPN and cleartext prior-knowledge selection; Unlocks Rapid-reset defenses. |
+| `0.148.0` | Rapid-reset defenses | Requires Independent HTTP/2 rate and work budgets; Unlocks SETTINGS amplification defenses. |
+| `0.149.0` | SETTINGS amplification defenses | Requires Rapid-reset defenses; Unlocks PING flood defenses. |
+| `0.150.0` | PING flood defenses | Requires SETTINGS amplification defenses; Unlocks CONTINUATION bomb defenses. |
+| `0.151.0` | CONTINUATION bomb defenses | Requires PING flood defenses; Unlocks WINDOW_UPDATE churn defenses. |
+| `0.152.0` | WINDOW_UPDATE churn defenses | Requires CONTINUATION bomb defenses; Unlocks Reserved control-output queues. |
+| `0.153.0` | Reserved control-output queues | Requires WINDOW_UPDATE churn defenses; Unlocks HTTP/2 conformance audit and pentest. |
+| `0.154.0` | HTTP/2 conformance audit and pentest | Requires Reserved control-output queues; Unlocks Protocol-neutral HTTP translation representation. |
 
-## Phase 4 — Proxy, client, server, and public APIs (`0.154.0`–`0.198.0`)
+## Phase 4 — Proxy, client, server, and public APIs (`0.155.0`–`0.199.0`)
 
 Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 
 | Version | Primary outcome | Sequence context |
 | --- | --- | --- |
-| `0.154.0` | Protocol-neutral HTTP translation representation | Requires HTTP/2 conformance audit and pentest; Unlocks Effective URI and authority consistency. |
-| `0.155.0` | Effective URI and authority consistency | Requires Protocol-neutral HTTP translation representation; Unlocks Connection-field stripping, Via, and cache preservation. |
-| `0.156.0` | Connection-field stripping, Via, and cache preservation | Requires Effective URI and authority consistency; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
-| `0.157.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Connection-field stripping, Via, and cache preservation; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
-| `0.158.0` | HTTP/1 TE request-field and trailers forwarding semantics | Requires Max-Forwards TRACE and OPTIONS intermediary semantics; Unlocks Normative HTTP/1 and HTTP/2 translation matrix. |
-| `0.159.0` | Normative HTTP/1 and HTTP/2 translation matrix | Requires HTTP/1 TE request-field and trailers forwarding semantics; Unlocks CONNECT translation across HTTP versions. |
-| `0.160.0` | CONNECT translation across HTTP versions | Requires Normative HTTP/1 and HTTP/2 translation matrix; Unlocks RFC 8441 extended CONNECT. |
-| `0.161.0` | RFC 8441 extended CONNECT | Requires CONNECT translation across HTTP versions; Unlocks WebSocket HTTP/1 to HTTP/2 handshake bridge. |
-| `0.162.0` | WebSocket HTTP/1 to HTTP/2 handshake bridge | Requires RFC 8441 extended CONNECT; Unlocks vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton. |
-| `0.163.0` | vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton | Requires WebSocket HTTP/1 to HTTP/2 handshake bridge; Unlocks Structured Fields integer and decimal ranges. |
-| `0.164.0` | Structured Fields integer and decimal ranges | Requires vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton; Unlocks Structured Fields strings, tokens, bytes, booleans, dates, and display strings. |
-| `0.165.0` | Structured Fields strings, tokens, bytes, booleans, dates, and display strings | Requires Structured Fields integer and decimal ranges; Unlocks Structured Fields complete bare-item dispatcher. |
-| `0.166.0` | Structured Fields complete bare-item dispatcher | Requires Structured Fields strings, tokens, bytes, booleans, dates, and display strings; Unlocks Structured Fields parameters. |
-| `0.167.0` | Structured Fields parameters | Requires Structured Fields complete bare-item dispatcher; Unlocks Structured Fields inner lists and lists. |
-| `0.168.0` | Structured Fields inner lists and lists | Requires Structured Fields parameters; Unlocks Structured Fields dictionaries. |
-| `0.169.0` | Structured Fields dictionaries | Requires Structured Fields inner lists and lists; Unlocks Structured Fields canonical serialization. |
-| `0.170.0` | Structured Fields canonical serialization | Requires Structured Fields dictionaries; Unlocks Structured Fields incremental parsing and caller-owned storage. |
-| `0.171.0` | Structured Fields incremental parsing and caller-owned storage | Requires Structured Fields canonical serialization; Unlocks Structured Fields malformed-input and complexity limits. |
-| `0.172.0` | Structured Fields malformed-input and complexity limits | Requires Structured Fields incremental parsing and caller-owned storage; Unlocks Priority field semantics. |
-| `0.173.0` | Priority field semantics | Requires Structured Fields malformed-input and complexity limits; Unlocks SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration. |
-| `0.174.0` | SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration | Requires Priority field semantics; Unlocks Priority scheduling hints and fairness. |
-| `0.175.0` | Priority scheduling hints and fairness | Requires SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration; Unlocks Priority intermediary behavior. |
-| `0.176.0` | Priority intermediary behavior | Requires Priority scheduling hints and fairness; Unlocks PRIORITY_UPDATE frame support. |
-| `0.177.0` | PRIORITY_UPDATE frame support | Requires Priority intermediary behavior; Unlocks Priority update flood budgeting. |
-| `0.178.0` | Priority update flood budgeting | Requires PRIORITY_UPDATE frame support; Unlocks Client request builder and target forms. |
-| `0.179.0` | Client request builder and target forms | Requires Priority update flood budgeting; Unlocks Client correlation, cancellation, and retry tokens. |
-| `0.180.0` | Client correlation, cancellation, and retry tokens | Requires Client request builder and target forms; Unlocks Retry safety, idempotency, and body-replayability contract. |
-| `0.181.0` | Retry safety, idempotency, and body-replayability contract | Requires Client correlation, cancellation, and retry tokens; Unlocks Origin-server role API. |
-| `0.182.0` | Origin-server role API | Requires Retry safety, idempotency, and body-replayability contract; Unlocks Forward-proxy role API. |
-| `0.183.0` | Forward-proxy role API | Requires Origin-server role API; Unlocks Reverse-proxy and gateway role API. |
-| `0.184.0` | Reverse-proxy and gateway role API | Requires Forward-proxy role API; Unlocks Tunnel lifecycle and half-close semantics. |
-| `0.185.0` | Tunnel lifecycle and half-close semantics | Requires Reverse-proxy and gateway role API; Unlocks Upgrade transformation boundary. |
-| `0.186.0` | Upgrade transformation boundary | Requires Tunnel lifecycle and half-close semantics; Unlocks Exact CONNECT, Upgrade, and tunnel byte-handoff ownership. |
-| `0.187.0` | Exact CONNECT, Upgrade, and tunnel byte-handoff ownership | Requires Upgrade transformation boundary; Unlocks GOAWAY, 421, and retry coordination. |
-| `0.188.0` | GOAWAY, 421, and retry coordination | Requires Exact CONNECT, Upgrade, and tunnel byte-handoff ownership; Unlocks Authenticated origin authorization and HTTP/2 coalescing metadata. |
-| `0.189.0` | Authenticated origin authorization and HTTP/2 coalescing metadata | Requires GOAWAY, 421, and retry coordination; Unlocks Fixed-capacity caller-storage public API. |
-| `0.190.0` | Fixed-capacity caller-storage public API | Requires Authenticated origin authorization and HTTP/2 coalescing metadata; Unlocks Optional alloc-backed convenience API. |
-| `0.191.0` | Optional alloc-backed convenience API | Requires Fixed-capacity caller-storage public API; Unlocks Stable diagnostics and security events. |
-| `0.192.0` | Stable diagnostics and security events | Requires Optional alloc-backed convenience API; Unlocks Feature and dependency-policy surface. |
-| `0.193.0` | Feature and dependency-policy surface | Requires Stable diagnostics and security events; Unlocks Multi-implementation interoperability. |
-| `0.194.0` | Multi-implementation interoperability | Requires Feature and dependency-policy surface; Unlocks Adversarial and stateful fuzz campaign. |
-| `0.195.0` | Adversarial and stateful fuzz campaign | Requires Multi-implementation interoperability; Unlocks Compile-fail state and lifetime tests. |
-| `0.196.0` | Compile-fail state and lifetime tests | Requires Adversarial and stateful fuzz campaign; Unlocks Long-running soak and exhaustion campaign. |
-| `0.197.0` | Long-running soak and exhaustion campaign | Requires Compile-fail state and lifetime tests; Unlocks Role and API conformance audit and pentest. |
-| `0.198.0` | Role and API conformance audit and pentest | Requires Long-running soak and exhaustion campaign; Unlocks Standard blocking-stream adapter. |
+| `0.155.0` | Protocol-neutral HTTP translation representation | Requires HTTP/2 conformance audit and pentest; Unlocks Effective URI and authority consistency. |
+| `0.156.0` | Effective URI and authority consistency | Requires Protocol-neutral HTTP translation representation; Unlocks Connection-field stripping, Via, and cache preservation. |
+| `0.157.0` | Connection-field stripping, Via, and cache preservation | Requires Effective URI and authority consistency; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
+| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Connection-field stripping, Via, and cache preservation; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
+| `0.159.0` | HTTP/1 TE request-field and trailers forwarding semantics | Requires Max-Forwards TRACE and OPTIONS intermediary semantics; Unlocks Normative HTTP/1 and HTTP/2 translation matrix. |
+| `0.160.0` | Normative HTTP/1 and HTTP/2 translation matrix | Requires HTTP/1 TE request-field and trailers forwarding semantics; Unlocks CONNECT translation across HTTP versions. |
+| `0.161.0` | CONNECT translation across HTTP versions | Requires Normative HTTP/1 and HTTP/2 translation matrix; Unlocks RFC 8441 extended CONNECT. |
+| `0.162.0` | RFC 8441 extended CONNECT | Requires CONNECT translation across HTTP versions; Unlocks WebSocket HTTP/1 to HTTP/2 handshake bridge. |
+| `0.163.0` | WebSocket HTTP/1 to HTTP/2 handshake bridge | Requires RFC 8441 extended CONNECT; Unlocks vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton. |
+| `0.164.0` | vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton | Requires WebSocket HTTP/1 to HTTP/2 handshake bridge; Unlocks Structured Fields integer and decimal ranges. |
+| `0.165.0` | Structured Fields integer and decimal ranges | Requires vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton; Unlocks Structured Fields strings, tokens, bytes, booleans, dates, and display strings. |
+| `0.166.0` | Structured Fields strings, tokens, bytes, booleans, dates, and display strings | Requires Structured Fields integer and decimal ranges; Unlocks Structured Fields complete bare-item dispatcher. |
+| `0.167.0` | Structured Fields complete bare-item dispatcher | Requires Structured Fields strings, tokens, bytes, booleans, dates, and display strings; Unlocks Structured Fields parameters. |
+| `0.168.0` | Structured Fields parameters | Requires Structured Fields complete bare-item dispatcher; Unlocks Structured Fields inner lists and lists. |
+| `0.169.0` | Structured Fields inner lists and lists | Requires Structured Fields parameters; Unlocks Structured Fields dictionaries. |
+| `0.170.0` | Structured Fields dictionaries | Requires Structured Fields inner lists and lists; Unlocks Structured Fields canonical serialization. |
+| `0.171.0` | Structured Fields canonical serialization | Requires Structured Fields dictionaries; Unlocks Structured Fields incremental parsing and caller-owned storage. |
+| `0.172.0` | Structured Fields incremental parsing and caller-owned storage | Requires Structured Fields canonical serialization; Unlocks Structured Fields malformed-input and complexity limits. |
+| `0.173.0` | Structured Fields malformed-input and complexity limits | Requires Structured Fields incremental parsing and caller-owned storage; Unlocks Priority field semantics. |
+| `0.174.0` | Priority field semantics | Requires Structured Fields malformed-input and complexity limits; Unlocks SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration. |
+| `0.175.0` | SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration | Requires Priority field semantics; Unlocks Priority scheduling hints and fairness. |
+| `0.176.0` | Priority scheduling hints and fairness | Requires SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration; Unlocks Priority intermediary behavior. |
+| `0.177.0` | Priority intermediary behavior | Requires Priority scheduling hints and fairness; Unlocks PRIORITY_UPDATE frame support. |
+| `0.178.0` | PRIORITY_UPDATE frame support | Requires Priority intermediary behavior; Unlocks Priority update flood budgeting. |
+| `0.179.0` | Priority update flood budgeting | Requires PRIORITY_UPDATE frame support; Unlocks Client request builder and target forms. |
+| `0.180.0` | Client request builder and target forms | Requires Priority update flood budgeting; Unlocks Client correlation, cancellation, and retry tokens. |
+| `0.181.0` | Client correlation, cancellation, and retry tokens | Requires Client request builder and target forms; Unlocks Retry safety, idempotency, and body-replayability contract. |
+| `0.182.0` | Retry safety, idempotency, and body-replayability contract | Requires Client correlation, cancellation, and retry tokens; Unlocks Origin-server role API. |
+| `0.183.0` | Origin-server role API | Requires Retry safety, idempotency, and body-replayability contract; Unlocks Forward-proxy role API. |
+| `0.184.0` | Forward-proxy role API | Requires Origin-server role API; Unlocks Reverse-proxy and gateway role API. |
+| `0.185.0` | Reverse-proxy and gateway role API | Requires Forward-proxy role API; Unlocks Tunnel lifecycle and half-close semantics. |
+| `0.186.0` | Tunnel lifecycle and half-close semantics | Requires Reverse-proxy and gateway role API; Unlocks Upgrade transformation boundary. |
+| `0.187.0` | Upgrade transformation boundary | Requires Tunnel lifecycle and half-close semantics; Unlocks Exact CONNECT, Upgrade, and tunnel byte-handoff ownership. |
+| `0.188.0` | Exact CONNECT, Upgrade, and tunnel byte-handoff ownership | Requires Upgrade transformation boundary; Unlocks GOAWAY, 421, and retry coordination. |
+| `0.189.0` | GOAWAY, 421, and retry coordination | Requires Exact CONNECT, Upgrade, and tunnel byte-handoff ownership; Unlocks Authenticated origin authorization and HTTP/2 coalescing metadata. |
+| `0.190.0` | Authenticated origin authorization and HTTP/2 coalescing metadata | Requires GOAWAY, 421, and retry coordination; Unlocks Fixed-capacity caller-storage public API. |
+| `0.191.0` | Fixed-capacity caller-storage public API | Requires Authenticated origin authorization and HTTP/2 coalescing metadata; Unlocks Optional alloc-backed convenience API. |
+| `0.192.0` | Optional alloc-backed convenience API | Requires Fixed-capacity caller-storage public API; Unlocks Stable diagnostics and security events. |
+| `0.193.0` | Stable diagnostics and security events | Requires Optional alloc-backed convenience API; Unlocks Feature and dependency-policy surface. |
+| `0.194.0` | Feature and dependency-policy surface | Requires Stable diagnostics and security events; Unlocks Multi-implementation interoperability. |
+| `0.195.0` | Multi-implementation interoperability | Requires Feature and dependency-policy surface; Unlocks Adversarial and stateful fuzz campaign. |
+| `0.196.0` | Adversarial and stateful fuzz campaign | Requires Multi-implementation interoperability; Unlocks Compile-fail state and lifetime tests. |
+| `0.197.0` | Compile-fail state and lifetime tests | Requires Adversarial and stateful fuzz campaign; Unlocks Long-running soak and exhaustion campaign. |
+| `0.198.0` | Long-running soak and exhaustion campaign | Requires Compile-fail state and lifetime tests; Unlocks Role and API conformance audit and pentest. |
+| `0.199.0` | Role and API conformance audit and pentest | Requires Long-running soak and exhaustion campaign; Unlocks Standard blocking-stream adapter. |
 
-## Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.199.0`–`0.224.0`)
+## Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.200.0`–`0.225.0`)
 
 Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 
 | Version | Primary outcome | Sequence context |
 | --- | --- | --- |
-| `0.199.0` | Standard blocking-stream adapter | Requires Role and API conformance audit and pentest; Unlocks Standard nonblocking-stream adapter. |
-| `0.200.0` | Standard nonblocking-stream adapter | Requires Standard blocking-stream adapter; Unlocks Brynja TLS provider contract and admission review. |
-| `0.201.0` | Brynja TLS provider contract and admission review | Requires Standard nonblocking-stream adapter; Unlocks Separate vef-brynja adapter crate. |
-| `0.202.0` | Separate vef-brynja adapter crate | Requires Brynja TLS provider contract and admission review; Unlocks HTTP/2 TLS admission prerequisites and authenticated metadata. |
-| `0.203.0` | HTTP/2 TLS admission prerequisites and authenticated metadata | Requires Separate vef-brynja adapter crate; Unlocks TLS transport termination, resumption, alert, and EOF mapping. |
-| `0.204.0` | TLS transport termination, resumption, alert, and EOF mapping | Requires HTTP/2 TLS admission prerequisites and authenticated metadata; Unlocks TLS 1.3 early-data prohibition and close semantics. |
-| `0.205.0` | TLS 1.3 early-data prohibition and close semantics | Requires TLS transport termination, resumption, alert, and EOF mapping; Unlocks Aesynx fixed-memory capability profile. |
-| `0.206.0` | Aesynx fixed-memory capability profile | Requires TLS 1.3 early-data prohibition and close semantics; Unlocks Aesynx transport and readiness adapter. |
-| `0.207.0` | Aesynx transport and readiness adapter | Requires Aesynx fixed-memory capability profile; Unlocks Aesynx timer and deadline adapter. |
-| `0.208.0` | Aesynx timer and deadline adapter | Requires Aesynx transport and readiness adapter; Unlocks Aesynx kernel integration tests. |
-| `0.209.0` | Aesynx kernel integration tests | Requires Aesynx timer and deadline adapter; Unlocks Deterministic CPU, stack, code-size, and amplification budgets. |
-| `0.210.0` | Deterministic CPU, stack, code-size, and amplification budgets | Requires Aesynx kernel integration tests; Unlocks 32-bit target campaign. |
-| `0.211.0` | 32-bit target campaign | Requires Deterministic CPU, stack, code-size, and amplification budgets; Unlocks Big-endian target campaign. |
-| `0.212.0` | Big-endian target campaign | Requires 32-bit target campaign; Unlocks Cross-architecture campaign. |
-| `0.213.0` | Cross-architecture campaign | Requires Big-endian target campaign; Unlocks Linux, Windows, BSD, macOS, Android, and iOS matrix. |
-| `0.214.0` | Linux, Windows, BSD, macOS, Android, and iOS matrix | Requires Cross-architecture campaign; Unlocks Kani shared-core proof replay and expansion. |
-| `0.215.0` | Kani shared-core proof replay and expansion | Requires Linux, Windows, BSD, macOS, Android, and iOS matrix; Unlocks Kani HTTP/1 proof replay and expansion. |
-| `0.216.0` | Kani HTTP/1 proof replay and expansion | Requires Kani shared-core proof replay and expansion; Unlocks Kani HPACK proof replay and expansion. |
-| `0.217.0` | Kani HPACK proof replay and expansion | Requires Kani HTTP/1 proof replay and expansion; Unlocks Kani HTTP/2 proof replay and expansion. |
-| `0.218.0` | Kani HTTP/2 proof replay and expansion | Requires Kani HPACK proof replay and expansion; Unlocks Stateful cargo-fuzz replay and expansion. |
-| `0.219.0` | Stateful cargo-fuzz replay and expansion | Requires Kani HTTP/2 proof replay and expansion; Unlocks Differential and interoperability campaign. |
-| `0.220.0` | Differential and interoperability campaign | Requires Stateful cargo-fuzz replay and expansion; Unlocks Whole-project conformance audit and pentest. |
-| `0.221.0` | Whole-project conformance audit and pentest | Requires Differential and interoperability campaign; Unlocks Independent security audit. |
-| `0.222.0` | Independent security audit | Requires Whole-project conformance audit and pentest; Unlocks Audit remediation and API freeze. |
-| `0.223.0` | Audit remediation and API freeze | Requires Independent security audit; Unlocks Documentation, packaging, SBOM, provenance, and RC readiness. |
-| `0.224.0` | Documentation, packaging, SBOM, provenance, and RC readiness | Requires Audit remediation and API freeze; Unlocks 1.0.0-rc.1. |
+| `0.200.0` | Standard blocking-stream adapter | Requires Role and API conformance audit and pentest; Unlocks Standard nonblocking-stream adapter. |
+| `0.201.0` | Standard nonblocking-stream adapter | Requires Standard blocking-stream adapter; Unlocks Brynja TLS provider contract and admission review. |
+| `0.202.0` | Brynja TLS provider contract and admission review | Requires Standard nonblocking-stream adapter; Unlocks Separate vef-brynja adapter crate. |
+| `0.203.0` | Separate vef-brynja adapter crate | Requires Brynja TLS provider contract and admission review; Unlocks HTTP/2 TLS admission prerequisites and authenticated metadata. |
+| `0.204.0` | HTTP/2 TLS admission prerequisites and authenticated metadata | Requires Separate vef-brynja adapter crate; Unlocks TLS transport termination, resumption, alert, and EOF mapping. |
+| `0.205.0` | TLS transport termination, resumption, alert, and EOF mapping | Requires HTTP/2 TLS admission prerequisites and authenticated metadata; Unlocks TLS 1.3 early-data prohibition and close semantics. |
+| `0.206.0` | TLS 1.3 early-data prohibition and close semantics | Requires TLS transport termination, resumption, alert, and EOF mapping; Unlocks Aesynx fixed-memory capability profile. |
+| `0.207.0` | Aesynx fixed-memory capability profile | Requires TLS 1.3 early-data prohibition and close semantics; Unlocks Aesynx transport and readiness adapter. |
+| `0.208.0` | Aesynx transport and readiness adapter | Requires Aesynx fixed-memory capability profile; Unlocks Aesynx timer and deadline adapter. |
+| `0.209.0` | Aesynx timer and deadline adapter | Requires Aesynx transport and readiness adapter; Unlocks Aesynx kernel integration tests. |
+| `0.210.0` | Aesynx kernel integration tests | Requires Aesynx timer and deadline adapter; Unlocks Deterministic CPU, stack, code-size, and amplification budgets. |
+| `0.211.0` | Deterministic CPU, stack, code-size, and amplification budgets | Requires Aesynx kernel integration tests; Unlocks 32-bit target campaign. |
+| `0.212.0` | 32-bit target campaign | Requires Deterministic CPU, stack, code-size, and amplification budgets; Unlocks Big-endian target campaign. |
+| `0.213.0` | Big-endian target campaign | Requires 32-bit target campaign; Unlocks Cross-architecture campaign. |
+| `0.214.0` | Cross-architecture campaign | Requires Big-endian target campaign; Unlocks Linux, Windows, BSD, macOS, Android, and iOS matrix. |
+| `0.215.0` | Linux, Windows, BSD, macOS, Android, and iOS matrix | Requires Cross-architecture campaign; Unlocks Kani shared-core proof replay and expansion. |
+| `0.216.0` | Kani shared-core proof replay and expansion | Requires Linux, Windows, BSD, macOS, Android, and iOS matrix; Unlocks Kani HTTP/1 proof replay and expansion. |
+| `0.217.0` | Kani HTTP/1 proof replay and expansion | Requires Kani shared-core proof replay and expansion; Unlocks Kani HPACK proof replay and expansion. |
+| `0.218.0` | Kani HPACK proof replay and expansion | Requires Kani HTTP/1 proof replay and expansion; Unlocks Kani HTTP/2 proof replay and expansion. |
+| `0.219.0` | Kani HTTP/2 proof replay and expansion | Requires Kani HPACK proof replay and expansion; Unlocks Stateful cargo-fuzz replay and expansion. |
+| `0.220.0` | Stateful cargo-fuzz replay and expansion | Requires Kani HTTP/2 proof replay and expansion; Unlocks Differential and interoperability campaign. |
+| `0.221.0` | Differential and interoperability campaign | Requires Stateful cargo-fuzz replay and expansion; Unlocks Whole-project conformance audit and pentest. |
+| `0.222.0` | Whole-project conformance audit and pentest | Requires Differential and interoperability campaign; Unlocks Independent security audit. |
+| `0.223.0` | Independent security audit | Requires Whole-project conformance audit and pentest; Unlocks Audit remediation and API freeze. |
+| `0.224.0` | Audit remediation and API freeze | Requires Independent security audit; Unlocks Documentation, packaging, SBOM, provenance, and RC readiness. |
+| `0.225.0` | Documentation, packaging, SBOM, provenance, and RC readiness | Requires Audit remediation and API freeze; Unlocks 1.0.0-rc.1. |
 
 ## Release candidates and 1.0
 

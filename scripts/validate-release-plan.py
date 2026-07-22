@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the compact and detailed plans cover exactly v0.1.0..v0.224.0."""
+"""Check that the compact and detailed plans cover exactly v0.1.0..v0.225.0."""
 
 from __future__ import annotations
 
@@ -16,18 +16,18 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     detailed = (root / "docs/RELEASE_PLAN.md").read_text(encoding="utf-8")
     compact = (root / "docs/VERSION_PLAN.md").read_text(encoding="utf-8")
-    expected = list(range(1, 225))
+    expected = list(range(1, 226))
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
     failures: list[str] = []
     if detailed_versions != expected:
-        failures.append("detailed plan does not cover v0.1.0 through v0.224.0 exactly")
+        failures.append("detailed plan does not cover v0.1.0 through v0.225.0 exactly")
     if compact_versions != expected:
-        failures.append("version index does not cover v0.1.0 through v0.224.0 exactly")
+        failures.append("version index does not cover v0.1.0 through v0.225.0 exactly")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 224:
-            failures.append(f"expected 224 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 226:
+        if detailed.count(f"#### {heading}") != 225:
+            failures.append(f"expected 225 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 227:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -52,6 +52,7 @@ def main() -> int:
         "SETTINGS syntax, role, directional values, and ACK rules",
         "SETTINGS initial-window active-stream integration and atomic rollback",
         "HTTP/2 activation preface, first-SETTINGS, and deadline sequencing",
+        "HTTP/2 error scope, typed deltas, and isolated stream mutation",
         "HTTP/2 graceful GOAWAY and bounded shutdown sequencing",
         "Normative HTTP/1 and HTTP/2 translation matrix",
         "Max-Forwards TRACE and OPTIONS intermediary semantics",
@@ -73,6 +74,9 @@ def main() -> int:
         ("Fixed-capacity caller-storage public API", "Optional alloc-backed convenience API"),
         ("Initial deterministic resource profiles and measurement hooks", "HTTP/1 role and parser profiles"),
         ("SETTINGS syntax, role, directional values, and ACK rules", "Generation-checked stream table and tombstones"),
+        ("HTTP/2 frame legality and fragmented-header-block sequencing", "HTTP/2 error scope, typed deltas, and isolated stream mutation"),
+        ("HTTP/2 error scope, typed deltas, and isolated stream mutation", "HTTP/2 graceful GOAWAY and bounded shutdown sequencing"),
+        ("HTTP/2 error scope, typed deltas, and isolated stream mutation", "Atomic HPACK header-block integration"),
         ("Atomic HPACK header-block integration", "SETTINGS header-table encoder and header-list policy coupling"),
         ("Connection flow control", "SETTINGS initial-window active-stream integration and atomic rollback"),
         ("SETTINGS initial-window active-stream integration and atomic rollback", "HTTP/2 inbound DATA ownership, acknowledgement, and credit release"),
@@ -102,7 +106,7 @@ def main() -> int:
         "borrowed BodyChunk whose acknowledged prefix alone may be released",
         "encoded header-block bytes, decoded bytes, field count",
         "Host/:authority disagreement",
-        "never merely parsed octets",
+        "flow-controlled payload length (including Pad Length and padding)",
         "before emitting its ACK",
         "SETTINGS_ENABLE_PUSH directionally",
         "SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective",
@@ -110,6 +114,19 @@ def main() -> int:
         "never automatically retry an unsafe request",
         "protocol processing status separately from application replay permission",
         "authenticated SNI, certificate identity, scheme, port, remote endpoint",
+        "Accept every RFC 7541-valid prefix integer representation",
+        "Reject the EOS symbol as data, padding longer than seven bits",
+        "smallest observed maximum followed by the final maximum",
+        "index zero and every reference beyond the combined table",
+        "payload length divisible by six",
+        "exactly eight payload bytes",
+        "exactly four payload bytes",
+        "nonzero reserved-bit-masked 31-bit increment",
+        "exactly five payload bytes",
+        "at least eight payload bytes",
+        "effective locally advertised inbound limit governing received frames (initially 16,384)",
+        "bounded FIFO only after each complete frame's bytes commit",
+        "every unrelated stream, scheduler entry, flow window",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:
@@ -120,7 +137,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 224 detailed milestones plus two release candidates")
+    print("release plan: 225 detailed milestones plus two release candidates")
     return 0
 
 

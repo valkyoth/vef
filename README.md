@@ -74,7 +74,7 @@ admitted without an explicit policy decision and never become dependencies of
 the protocol crates.
 
 The optional dependency-free `vef-structured-fields` package is planned at
-milestone `0.163.0`; it owns bounded RFC 9651 parsing and serialization without
+milestone `0.164.0`; it owns bounded RFC 9651 parsing and serialization without
 adding connection state or a third-party dependency to the facade.
 
 ## Rust version support

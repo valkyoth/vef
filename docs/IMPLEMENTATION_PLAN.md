@@ -137,7 +137,8 @@ strong/weak comparison, conditional-field parsing and RFC-ordered evaluation,
 checked Range/Content-Range arithmetic, pre-action representation evidence,
 retrieval-only hypothetical-200 snapshots, staged content/execution permits,
 final outbound request validation, single-range planning, individual partial
-segment validation, and bounded combination/header-synthesis plans. Its sealed
+and incomplete-prefix validation, generation-safe cross-request assembly
+contexts, combination refinement, and bounded header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
 caller-supplied representation existence, metadata, length, validator, and
 modification evidence without retroactively revoking a consumed mutation
@@ -395,7 +396,11 @@ Before the origin role facade, v0.180.1–v0.181.2 create dependency-free
 content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
 range parsing, sealed content/execution permits, final frozen client request
 validation, individual partial segments, and fixed-capacity interval/header
-combination plans. v0.183.0 exposes only the
+combination plans. Standalone 206 validity does not require a strong validator;
+incomplete 200 prefixes stay explicitly incomplete; assembly contexts accept
+matching strong-validator inputs across request generations without rebinding
+them and order header sources through a generation-bound local source shared
+across relevant requests and connections. v0.183.0 exposes only the
 read-only pending selection view before those permits and suppresses early 100,
 body delivery, and method effects. A consumed unsafe execution permit survives
 the mutation it authorized; its response uses fresh evidence. v0.182.1 consumes

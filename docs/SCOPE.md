@@ -48,7 +48,10 @@ checked caller/adapter civil-time evidence (including an explicit unavailable
 state) independently of monotonic deadlines. Built-in client handling validates
 single-range 206 and keeps multipart opaque as NeedsMultipartConsumer. Its
 fixed-capacity partial-combination plan handles validated byte-range segments
-and exact RFC header synthesis, but never multipart or unknown range units.
+and incomplete-200 prefixes from multiple request generations under an exact
+strong-validator assembly context and local receipt ordering, but never
+multipart or unknown range units. A valid standalone 206 can remain
+non-combinable without becoming a protocol error.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

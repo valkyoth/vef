@@ -327,11 +327,16 @@ remains opaque and forwardable, never parsed or generated.
 Outbound conditional/range requests receive the same final frozen validation
 over typed or generic fields before either engine serializes them. Client 206
 classification checks Content-Type, Content-Range, request/validator identity,
-and terminal body length before producing one validated segment. A later
-bounded combination plan normalizes fixed-capacity intervals and applies exact
-header-selection/output-status rules; 200 invalidates partial state, multipart
-requires an external consumer, and proxies alone can preserve generically
-valid unknown range units without authorizing recombination.
+and terminal body length before producing one standalone-valid segment even
+when validator evidence is absent or weak; incomplete 200 prefixes have a
+separate typed path. A generation-safe assembly context can refine inputs from
+distinct original request generations only after target, representation,
+coding, length, and strong-validator matching. Its bounded plan normalizes
+fixed-capacity intervals and selects headers using an assembly-scoped local
+receipt-order source shared across requests/connections, never peer Date. Only
+a matching successful complete 200 invalidates the context; multipart requires
+an external consumer, and proxies alone can preserve generically valid unknown
+units without authorizing recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage
 are reserved for mandatory responses and cannot be consumed by application

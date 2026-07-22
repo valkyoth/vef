@@ -7392,7 +7392,7 @@ Status: planned
 #### Goal
 
 Deliver **Client correlation, cancellation, and retry tokens** as the sole primary capability in this stop. It builds
-on v0.180.4 (Outbound conditional and range request validation) and must be independently trustworthy before v0.181.1 (Client partial-response classification and segment validation) begins.
+on v0.180.4 (Outbound conditional and range request validation) and must be independently trustworthy before v0.181.1 (Client partial-segment and incomplete-prefix validation) begins.
 
 #### Deliverables
 
@@ -7418,65 +7418,67 @@ on v0.180.4 (Outbound conditional and range request validation) and must be inde
 #### Exit criteria
 
 The Client correlation, cancellation, and retry tokens contract and all previously implemented relevant behavior have
-reproducible evidence; v0.180.4 (Outbound conditional and range request validation) still passes; no behavior assigned to v0.181.1 (Client partial-response classification and segment validation) is
+reproducible evidence; v0.180.4 (Outbound conditional and range request validation) still passes; no behavior assigned to v0.181.1 (Client partial-segment and incomplete-prefix validation) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.181.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.181.1 — Client partial-response classification and segment validation
+### v0.181.1 — Client partial-segment and incomplete-prefix validation
 
 Status: planned
 
 #### Goal
 
-Deliver **Client partial-response classification and segment validation** as the sole primary capability in this stop. It builds
-on v0.181.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.181.2 (Bounded partial-response combination and header synthesis) begins.
+Deliver **Client partial-segment and incomplete-prefix validation** as the sole primary capability in this stop. It builds
+on v0.181.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.181.2 (Cross-request partial assembly and header synthesis) begins.
 
 #### Deliverables
 
-- Acceptance contract: Add a non-forgeable `PartialResponseDisposition` bound to the v0.180.4 validated request and v0.181.0 request/correlation generation. For a single-part 206, inspect Content-Type and exactly one Content-Range, require the understood bytes unit, checked range/complete-length consistency with the requested range and stored representation validator, count semantic body octets through completion, and yield one immutable `ValidatedPartialSegment` only when actual length equals inclusive range length and the strong validator is present and matches; malformed, unknown-unit, weak/mismatched-validator, out-of-request, or length-mismatched responses yield no segment. This stop validates individual responses but grants no combination, header-synthesis, or assembled-response publication authority; v0.181.2 owns those operations.
-- Classify a correlated 200 as FullRepresentationFallback and atomically invalidate all partial-assembly state; classify multipart/byteranges as opaque `NeedsMultipartConsumer` without boundary/part parsing or recombination authority. A proxy preserves and forwards a well-formed unknown range unit even though a VEF client returns UnsupportedRangeUnit/NoRecombine; framing-valid semantic violations remain synchronized and recipient-policy controlled.
+- Acceptance contract: Add a non-forgeable `PartialResponseDisposition` bound permanently to the v0.180.4 validated request and v0.181.0 request/correlation generation. For a single-part 206, inspect Content-Type and exactly one Content-Range, require the understood bytes unit, checked range/complete-length consistency with the requested range, and count semantic body octets through completion. Yield an immutable `ValidatedPartialSegment` whenever structure, correlation, and actual inclusive length are valid; retain absent, weak, matching, or mismatching validator evidence rather than making a strong validator a validity condition. A valid segment lacking combination evidence remains application-visible as `StandaloneOnly`/`NoRecombine`. Only v0.181.2 can refine a segment with a matching strong validator into `CombinablePartialSegment`; malformed, unknown-unit, out-of-request, or length-mismatched responses yield no validated segment.
+- When a GET receives a complete, semantically valid 200 head but content terminates prematurely, produce `ValidatedIncomplete200Prefix` with original request/correlation binding, target and selected-representation identity, content coding, expected and received length, prefix interval, representation metadata, validator evidence, and a typed incomplete-message disposition. It is never a complete response: HTTP/1 makes the connection non-reusable, while HTTP/2 terminates the stream and preserves the connection only when connection state remains synchronized. Incomplete headers, unsupported framing/coding, unknown length, overflow, or unsafe prefix storage produce a discard disposition rather than combination input.
+- Classify only a successfully completed, framing- and semantics-valid correlated 200 as `FullRepresentationFallback`; it can invalidate a matching v0.181.2 assembly context, while a truncated 200 follows the incomplete-prefix/discard path. Classify multipart/byteranges as opaque `NeedsMultipartConsumer` without boundary/part parsing or recombination authority. A proxy preserves and forwards a well-formed unknown range unit even though a VEF client returns UnsupportedRangeUnit/NoRecombine; framing-valid semantic violations remain synchronized and recipient-policy controlled.
 - Preserve exact response/body/trailer correlation, bounded byte accounting, cancellation/reset behavior, and no partial assembly publication before the terminal disposition.
-- Update paragraph-addressable RFC 9110 206 inspection/combination/unknown-unit requirements, threat model, APIs, release notes, traceability, resource measurements, and conformance corpora.
+- Update paragraph-addressable RFC 9110 206/combination/unknown-unit requirements, RFC 9111 incomplete-response storage constraints, and RFC 9112/RFC 9113 incomplete-message and transport dispositions plus threat model, APIs, release notes, traceability, resource measurements, and conformance corpora.
 
 #### Verification
 
-- Test exact/subset/outside requested ranges, complete-length changes, missing/duplicate/malformed/unknown Content-Range, single versus multipart Content-Type, exact/short/long/truncated bodies, strong/weak/missing/mismatched validators, immutable segment production, absence of combination/header/publication authority, 200 fallback invalidation, proxy unknown-unit preservation, stale/cross-request disposition, cancellation/reset/backpressure, no early assembly authority, every split/limit, and arbitrary-input no-panic behavior.
+- Test exact/subset/outside requested ranges, complete-length changes, missing/duplicate/malformed/unknown Content-Range, single versus multipart Content-Type, exact/short/long/truncated 206 bodies, strong/weak/missing/mismatched validators all yielding structurally valid standalone segments where otherwise valid, `StandaloneOnly`/`NoRecombine`, and absence of combination/header/publication authority. Exhaust complete 200 fallback versus premature content termination, complete versus incomplete head, expected/received prefix accounting, unknown/overflowing length, HTTP/1 non-reuse, HTTP/2 stream termination/connection synchronization, incomplete-prefix versus discard, proxy unknown-unit preservation, stale/cross-request disposition, cancellation/reset/backpressure, every split/limit, and arbitrary-input no-panic behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy, audit, SBOM, CI, and CodeQL default-setup gates.
 
 #### Exit criteria
 
-The client partial-response classification and segment-validation contract and all previously implemented relevant behavior have reproducible evidence; v0.181.0 (Client correlation, cancellation, and retry tokens) still passes; no behavior assigned to v0.181.2 (Bounded partial-response combination and header synthesis) is claimed; the active resource profile passes; and no critical/high finding is open.
+The client partial-segment and incomplete-prefix validation contract and all previously implemented relevant behavior have reproducible evidence; v0.181.0 (Client correlation, cancellation, and retry tokens) still passes; no behavior assigned to v0.181.2 (Cross-request partial assembly and header synthesis) is claimed; the active resource profile passes; and no critical/high finding is open.
 
 `0.181.1 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.181.2 — Bounded partial-response combination and header synthesis
+### v0.181.2 — Cross-request partial assembly and header synthesis
 
 Status: planned
 
 #### Goal
 
-Deliver **Bounded partial-response combination and header synthesis** as the sole primary capability in this stop. It builds
-on v0.181.1 (Client partial-response classification and segment validation) and must be independently trustworthy before v0.182.0 (Retry safety, idempotency, and body-replayability contract) begins.
+Deliver **Cross-request partial assembly and header synthesis** as the sole primary capability in this stop. It builds
+on v0.181.1 (Client partial-segment and incomplete-prefix validation) and must be independently trustworthy before v0.182.0 (Retry safety, idempotency, and body-replayability contract) begins.
 
 #### Deliverables
 
-- Acceptance contract: Add a non-forgeable fixed-capacity `PartialCombinationPlan` that consumes only matching v0.181.1 `ValidatedPartialSegment` values for one target, representation generation, correlation lineage, known complete length, and identical strong validator. Store at most the configured interval count; preflight byte/interval/work capacity; sort, normalize, and coalesce with checked bounded work; reject overlaps with conflicting bytes, gaps claimed as continuous, inconsistent complete lengths, stale generations, duplicate/reused segments, arithmetic overflow, and any multipart or unknown-unit input. The plan authorizes caller storage reads/writes only for declared intervals and never owns unbounded representation bytes.
-- Apply RFC 9110 combination and header-source rules deterministically. An incomplete 200 supplies the combined headers; otherwise the most recent 200 supplies them when any stored response is 200; when all are 206, use the stored response with the most recent fields and replace corresponding fields from the new 206 except Content-Range. A full union yields complete 200 with corrected Content-Length; a prefix-only union yields incomplete 200; one continuous non-prefix union yields single 206 with corrected Content-Range and Content-Length. Disjoint unions remain separate validated segments for caller policy or `NeedsMultipartConsumer`; VEF never synthesizes multipart/byteranges.
-- A correlated full 200 atomically invalidates every partial segment and combination plan for that lineage. No combined head, range, body write, or publication becomes observable before the entire plan and synthesized metadata validate; cancellation, capacity failure, conflicting overlap, or mutation yields zero combination authority and leaves independently stored caller bytes governed by caller policy.
+- Acceptance contract: Add a caller-created but non-forgeable, generation-safe, fixed-capacity `PartialAssemblyContext` for one target, selected-representation identity, content coding, known complete length, strong validator, and local receipt-order source. Each v0.181.1 segment remains permanently bound to its original validated request and correlation generation; the context may admit segments from different Range request generations only after exact context matching and refines them to `CombinablePartialSegment`. It similarly refines a matching `ValidatedIncomplete200Prefix` with strong-validator evidence into `CombinableIncomplete200Prefix`. Retries, redirects, cancellation, or caller input cannot rebind an admitted value, and stale/context-crossed values fail without mutating the context.
+- Add a non-forgeable fixed-capacity `PartialCombinationPlan` that consumes only admitted `CombinablePartialSegment` and `CombinableIncomplete200Prefix` values. Store at most the configured interval count; preflight byte/interval/work capacity; sort, normalize, and coalesce with checked bounded work; reject overlaps with conflicting bytes, gaps claimed as continuous, inconsistent lengths/codings/identities/validators, stale generations, duplicate/reused inputs, arithmetic overflow, and any multipart, unknown-unit, or standalone-only segment. The plan authorizes caller storage reads/writes only for declared intervals and never owns unbounded representation bytes.
+- Add a caller-owned, generation-bound `ReceiptOrderSource` that correlations intended for one assembly scope share across requests and connections. On terminal response classification it mints one checked monotonic local `ResponseReceiptOrdinal`; neither value can derive from Date or other peer input, a context accepts only its source generation, and ordinal exhaustion requires source/context rotation. Apply RFC 9110 combination and header-source rules using this ordinal: a latest incomplete 200 supplies combined headers; otherwise the locally most recent 200 supplies them when any stored response is 200; when all are 206, use the response with the greatest local ordinal as the stored header source and replace corresponding fields from the newly admitted 206 except Content-Range. A full union yields complete 200 with corrected Content-Length; a prefix-only union yields incomplete 200; one continuous non-prefix union yields single 206 with corrected Content-Range and Content-Length. Disjoint unions remain separate validated segments for caller policy or `NeedsMultipartConsumer`; VEF never synthesizes multipart/byteranges.
+- Only a successfully completed, framing- and semantics-valid 200 matching the assembly context atomically invalidates its segments and plans. A truncated 200 is admitted only through the validated incomplete-prefix refinement or discarded. No combined head, range, body write, or publication becomes observable before the entire plan and synthesized metadata validate; cancellation, capacity failure, conflicting overlap, or mutation yields zero combination authority and leaves independently stored caller bytes governed by caller policy.
 - Update paragraph-addressable RFC 9110 partial-combination/header-selection requirements, threat model, APIs, release notes, traceability, resource measurements, and conformance corpora.
 
 #### Verification
 
-- Exhaust empty/single/multiple interval sets, adjacency/coalescing, every overlap/gap arrangement, equal/conflicting overlap bytes, complete-length and validator changes, interval/byte/work caps, checked endpoints, stale/cross-request/reused segments, arrival/header recency order, incomplete/latest 200 and all-206 header selection, new-206 field replacement except Content-Range, full-union complete 200 and corrected Content-Length, prefix incomplete 200, continuous single 206, disjoint non-combination, multipart/unknown-unit refusal, 200 invalidation, cancellation/backpressure, and model-based interval/header comparison with no panic or hidden allocation.
+- Exhaust empty/single/multiple interval sets, adjacency/coalescing, every overlap/gap arrangement, equal/conflicting overlap bytes, complete-length/coding/identity/validator changes, interval/byte/work caps, and checked endpoints. Positively combine distinct Range request generations and connections in one context while rejecting stale, context-crossed, rebound, retried-as-new, duplicate/reused, standalone-only, multipart, and unknown-unit values. Test both combinable refinements, validated incomplete-200 prefix admission and discard paths, successful complete-200 invalidation versus truncated-200 retention/refinement, locally ordered incomplete/latest 200 and all-206 header selection, shared versus mismatched receipt-source generations, reordered transport completion, retries, invalid/missing/manipulated Date, ordinal exhaustion/rotation, new-206 field replacement except Content-Range, full-union complete 200 with corrected Content-Length, prefix incomplete 200, continuous single 206, disjoint non-combination, cancellation/backpressure, and model-based interval/header comparison with no panic or hidden allocation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy, audit, SBOM, CI, and CodeQL default-setup gates.
 
 #### Exit criteria
 
-The bounded partial-response combination and header-synthesis contract and all previously implemented relevant behavior have reproducible evidence; v0.181.1 (Client partial-response classification and segment validation) still passes; no behavior assigned to v0.182.0 (Retry safety, idempotency, and body-replayability contract) is claimed; the active resource profile passes; and no critical/high finding is open.
+The cross-request partial-assembly and header-synthesis contract and all previously implemented relevant behavior have reproducible evidence; v0.181.1 (Client partial-segment and incomplete-prefix validation) still passes; no behavior assigned to v0.182.0 (Retry safety, idempotency, and body-replayability contract) is claimed; the active resource profile passes; and no critical/high finding is open.
 
 `0.181.2 implementation stop reached. Run pentest for this exact commit.`
 
@@ -7487,7 +7489,7 @@ Status: planned
 #### Goal
 
 Deliver **Retry safety, idempotency, and body-replayability contract** as the sole primary capability in this stop. It builds
-on v0.181.2 (Bounded partial-response combination and header synthesis) and must be independently trustworthy before v0.182.1 (Role-aware outbound response semantic validator) begins.
+on v0.181.2 (Cross-request partial assembly and header synthesis) and must be independently trustworthy before v0.182.1 (Role-aware outbound response semantic validator) begins.
 
 #### Deliverables
 
@@ -7513,7 +7515,7 @@ on v0.181.2 (Bounded partial-response combination and header synthesis) and must
 #### Exit criteria
 
 The Retry safety, idempotency, and body-replayability contract contract and all previously implemented relevant behavior have
-reproducible evidence; v0.181.2 (Bounded partial-response combination and header synthesis) still passes; no behavior assigned to v0.182.1 (Role-aware outbound response semantic validator) is
+reproducible evidence; v0.181.2 (Cross-request partial assembly and header synthesis) still passes; no behavior assigned to v0.182.1 (Role-aware outbound response semantic validator) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -7887,7 +7889,7 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 
 #### Deliverables
 
-- Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator; expose civil-time evidence, PendingConditionalRequest, CurrentRepresentationEvidence, WouldBe200Snapshot, request content/execution permits, ValidatedConditionalRequest, PartialResponseDisposition, ValidatedPartialSegment, and PartialCombinationPlan only with their sealed generation/lifetime constraints; expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` that owns or immutably borrows the exact validated data and is consumed whole by the selected HTTP/1 or HTTP/2 engine, expose trailer field/scheme permissions without raw escape hatches, preserve the mandatory engine reserve, and keep raw request/response serializers and separable capability/data pairings non-public.
+- Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator; expose civil-time evidence, PendingConditionalRequest, CurrentRepresentationEvidence, WouldBe200Snapshot, request content/execution permits, ValidatedConditionalRequest, PartialResponseDisposition, ValidatedPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, PartialAssemblyContext, ReceiptOrderSource, ResponseReceiptOrdinal, and PartialCombinationPlan only with their sealed generation/lifetime constraints; expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` that owns or immutably borrows the exact validated data and is consumed whole by the selected HTTP/1 or HTTP/2 engine, expose trailer field/scheme permissions without raw escape hatches, preserve the mandatory engine reserve, and keep raw request/response serializers and separable capability/data pairings non-public.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8121,7 +8123,7 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse/rebind civil-time evidence, CurrentRepresentationEvidence, WouldBe200Snapshot, RequestContentPermit, MethodExecutionPermit, ValidatedConditionalRequest, PartialResponseDisposition, ValidatedPartialSegment, PartialCombinationPlan, or `ResponseEmissionPermit`; separate any capability from its frozen data; publish content/execute methods before authorization; pass raw request/response data beside a token through either engine/facade; mutably alias validated buffers; use validated data for the wrong protocol/role/generation; issue body/trailer commands outside its response generation; forge/rebind trailer permissions; or fabricate v0.180.2/v0.180.3 conditional/range outcomes.
+- Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse/rebind civil-time evidence, CurrentRepresentationEvidence, WouldBe200Snapshot, RequestContentPermit, MethodExecutionPermit, ValidatedConditionalRequest, PartialResponseDisposition, ValidatedPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, PartialAssemblyContext, ReceiptOrderSource, ResponseReceiptOrdinal, PartialCombinationPlan, or `ResponseEmissionPermit`; separate any capability from its frozen data; publish content/execute methods before authorization; pass raw request/response data beside a token through either engine/facade; mutably alias validated buffers; use validated data for the wrong protocol/role/generation; issue body/trailer commands outside its response generation; forge/rebind trailer permissions; or fabricate v0.180.2/v0.180.3 conditional/range outcomes.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

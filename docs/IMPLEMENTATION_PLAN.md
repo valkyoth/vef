@@ -55,6 +55,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Every accepted message has one framing and routing interpretation.
 - Every peer-controlled length, count, table, queue, response, and work unit is
   bounded independently.
+- Numerical or target-relative CPU, stack, code-size, amplification,
+  fragmentation-cost, and fairness ceilings are defined before parsers and
+  measured as each hostile surface lands.
 - Successful incremental calls make non-zero observable progress; input,
   output, event, transition, and blocked states remain distinguishable.
 - Applications receive no request before framing/routing control data is
@@ -63,6 +66,8 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   until the body/trailer lifecycle completes or a mandatory-close action wins.
 - Outbound framing is validated as strictly as inbound framing, including
   declared lengths, body-forbidden contexts, trailers, and completion.
+- Peer protocol violations, configured policy excess, insufficient caller
+  storage, output backpressure, and mandatory-control exhaustion are distinct.
 - Parsing and validation produce typed deltas before state is committed.
 - Reusable storage and stream slots carry generations, and borrowed events are
   acknowledged before the underlying slot can be recycled.
@@ -89,19 +94,21 @@ Owns HTTP/1.0 and HTTP/1.1 parsing, serialization, framing, bodies,
 persistence, transitions, and connection state. It cannot parse or select
 HTTP/0.9.
 
-### `vef-http09` (planned at `0.74.0`)
+### `vef-http09` (planned at `0.76.0`)
 
 Owns the exact HTTP/0.9 grammar, explicit client and server roles, and the
 dedicated-listener policy. It has no HTTP/1 fallback, pipelining, forwarding,
 or persistent-connection mode and is not enabled by the facade's `http1` or
 `full` features.
 
-### `vef-websocket-handshake` (planned at `0.66.0`)
+### `vef-websocket-handshake` (planned at `0.68.0`)
 
 Owns the optional RFC 6455 opening handshake: key/version/token validation,
 dependency-free accept generation, subprotocol/extension negotiation metadata,
 Origin preservation, and the post-handshake publication barrier. It does not
 implement WebSocket frames and is not part of `http1` or `full` by default.
+Client handshakes require a caller/adapter-supplied fresh 16-byte nonce; core
+code owns no RNG and never derives a nonce from time or deterministic state.
 
 ### `vef-hpack`
 
@@ -119,7 +126,7 @@ Owns minimal synchronous and poll-based byte progress, injected time,
 deadlines, cancellation, and backpressure contracts. Protocol crates do not
 depend on it; drivers compose from outside.
 
-### `vef-brynja` (planned at `0.172.0`)
+### `vef-brynja` (planned at `0.198.0`)
 
 Owns the optional first-party Brynja TLS integration after its separate
 admission review. It points inward to `vef-io` and protocol crates, returns
@@ -152,52 +159,58 @@ cache-preservation duties, and the RFC 3986, RFC 7301, and RFC 8446 mappings.
 RFC 6455 is an optional opening-handshake extension. RFC 9298 is locked but
 not applicable unless HTTP/1.1 CONNECT-UDP enters scope. Via maps to RFC 9110;
 RFC 7239 `Forwarded` transformation remains outside 1.0.
+Forward-proxy Max-Forwards and HTTP/1 TE request-field behavior map to RFC
+9110/9112. RFC 9651 and RFC 9218 are implemented as bounded incremental
+micro-stops rather than one aggregate parser milestone.
 
 ## 5. Phase sequence
 
-### Phase 1 — Foundation and shared semantics (`0.1.0`–`0.25.0`)
+### Phase 1 — Foundation and shared semantics (`0.1.0`–`0.27.0`)
 
 Establish repository integrity, non-zero progress, checked parsing primitives,
 independent budgets, caller-owned storage, shared byte-oriented HTTP types,
+initial measurable resource profiles, capacity-versus-protocol dispositions,
 role policies, sync/poll I/O capabilities, fake transports, the complete
 event/command/acknowledgement/publication contract, and executable
 requirements/errata evidence before accepting a complete message.
 
-### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.26.0`–`0.78.0`)
+### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.28.0`–`0.81.0`)
 
 Implement distinct request and response state machines, strict octet parsing,
 all inbound framing/body modes, a unified outbound message state machine,
 borrowed body acknowledgement and drain/discard/cancel/reuse actions, bounded
 pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
-isolated WebSocket handshake crate, safe reframing, hardened HTTP/1.0, and an
-isolated `vef-http09` package.
+isolated WebSocket handshake crate with caller-supplied entropy, safe
+reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
 
-### Phase 3 — HPACK and HTTP/2 (`0.79.0`–`0.141.0`)
+### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.151.0`)
 
-Implement bounded HPACK, every HTTP/2 frame and semantic mapping, typed
-compression synchronization and publication barriers, SETTINGS negotiated
-state, malformed-message and content-length barriers, generation-checked
-streams/tombstones, atomic header blocks, explicit cancel/reset/flow-credit
-lifecycle, independent budgets, mandatory ACK tracking, reserved control
-output, and focused rapid-reset and flood defenses.
+Implement bounded HPACK with encoder-output atomicity, every HTTP/2 frame,
+activation and graceful shutdown, malformed publication barriers before
+mapping, generation-checked streams, and explicit cancellation/flow credit.
+Parse SETTINGS early but integrate header-table, initial-window, admission, and
+frame-size effects only after their owning components exist. Retain independent
+budgets, mandatory ACK tracking, reserved output, and flood defenses.
 
-### Phase 4 — Proxy, client, server, and public APIs (`0.142.0`–`0.168.0`)
+### Phase 4 — Proxy, client, server, and public APIs (`0.152.0`–`0.194.0`)
 
-Complete HTTP/1↔HTTP/2 translation, authority and effective-URI validation,
-hop stripping, Via and cache preservation, CONNECT/WebSocket bridges,
-Structured Fields and priorities, explicit client correlation and retry
-tokens, authenticated origin/coalescing inputs, role facades, half-close
-behavior, fixed caller-storage before optional `alloc`, diagnostics, interop,
-compile-fail tests, fuzzing, and soak campaigns.
+Build a representation-only translation IR, then effective URI, hop stripping,
+and a normative HTTP/1↔HTTP/2 matrix before emitting destination bytes. Add
+Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
+priority/intermediary/flood behavior, replayability-aware retry tokens,
+authenticated coalescing inputs, exact transition byte handoff, role facades,
+fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 
-### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.169.0`–`0.193.0`)
+### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.195.0`–`0.220.0`)
 
 Add standard blocking/nonblocking adapters, admit Brynja only through a
-separate first-party adapter, require authenticated ALPN, prohibit TLS 1.3
-early data for 1.0, prove the fixed-memory Aesynx capability model, and enforce
-deterministic CPU, stack, code-size, amplification, fragmentation-cost, and
-scheduler-fairness budgets. Finish the target/architecture matrix, replay and
-expand the Kani and stateful fuzz harnesses created with each component,
+separate first-party adapter, enforce concrete RFC 9113 TLS admission and
+termination/alert/EOF mapping, prohibit TLS 1.3 early data for 1.0, prove
+short-I/O/readiness/deadline/alignment/scatter-gather Aesynx behavior, and
+enforce deterministic CPU, stack, code-size, amplification,
+fragmentation-cost, and scheduler-fairness budgets. Finish the
+target/architecture matrix, replay and expand the Kani and stateful fuzz
+harnesses created with each component,
 interoperability, whole-project pentest, independent audit, remediation, API
 freeze, packaging, SBOM, provenance, and release-candidate readiness.
 

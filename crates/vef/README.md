@@ -67,7 +67,7 @@ HTTP/3 and QUIC are explicitly outside VEF 1.x.
 | `vef-io` | Runtime-neutral I/O, polling, clock, and deadline contracts | `no_std` |
 
 The current workspace contains no third-party Rust crates. The isolated
-`vef-http09` package is created at milestone `0.74.0`; it will not be included
+`vef-http09` package is created at milestone `0.76.0`; it will not be included
 by the facade's `http1` or `full` features. Runtime and TLS integrations
 described in the roadmap are separate future trust boundaries; they cannot be
 admitted without an explicit policy decision and never become dependencies of

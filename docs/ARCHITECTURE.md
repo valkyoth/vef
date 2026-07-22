@@ -40,6 +40,11 @@ stores with no global allocator. An `alloc` feature may later add owned values
 after the caller-storage behavior is complete and audited. `std` belongs only
 in explicitly separated adapters and convenience layers.
 
+Phase 1 defines measurable stack, code-size, work, amplification,
+fragmentation-cost, and fairness profiles. Components must fit an active
+profile when introduced; final release campaigns replay whole-system limits.
+Capacity exhaustion remains distinct from malformed peer input.
+
 ## Shared model
 
 `vef-core` will own byte-oriented methods, status codes, versions, schemes,
@@ -77,12 +82,17 @@ mechanics and the success publication barrier, but no WebSocket frame protocol.
 codecs. It has no HTTP/2 stream or transport knowledge. Valid compression
 state updates are never rolled back because later HTTP semantics reject a
 stream; unsafe incomplete decoding closes the connection.
+Encoder table mutation occurs only when the corresponding output bytes commit;
+partial output, retry, or cancellation cannot advance it ahead of the peer.
 
 `vef-http2` separates frame codec, connection/stream state, and HTTP semantic
 mapping. Stream transitions are exhaustive. Header blocks are atomic across
 CONTINUATION frames. Flow-control arithmetic uses protocol-domain integers,
 never unchecked `usize` calculations. Independent budgets cover hostile
 control-frame rates, compression work, stream churn, and outbound responses.
+SETTINGS wire values are validated early, but mutations are integrated only
+after the HPACK encoder, stream/window, admission, or scheduler owner exists.
+Initial HTTP semantics validate before request/response mapping is published.
 
 ## Roles and transitions
 
@@ -93,6 +103,9 @@ authenticated protocol-selection metadata; they never mutate an established
 HTTP engine into a different protocol.
 TLS/runtime adapters also expose authenticated origin inputs needed for safe
 HTTP/2 coalescing; connection-pool policy remains outside VEF.
+Translation first builds a protocol-neutral representation and emits no
+destination bytes until effective URI, hop stripping, and the full framing
+matrix validate. CONNECT/Upgrade handoff returns over-read bytes exactly once.
 
 ## Third-party boundary
 

@@ -371,15 +371,27 @@ emit no output, return `ConflictingPartialContent`, and quarantine the full
 context and validator association. Only complete same-key 200 replacement or
 destruction followed by a different-validator/new-generation empty context can
 clear it; 304, unchanged revalidation, and separate selection contexts cannot.
-At correlation admission, assembly-enabled requests reserve an engine-only,
-non-forgeable target/principal/partition/navigation invalidation handle that
-optional peer-driven work cannot consume. When a completed 200 lacks an exact
-variant key because of Vary `*`, capacity, normalization, or released storage,
+Before request output or correlation creation, assembly-enabled requests reserve
+an engine-only, non-Copy/non-Clone target/principal/partition/navigation
+invalidation handle bound to that exact correlation. Optional peer-driven work
+and other shards cannot consume its fixed per-shard pool. Exhaustion returns
+local AssemblyInvalidationCapacity with zero request bytes/no correlation and
+ordinary Sans-I/O backpressure; it never rotates an arena or admits an untracked
+request. The handle survives informational responses and terminal-event
+backpressure, releases exactly once at final completion/cancellation/reset/
+connection failure/retry disposition, and cannot be duplicated or rebound for a
+retry. Per-shard/per-connection admission limits bound stalled handles. When a
+completed 200 lacks an exact variant key because of Vary `*`, capacity,
+normalization, or released storage,
 the handle invalidates every Vary/validator sibling in that namespace; absent
 coding/domain refinement widens only across those children. Whole-arena rotation
-is limited to mandatory-reserve failure, internal corruption, or explicit caller
-policy, and arenas are principal/tenant sharded. Key loss never leaves an older
-potentially replaced context usable. Semantic invalidation immediately rejects
+is limited to an internal invariant/trusted-storage integrity failure or explicit
+caller policy. Malformed, semantically invalid, or conflicting peer input and
+capacity never mint a corruption cause, and arenas are principal/tenant sharded.
+Intentionally disabling assembly first
+rotates/clears the shard generation before any untracked request is admitted.
+Key loss never leaves an older potentially replaced context usable. Semantic
+invalidation immediately rejects
 stale capabilities, but arena rotation never ends a Rust lifetime: storage is
 physically reclaimable only after all body, identity, and output leases drop or
 acknowledge, otherwise allocation returns local LeaseHeld/capacity.

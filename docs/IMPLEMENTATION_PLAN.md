@@ -95,11 +95,15 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   normalization runs once under profile caps, retains canonical bytes without a
   redundant sensitive raw copy, and comparisons never reparse. Physical reuse
   waits for every body/identity/output lease despite semantic invalidation.
-- Assembly-enabled correlation reserves an engine-only target/principal/
-  partition/navigation invalidation handle before optional peer-driven work. A
-  completed valid 200 invalidates by exact key or within that namespace; absent
-  coding/domain refinement widens only across its children. Arena rotation is
-  limited to mandatory-reserve failure, internal corruption, or caller policy.
+- Assembly-enabled correlation reserves a linear engine-only target/principal/
+  partition/navigation invalidation handle before any request output. Per-shard
+  exhaustion returns zero-byte/no-correlation AssemblyInvalidationCapacity and
+  Sans-I/O backpressure, never rotation or untracked admission. Hold the handle
+  through terminal backpressure, release it once at a terminal disposition, and
+  reserve independently for retries. A completed valid 200 invalidates by exact
+  key or within that namespace; absent coding/domain refinement widens only its
+  children. Arena rotation is internal invariant/trusted-storage corruption or
+  caller policy only, never peer invalidity, conflict, or capacity.
 - Mandatory generated responses retain engine-only semantic-validation slots
   and frozen-head storage that application work cannot consume; total reserve
   failure commits one deterministic close/shutdown action with no partial head.
@@ -452,11 +456,16 @@ non-aliasing output safely, and compare sorted overlaps only after activating a
 profile-capped non-resettable budget. Conflicting bytes are quarantined with
 zero output until complete replacement or a
 destroyed-and-new different-validator representation context. Correlation
-admission reserves a target/principal/partition/navigation invalidation handle
-from capacity optional Vary/normalization work cannot consume. Completed 200
+admission reserves a non-Copy/non-Clone target/principal/partition/navigation
+invalidation handle from isolated per-shard capacity before output; exhaustion
+produces zero-byte AssemblyInvalidationCapacity backpressure and no correlation
+or rotation. The exact correlation holds it through terminal-event backpressure
+and releases once; a retry reserves independently. Completed 200
 fallbacks invalidate by exact key or that namespace, widening only its coding/
 domain children when refinement is unavailable; whole-arena rotation is limited
-to reserve failure, corruption, or caller policy and is principal/tenant sharded.
+to internal invariant/trusted-storage corruption or caller policy, never peer
+invalidity, conflict, or capacity, and is principal/tenant sharded. Disabling
+assembly clears the shard before untracked admission.
 Invalidation is immediately semantic, while slot reuse waits for all live body,
 identity, and output leases and otherwise returns LeaseHeld. Header selection
 uses the ordinal

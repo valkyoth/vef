@@ -72,16 +72,25 @@ only through a resource-profile-capped engine permit.
 Equal overlap deduplicates; conflicting bytes publish nothing and
 quarantine the context under a dedicated comparison budget until complete 200
 replacement or a destroyed-and-new different-validator representation context.
-Every assembly-enabled correlation reserves an engine-only target/principal/
-partition/navigation invalidation namespace before optional Vary/normalization
-work. Every completed framing- and semantics-valid 200 invalidates by exact key
-or across all Vary/validator siblings in that namespace, widening only across
-its coding/domain children when refinement is unavailable. Peer input cannot
-select arena rotation; it is limited to reserve failure, internal corruption,
-or explicit caller policy, and principal/tenant sharding bounds the blast radius.
+Every assembly-enabled correlation reserves a linear engine-only target/
+principal/partition/navigation invalidation namespace from isolated per-shard
+capacity before any request output. Exhaustion returns zero-byte/no-correlation
+AssemblyInvalidationCapacity backpressure, never rotation or untracked admission.
+The exact correlation holds its non-Copy/non-Clone handle across informational
+responses and terminal-event backpressure, releases it once at a terminal
+disposition, and a retry reserves independently. Every completed framing- and
+semantics-valid 200 invalidates by exact key or across all Vary/validator
+siblings in that namespace, widening only across
+its coding/domain children when refinement is unavailable. Peer input and all
+capacity exhaustion cannot select arena rotation; it is limited to an internal
+invariant/trusted-storage integrity failure or explicit caller policy, never a
+peer semantic violation or conflicting partial content. Principal/tenant
+sharding bounds the blast radius. Disabling assembly requires clearing the shard
+generation before admitting an untracked request.
 Physical arena generations affect leases, not semantic replacement. Semantic
 invalidation rejects stale operations at once, but physical reuse waits for all
-body/identity/output leases and otherwise returns local LeaseHeld/capacity. `Vary: *`,
+body/identity/output leases and otherwise returns local LeaseHeld/capacity.
+`Vary: *`,
 input/output aliasing, in-place transformation, multipart, and unknown units
 never enter combination.
 

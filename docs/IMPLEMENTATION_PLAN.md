@@ -206,8 +206,12 @@ versus empty query and percent-encoded bytes, and expose normalization only as
 a non-authoritative view. Authority parsing covers IPv6/IPvFuture, ports,
 userinfo rejection, and malformed brackets explicitly.
 Role policy defines generation-bound TrustedRequestContext scheme evidence and
-precedence/conflict handling plus caller-owned CONNECT target authorization;
-socket/runtime types never imply transport security.
+precedence/conflict handling, staged CONNECT authorization types that bind a
+lexical authority, attempt token, caller-resolved endpoint, actual peer, and
+request/policy generations without resolver/socket authority, plus a distinct
+hop/connection/generation-bound sensitive proxy-credential type; socket/runtime
+types never imply transport security and proxy credentials are not end-to-end
+Authorization.
 
 ### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.28.0`–`0.81.0`)
 
@@ -225,12 +229,16 @@ a distinct bracket-safe authority with explicit port 1..=65535 and no default.
 Later translation reuses those typed decisions.
 Request transfer codings require final chunked; responses may instead become
 close-delimited, with repeated chunked and unsupported coding kept distinct.
-RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close,
-and no failed optimistic transition bytes are reparsed as HTTP.
-CONNECT target policy runs before DNS/dial/output/tunnel work; builders attach
-no request content, hardened inbound framing rejects and closes, successful
-server responses emit no length/transfer fields, and all responses are
-non-cacheable.
+RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close;
+HTTP/1 CONNECT 407 includes a valid challenge, destroys credentials/pending
+bytes, closes, and retries only on a fresh connection. No failed optimistic
+transition bytes are reparsed as HTTP.
+CONNECT first authorizes lexical authority, then each caller-resolved endpoint
+before dial, then validates the caller-certified actual peer and all attempt,
+request, and policy generations before output/success/tunnel publication.
+Builders attach no request content, hardened inbound framing rejects and
+closes, successful server responses emit no length/transfer fields, and all
+responses are non-cacheable.
 HTTP/1 205 output is provably zero content; inbound 205 still follows ordinary
 framing so nonzero content is drained-or-closed without pipeline desynchrony
 and cannot be forwarded as a valid 205.
@@ -263,10 +271,14 @@ Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
-Native HTTP/2 CONNECT routes post-initial-HEADERS DATA through a bounded
-stream-local PendingConnect/tunnel path rather than application content,
-forwards only after authorization and connection success, constrains connected
-frames, and maps TCP failure to CONNECT_ERROR plus HTTP/2 failure to TCP reset.
+Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
+post-initial-HEADERS DATA into fixed-capacity PendingConnect while
+AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without
+claiming flow credit, DNS, dial, or socket behavior; v0.133–v0.134 charge stream
+and connection windows; v0.136 adds borrowed acknowledgement/discard and credit
+release; v0.137 adds tunnel output/FIN commands. No bytes forward before the
+generation-matched caller outcome, connected frames are constrained, and
+caller transport failures map to typed CONNECT_ERROR/TCP-reset actions.
 HTTP/2 205 rejects outbound DATA and drains/resets malicious inbound DATA under
 ordinary stream framing without disturbing other streams.
 Integrate ENABLE_PUSH in push ownership and apply MAX_FRAME_SIZE atomically
@@ -276,8 +288,17 @@ tracking, reserved output, and flood defenses.
 ### Phase 4 — Proxy, client, server, and public APIs (`0.155.0`–`0.199.0`)
 
 Build a representation-only translation IR, then effective URI, hop stripping,
-and a normative HTTP/1↔HTTP/2 matrix before emitting destination bytes. Add
-Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
+exact append-only Via and hop-scoped proxy authentication, and a normative
+HTTP/1↔HTTP/2 matrix before emitting destination bytes. Via parses bounded
+ordered members/comments, records the inbound protocol/version, appends a
+caller pseudonym after capacity preflight, never replaces/combines, applies to
+every proxy-forwarded message and gateway inbound forwarded request, and uses
+caller-owned privacy/loop policy without input-derived identity. Proxy
+credentials are consumed by the expecting hop, removed before origins,
+relayed only by named-next-hop cooperative policy, never confused with
+Authorization, scoped back only to the next client, challenged on every 407,
+redacted/never-indexed/TRACE-excluded, and erased across authentication retry.
+Add Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
 ENABLE_CONNECT_PROTOCOL and NO_RFC7540_PRIORITIES owner integration, complete
 priority/intermediary/flood behavior, replayability-aware retry tokens,

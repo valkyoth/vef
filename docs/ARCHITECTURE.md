@@ -86,8 +86,13 @@ absolute for ordinary requests, and reverse/interception origin-form requires
 explicit destination context. Defaults are explicit and never inferred.
 The same gate forms a complete EffectiveTarget using generation-bound
 TrustedRequestContext: fixed listener, authenticated gateway, then adapter
-transport security under explicit conflict policy. Caller ConnectTargetPolicy
-authorizes CONNECT before DNS, dialing, output, or tunnel publication.
+transport security under explicit conflict policy. CONNECT admission is staged:
+lexical ConnectAuthority authorization issues a ConnectAttemptToken; the caller
+resolves and obtains per-endpoint policy; AuthorizedConnectOutcome then binds
+the selected endpoint, actual peer, and attempt/request/policy generations
+before output, 2xx, or tunnel publication. Core performs no DNS, dial, or socket
+inspection. Proxy credentials use a separate sensitive hop/connection/generation
+type and can never become end-to-end Authorization.
 
 Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
@@ -96,8 +101,10 @@ counts, trailers, body-forbidden contexts, and completion before reuse.
 Transfer-Encoding selection is role-specific: requests require final chunked,
 whereas responses can be delimited by close when chunked is non-final or a
 different coding is final. Repeated chunked is malformed; an unsupported valid
-coding is a separate policy outcome. RFC 9931 CONNECT rejection always closes
-and optimistic protocol bytes never re-enter HTTP parsing after failed handoff.
+coding is a separate policy outcome. RFC 9931 CONNECT rejection always closes;
+a CONNECT 407 requires a valid proxy challenge, destroys pending bytes and
+credentials, and retries only on a fresh HTTP/1 connection. Optimistic bytes
+never re-enter HTTP parsing after failure.
 CONNECT builders carry no content/framing fields; hardened inbound ambiguity
 rejects and closes, successful server responses omit length/transfer fields,
 clients ignore received ones, and every CONNECT response is non-cacheable.
@@ -157,11 +164,14 @@ command lifecycle.
 HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
 reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
 the RFC-required contexts.
-Native CONNECT DATA is never request content. Before authorization/dial success
-it is stream-local PendingConnect data under caller capacity and flow-control
-backpressure; after success only DATA and applicable management frames remain
-legal. TCP failure produces CONNECT_ERROR and HTTP/2 failure resets upstream
-TCP without mutating unrelated streams.
+Native CONNECT DATA is never request content. v0.130 keeps it in fixed-capacity
+PendingConnect while AwaitingConnectOutcome and uses a local-capacity CANCEL
+when full, without flow-control, resolver, dialer, or socket claims. v0.133 and
+v0.134 add stream/connection accounting, v0.136 adds acknowledgement/credit,
+and only a generation-matched authorized endpoint/peer outcome permits tunnel
+publication. Connected streams allow DATA/applicable management frames; caller
+TCP failure produces CONNECT_ERROR and HTTP/2 failure requests upstream TCP
+reset without unrelated-stream mutation.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -231,6 +241,14 @@ never derives TLS state from an adapter, handle, or socket type.
 Translation first builds a protocol-neutral representation and emits no
 destination bytes until effective URI, hop stripping, and the full framing
 matrix validate. CONNECT/Upgrade handoff returns over-read bytes exactly once.
+Via is a bounded ordered grammar and always appends—never replaces or combines—
+the inbound protocol/version plus caller-configured privacy pseudonym after
+capacity preflight; every forwarded proxy message and gateway inbound request
+uses caller-owned self-pseudonym loop policy. The expecting proxy consumes
+hop-scoped Proxy-Authorization before origin forwarding; only explicit named
+cooperative next-hop policy can relay it. Proxy challenges/info return only to
+the next client, every generated 407 has a valid challenge, and all proxy-auth
+fields are sensitive, redacted, never-indexed, and TRACE-excluded.
 TRACE/OPTIONS applies Max-Forwards without synthesis, keeps zero local, blocks
 generated TRACE content/secrets, bounds and sanitizes reflection, validates
 OPTIONS Content-Type with content, and marks both response types non-cacheable.

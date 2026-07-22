@@ -12,10 +12,11 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review separated HTTP/1 closure from HTTP/2 directional FIN,
-bound native HTTP/2 CONNECT DATA before/after establishment, added final-hop
-server-wide OPTIONS conversion, and completed 205 zero-content semantics. These
-map to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
+The latest design review bound CONNECT authorization to resolved and connected
+endpoints, made proxy credentials explicitly hop-owned, corrected native
+HTTP/2 CONNECT staging around flow-control ownership, and completed exact Via
+append/privacy behavior. These map to existing owners, so the
+dependency-correct roadmap remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -25,7 +26,8 @@ map to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 | URI path/query identity | `0.17.0`, `0.128.0`, `0.160.0` | Store raw path and optional query separately, preserve absent versus empty query and percent encoding, map exact `:path`, and perform only required empty-path-to-slash conversion. |
 | Trusted effective target | `0.19.0`, `0.40.0`, `0.156.0`, `0.203.0`, `0.208.0` | Bind fixed/gateway/transport scheme evidence to connection generation, apply explicit precedence/conflict policy before publication, and reuse the complete scheme/authority/path/query decision. |
 | CONNECT authority and policy | `0.40.0`, `0.64.0`, `0.161.0` | Require explicit checked port 1..=65535, bracket-safe host parsing, no Host/default substitution, caller target authorization before external action, no request content, strict success fields, and non-cacheability. |
-| HTTP/2 CONNECT tunnel DATA | `0.130.0`, `0.136.0`, `0.137.0`, `0.161.0` | Treat post-initial-HEADERS DATA as stream-local tunnel bytes, bound/backpressure pending data, forward only after authorization/connect success, constrain connected frames, and map TCP/HTTP2 resets exactly. |
+| Endpoint-bound CONNECT admission | `0.19.0`, `0.64.0`, `0.130.0`, `0.161.0`, `0.184.0` | Stage lexical authorization, attempt token, caller resolution and per-endpoint policy, then require generation-matched resolved endpoint and actual peer evidence before success/output/tunnel publication without giving core DNS/socket authority. |
+| HTTP/2 CONNECT tunnel DATA | `0.130.0`, `0.133.0`–`0.137.0`, `0.161.0` | Classify and fixed-capacity-reset pending DATA before flow control exists, add stream/connection accounting only at their owners, then add borrowed acknowledgement/credit and outbound directional commands before translation reuse. |
 | 205 zero-content semantics | `0.63.0`, `0.130.0`, `0.137.0`, `0.160.0` | Guarantee zero outbound content, retain ordinary inbound framing for synchronization, diagnose and suppress malicious nonzero content, and test HTTP/1 pipelines plus HTTP/2 DATA/END_STREAM. |
 | Terminal 101 response branch | `0.59.0`, `0.60.0`, `0.67.0` | Separate informational-then-final from terminal 101, prohibit HTTP/1.0 1xx emission, complete the request and any required 100 first, and reject all HTTP operations after handoff. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
@@ -33,6 +35,7 @@ map to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 | Bidirectional WebSocket bridge | `0.69.0`, `0.162.0`, `0.163.0` | Bridge both directions; map schemes and retained negotiation/end-to-end fields exactly, isolate key/accept processing to HTTP/1, gate settings on availability, and commit both sides before data. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
+| Hop-scoped proxy authentication | `0.19.0`, `0.65.0`, `0.97.0`, `0.157.0`, `0.184.0` | Bind proxy credentials to hop/connection/generation, consume before origin forwarding, permit only named cooperative relay, scope challenges/info to the next client, require challenged 407, redact/never-index/exclude from TRACE, and force fresh HTTP/1 CONNECT authentication retry. |
 | Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |
 | Compression provenance bookkeeping | `0.90.0`–`0.91.0`, `0.97.0` | Keep immutable provenance as an encoder sidecar that never changes HPACK size/index order, and remove it atomically with entry eviction or reset. |
 | HPACK wire legality | `0.82.0`–`0.93.0` | Accept non-shortest valid integers, emit canonical integers, reject illegal Huffman EOS/padding and invalid indices, and emit at most two ordered table-size changes. |
@@ -57,6 +60,7 @@ map to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 | Chunk-extension BWS grammar | `0.50.0` | Accept BWS around semicolon and equals exactly, charge raw whitespace to limits, trim before semantic interpretation, and retain injection/quoting rejection. |
 | RFC 9931 optimistic-data closure | `0.65.0` | Require CONNECT proxy wait-or-close behavior, mandatory close after rejected CONNECT, no pre-101 WebSocket or HTTP/1.x CONNECT-UDP data, and no failed-transition reparsing. |
 | Complete TRACE/OPTIONS semantics | `0.158.0` | Complete Max-Forwards absence/zero behavior, prohibit generated TRACE content/secrets, sanitize bounded reflection, require Content-Type for generated OPTIONS content, and mark responses non-cacheable. |
+| Exact Via forwarding and privacy | `0.157.0`, `0.184.0`, `0.185.0` | Parse bounded ordered members/comments, append inbound protocol/version plus configured pseudonym, never replace/combine, cover proxy and gateway applicability, preflight capacity, and expose caller-owned loop detection without input-derived identity. |
 | Server-wide OPTIONS final hop | `0.158.0`, `0.160.0` | Preserve absolute-form through intermediate forward proxies, convert empty-path/absent-query OPTIONS to `*` only at the origin-facing hop, and keep empty query and `/` resource-specific. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
@@ -265,9 +269,9 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | Version | Primary outcome | Sequence context |
 | --- | --- | --- |
 | `0.155.0` | Protocol-neutral HTTP translation representation | Requires HTTP/2 conformance audit and pentest; Unlocks Effective URI and authority consistency. |
-| `0.156.0` | Effective URI and authority consistency | Requires Protocol-neutral HTTP translation representation; Unlocks Connection-field stripping, Via, and cache preservation. |
-| `0.157.0` | Connection-field stripping, Via, and cache preservation | Requires Effective URI and authority consistency; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
-| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Connection-field stripping, Via, and cache preservation; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
+| `0.156.0` | Effective URI and authority consistency | Requires Protocol-neutral HTTP translation representation; Unlocks Connection fields, Via, proxy authentication, and cache preservation. |
+| `0.157.0` | Connection fields, Via, proxy authentication, and cache preservation | Requires Effective URI and authority consistency; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
+| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Connection fields, Via, proxy authentication, and cache preservation; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
 | `0.159.0` | HTTP/1 TE request-field and trailers forwarding semantics | Requires Max-Forwards TRACE and OPTIONS intermediary semantics; Unlocks Normative HTTP/1 and HTTP/2 translation matrix. |
 | `0.160.0` | Normative HTTP/1 and HTTP/2 translation matrix | Requires HTTP/1 TE request-field and trailers forwarding semantics; Unlocks CONNECT translation across HTTP versions. |
 | `0.161.0` | CONNECT translation across HTTP versions | Requires Normative HTTP/1 and HTTP/2 translation matrix; Unlocks RFC 8441 extended CONNECT. |

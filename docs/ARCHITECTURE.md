@@ -20,11 +20,11 @@ and diagnostics while retaining protocol-appropriate state machines.
 vef facade
   |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
   |-- vef-websocket-handshake --> vef-core  (planned optional extension)
-  |-- vef-http1 -----> vef-core + vef-semantics
-  |-- vef-http2 -----> vef-core + vef-semantics
+  |-- vef-http1 -----> vef-core + vef-conditions + vef-semantics
+  |-- vef-http2 -----> vef-core + vef-conditions + vef-semantics
   |       `----------> vef-hpack -----> vef-core
   |       `-- priority feature --> vef-structured-fields --> vef-core
-  `-- vef-io
+  `-- vef-io --------> vef-core
 
 vef-auth -----------> vef-core
 vef-conditions -----> vef-core
@@ -35,8 +35,9 @@ future runtime/TLS/Aesynx adapters -----> vef-io and protocol crates
 
 The facade contains re-exports, not protocol implementation. Adapters point
 inward; protocol crates never point outward. OS socket types, async-runtime
-types, TLS-library types, boxed standard errors, and wall clocks cannot enter
-protocol APIs.
+types, TLS-library types, boxed standard errors, and wall-clock provider types
+cannot enter protocol APIs; only checked core civil-time evidence crosses that
+boundary.
 
 ## Storage modes
 
@@ -67,13 +68,17 @@ port in 1..=65535, never a scheme default or Host-derived destination.
 `StatusCode` represents only 100..=599, including unregistered valid codes;
 received 600..=999 digits survive only in typed invalid wire evidence for
 client 5xx handling and can never enter valid server/serializer output.
-`vef-core` also owns protocol-neutral trailer-permission and raw message-head
-types, but raw response heads confer no serialization capability.
+`vef-core` also owns protocol-neutral trailer-permission, raw message-head,
+and checked `UtcCivilTime`/available-or-unavailable evidence types, but raw
+response heads confer no serialization capability. Civil time is distinct from
+monotonic deadlines and is always caller/adapter supplied.
 
 `vef-auth` owns bounded scheme-neutral authentication grammar and sensitive
-borrowed/caller storage. `vef-conditions` owns entity tags, HTTP dates,
-conditional-field evaluation, and checked range planning; its sealed outcomes
-bind the exact request/exchange generation and caller representation evidence.
+borrowed/caller storage. `vef-conditions` owns entity tags, civil-evidence-aware
+HTTP dates, conditional-field evaluation, checked range planning, final client
+request validation, and partial-response recombination guards. Its sealed
+snapshot and outcomes bind the exact request/exchange generation, hypothetical
+200 metadata, civil time, and caller representation evidence.
 `vef-semantics` owns the full role/protocol response matrix. Its sealed
 `ValidatedResponse` owns or immutably borrows the exact ordered head, framing,
 sensitivity/indexing, body, and trailer plan; the internal emission capability
@@ -114,8 +119,14 @@ are non-Copy/non-Clone and consumed once; every terminal/policy transition
 invalidates outstanding values. Proxy credentials use a separate sensitive
 hop/connection/generation/exchange type and can never become Authorization.
 
-Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
-and cancellation are commands with explicit connection-reuse consequences.
+Inbound body chunks remain borrowed until acknowledged. For origin handling,
+head validation publishes only a read-only `PendingConditionalRequest` for
+representation selection; no 100 Continue, body publication/processing, or
+method side effect occurs until the same snapshot produces non-forgeable
+content and execution permits. Terminal 304/412 drains-with-limits or closes
+without application body delivery, including bytes already buffered behind the
+head. Drain, discard/close, and cancellation are commands with explicit
+connection-reuse consequences.
 Outbound request/response framing uses one state machine that checks body byte
 counts, trailers, body-forbidden contexts, and completion before reuse.
 Trailer admission uses a field-definition allowlist and generation-bound
@@ -277,6 +288,11 @@ never derives TLS state from an adapter, handle, or socket type.
 Translation first builds a protocol-neutral representation and emits no
 destination bytes until effective URI, hop stripping, and the full framing
 matrix validate. CONNECT/Upgrade handoff returns over-read bytes exactly once.
+Checked civil-time evidence is injected directly or through optional
+`vef-io::CivilClock`; origins and forwarding recipients apply explicit
+Available/Unavailable Date and Last-Modified rules, including RFC 850 rollover,
+without reading a global clock. Aesynx systems without an RTC report
+Unavailable, while monotonic deadlines remain independently usable.
 The dependency-free `vef-auth` crate parses/serializes bounded scheme-neutral
 challenge, credentials, token68 and auth-param grammar for all origin/proxy
 authentication fields, preserving field/challenge boundaries and resolving
@@ -292,14 +308,23 @@ cooperative next-hop policy can relay it. Proxy challenges/info return only to
 the next client, every generated 407 has a `vef-auth`-validated challenge, and
 all proxy-auth fields are sensitive, redacted, never-indexed, and TRACE-excluded.
 Before any generated response bytes, `vef-conditions` parses entity tags and
-HTTP dates, evaluates conditional fields in RFC order, and performs bounded
-checked Range/Content-Range arithmetic. A role-aware semantic gate then
-consumes those sealed generation-bound outcomes and validates the complete
+HTTP dates, evaluates conditional fields in RFC order before request content,
+and performs bounded checked Range/Content-Range arithmetic. Its one sealed
+`SelectedRepresentationSnapshot` records the exact hypothetical 200 selection,
+validator, Date, and ordered metadata and is shared by precondition, range,
+206, and 304 validation. A role-aware semantic gate then consumes those sealed
+generation-bound outcomes and validates the complete
 method/status/field/content matrix: 401 challenges over both protocols, 405
 Allow, protocol-specific 426, and contextual 206/304/416 are explicit. HTTP/2
 cannot generate 426; HTTP/1 426 cannot translate by stripping Upgrade.
 Generated 206 is single-range only for 1.0; received multipart/byteranges
 remains opaque and forwardable, never parsed or generated.
+Outbound conditional/range requests receive the same final frozen validation
+over typed or generic fields before either engine serializes them. Client 206
+classification checks Content-Type, Content-Range, request/validator identity,
+and terminal body length before recombination authority; 200 invalidates
+partial state, multipart requires an external consumer, and proxies alone can
+preserve well-formed unknown range units without authorizing recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage
 are reserved for mandatory responses and cannot be consumed by application

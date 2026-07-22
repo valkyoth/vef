@@ -42,7 +42,11 @@ received multipart/byteranges bodies remain opaque bytes that can be preserved
 and forwarded without boundary or part validation. VEF parses entity tags,
 HTTP dates, conditional fields, Range, and Content-Range and evaluates them
 against explicit caller-supplied representation evidence; it does not own a
-representation store, cache, wall clock, or multipart assembler.
+representation store, cache, wall clock, or multipart assembler. It can consume
+checked caller/adapter civil-time evidence (including an explicit unavailable
+state) independently of monotonic deadlines. Built-in client handling validates
+single-range 206 and keeps multipart opaque as NeedsMultipartConsumer; it never
+claims recombination authority for multipart or unknown range units.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

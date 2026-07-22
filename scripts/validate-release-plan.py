@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check 225 minor milestones, seven patch stops, and two release candidates."""
+"""Check 225 minor milestones, ten patch stops, and two release candidates."""
 
 from __future__ import annotations
 
@@ -23,9 +23,12 @@ def main() -> int:
         "0.157.1",
         "0.157.2",
         "0.157.3",
+        "0.157.4",
         "0.180.1",
         "0.180.2",
         "0.180.3",
+        "0.180.4",
+        "0.181.1",
         "0.182.1",
     )
     failures: list[str] = []
@@ -39,9 +42,9 @@ def main() -> int:
         if compact.count(f"| `{patch_stop}` |") != 1:
             failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 232:
-            failures.append(f"expected 232 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 234:
+        if detailed.count(f"#### {heading}") != 235:
+            failures.append(f"expected 235 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 237:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -85,6 +88,9 @@ def main() -> int:
         "Via grammar, append, privacy, and loop policy",
         "Dependency-free generic authentication grammar and sensitive storage",
         "Proxy-authentication hop ownership and 407 lifecycle",
+        "Injected civil time and HTTP-date policy",
+        "Outbound conditional and range request validation",
+        "Client partial-response classification and recombination guard",
         "Role-aware outbound response semantic validator",
     )
     for marker in required_markers:
@@ -111,14 +117,18 @@ def main() -> int:
         ("Connection-field stripping and cache-metadata preservation", "Via grammar, append, privacy, and loop policy"),
         ("Via grammar, append, privacy, and loop policy", "Dependency-free generic authentication grammar and sensitive storage"),
         ("Dependency-free generic authentication grammar and sensitive storage", "Proxy-authentication hop ownership and 407 lifecycle"),
-        ("Proxy-authentication hop ownership and 407 lifecycle", "Normative HTTP/1 and HTTP/2 translation matrix"),
+        ("Proxy-authentication hop ownership and 407 lifecycle", "Injected civil time and HTTP-date policy"),
+        ("Injected civil time and HTTP-date policy", "Max-Forwards TRACE and OPTIONS intermediary semantics"),
         ("Max-Forwards TRACE and OPTIONS intermediary semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("HTTP/1 TE request-field and trailers forwarding semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("Normative HTTP/1 and HTTP/2 translation matrix", "CONNECT translation across HTTP versions"),
         ("Client request builder and target forms", "Dependency-free conditional semantics crate and validators"),
         ("Dependency-free conditional semantics crate and validators", "Conditional request fields and ordered precondition evaluation"),
         ("Conditional request fields and ordered precondition evaluation", "Bounded byte ranges and single-range response planning"),
-        ("Bounded byte ranges and single-range response planning", "Client correlation, cancellation, and retry tokens"),
+        ("Bounded byte ranges and single-range response planning", "Outbound conditional and range request validation"),
+        ("Outbound conditional and range request validation", "Client correlation, cancellation, and retry tokens"),
+        ("Client correlation, cancellation, and retry tokens", "Client partial-response classification and recombination guard"),
+        ("Client partial-response classification and recombination guard", "Retry safety, idempotency, and body-replayability contract"),
         ("Retry safety, idempotency, and body-replayability contract", "Role-aware outbound response semantic validator"),
         ("Role-aware outbound response semantic validator", "Origin-server role API"),
         ("vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton", "Structured Fields integer and decimal ranges"),
@@ -172,6 +182,10 @@ def main() -> int:
         or "shared v0.52.0 TrailerFieldPermission/AuthenticationTrailerPermission policy" in detailed
         or "separate dependency-free, no_std `vef-semantics` crate depending only on `vef-core` and `vef-auth`" in detailed
         or "require HTTP/1 401 to carry at least one valid WWW-Authenticate challenge" in detailed
+        or "normalize comparisons without a wall clock" in detailed
+        or "before method execution or range selection" in detailed
+        or "selected-representation metadata, and cache validators" in detailed
+        or "request serialization remains independently usable" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -371,6 +385,12 @@ def main() -> int:
         "require at least one v0.157.2-valid Proxy-Authenticate challenge on every generated 407",
         "Proxy-Authorization, Proxy-Authenticate, Proxy-Authentication-Info",
         "apply v0.65.0 fresh-connection closure to HTTP/1 CONNECT 407",
+        "checked no_std `UtcCivilTime` and generation-bound `CivilTimeEvidence::{Available, Unavailable}`",
+        "optional `vef-io::CivilClock` provider",
+        "mandatory more-than-50-years-future rollback",
+        "origin with Available evidence must generate Date on 2xx/3xx/4xx",
+        "origin with Unavailable evidence must not generate Date",
+        "clamp a future application Last-Modified to message-origination Date",
         "inbound received-protocol/pseudonym Via entry for every HTTP-to-HTTP gateway-forwarded request",
         "including an Upgrade field received with status 426",
         "HTTP/2 426 without Upgrade is framing-valid but produces a typed RFC 9110 received-semantic violation",
@@ -381,12 +401,28 @@ def main() -> int:
         "distinct RFC strong/weak comparison",
         "Evaluate RFC 9110 preconditions in order",
         "Evaluate preconditions only for an origin server or authorized cache",
-        "sealed non-forgeable `PreconditionOutcome` bound to the exact request/exchange generation",
+        "read-only `PendingConditionalRequest`",
+        "before processing request content, method execution, or range selection",
+        "sealed generation-bound `SelectedRepresentationSnapshot` (`WouldBe200Metadata`)",
+        "exact ordered fields that a corresponding 200 would contain",
+        "`PreconditionOutcome` references that exact snapshot",
         "parse bounded Range byte-range, open-ended range, and suffix-range members",
         "cap raw bytes, decimal digits, member count, normalization work, and output before arithmetic",
         "Ignore Range for every method except GET",
         "HTTP dates require caller-certified strong-validator status and exact equality with Last-Modified",
         "sealed `SingleRangePlan` only for one normalized satisfiable range",
+        "non-forgeable one-shot `RequestContentPermit` and `MethodExecutionPermit`",
+        "terminal 304/412 produces neither permit",
+        "final `vef-conditions` validation pass over the exact frozen ordered client request",
+        "v0.180.4 must replace its raw entry with frozen `ValidatedConditionalRequest`",
+        "If-Range without Range, weak entity-tag If-Range",
+        "no ETag is available for that stored representation",
+        "`PartialResponseDisposition` bound to the v0.180.4 validated request",
+        "count semantic body octets through completion",
+        "all partials share the same strong validator",
+        "FullRepresentationFallback and atomically invalidate all partial-assembly state",
+        "opaque `NeedsMultipartConsumer`",
+        "well-formed unknown range unit even though a VEF client returns UnsupportedRangeUnit/NoRecombine",
         "`vef-semantics` crate depending only on `vef-core`, `vef-auth`, and `vef-conditions`",
         "`ValidatedResponse` owns or immutably borrows the exact ordered response head, framing plan, sensitivity/indexing metadata, body plan, and trailer permissions",
         "internal `ResponseEmissionPermit` cannot be extracted or paired with caller-supplied data",
@@ -394,13 +430,15 @@ def main() -> int:
         "no API accepts `(raw_head, permit)`",
         "raw response heads have no public serialization path",
         "complete role/method/status/field/content semantic matrix before issuing `ValidatedResponse`",
-        "require every generated 401 in HTTP/1 or HTTP/2 to carry at least one valid WWW-Authenticate challenge",
+        "Require every generated 401 in HTTP/1 or HTTP/2 to carry at least one valid WWW-Authenticate challenge",
         "normal lowercase HTTP/2 field serialization",
         "reject every locally generated HTTP/2 426 as InvalidState",
         "permit generated 206 only from one matching `SingleRangePlan`",
-        "reject generated multipart/byteranges, but preserve received multipart bodies opaquely",
-        "permit 304 only from the matching conditional GET/HEAD `PreconditionOutcome`",
-        "bind 416 to the matching unsatisfied range context",
+        "if Date, Cache-Control, ETag, Expires, Content-Location, or Vary exists in the snapshot's hypothetical 200, require it in 206",
+        "require every snapshot 200 field among Content-Location, Date, ETag, Vary, Cache-Control, and Expires",
+        "Any snapshot validator, Date, metadata, content-selection, or representation-generation change invalidates every outcome, plan, and response",
+        "Permit 304 only from the matching conditional GET/HEAD `PreconditionOutcome`",
+        "Bind 416 to the matching unsatisfied range context",
         "Reserve engine-only semantic-validation slots and frozen-head storage",
         "prohibit application validation from consuming that reserve",
         "commit exactly one deterministic close/shutdown action with no partial response output",
@@ -408,10 +446,10 @@ def main() -> int:
         "invalid received responses—including HTTP/2 426 without Upgrade—remain framing-synchronized and produce a typed SemanticViolation",
         "forwarded responses preserve end-to-end fields—including unmodified WWW-Authenticate and Authentication-Info",
         "same-generation head substitution, mutable-buffer aliasing, field replacement/reordering",
-        "keep response-head serializer constructors",
+        "keep raw request/response serializers and separable capability/data pairings non-public",
         "owned response builders must obtain and consume the same frozen `ValidatedResponse` object",
         "no facade feature can disable conditional/range/response/trailer validation or the mandatory semantic reserve while retaining serialization",
-        "callers cannot construct/clone/copy/reuse/extract `ResponseEmissionPermit`",
+        "callers cannot construct/clone/copy/reuse/rebind civil-time evidence",
         "Http1DrainingAfterClose",
         "HTTP/2 CONNECT and applicable RFC 8441 END_STREAM enter genuine local/remote half-closed states",
         "map upstream TCP FIN to final DATA plus END_STREAM",
@@ -428,7 +466,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 minor milestones, seven patch stops, and two release candidates")
+    print("release plan: 225 minor milestones, ten patch stops, and two release candidates")
     return 0
 
 

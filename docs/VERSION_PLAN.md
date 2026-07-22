@@ -12,11 +12,12 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review corrected trailer-capability sequencing, froze the
-exact response behind validation, added explicit conditional/range owners,
-reserved mandatory semantic capacity, and restored HTTP/2 401 requirements.
-The roadmap remains at minor `0.225.0` with focused patch stops at
-`0.157.1`–`0.157.3`, `0.180.1`–`0.180.3`, and `0.182.1`.
+The latest design review gates content/method execution behind preconditions,
+validates outbound conditional requests, injects civil time without clock
+ownership, guards client partial recombination, and binds 206/304 to one exact
+hypothetical 200 snapshot. The roadmap remains at minor `0.225.0` with focused
+patch stops at `0.157.1`–`0.157.4`, `0.180.1`–`0.180.4`, `0.181.1`, and
+`0.182.1`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -66,11 +67,15 @@ The roadmap remains at minor `0.225.0` with focused patch stops at
 | Exact Via forwarding and privacy | `0.157.1`, `0.184.0`, `0.185.0` | Parse bounded ordered members/comments, append inbound protocol/version plus configured pseudonym, never replace/combine, cover proxy and gateway applicability, preflight capacity, and expose caller-owned loop detection without input-derived identity. |
 | Definition-permitted trailers | `0.52.0`, `0.53.0`, `0.131.0`, `0.137.0`, `0.157.2`, `0.160.0` | Core field permission exists early; authentication-info generation remains unavailable/classification-only until `vef-auth` owns scheme permission at 0.157.2; received trailers remain capability-free, separate, synchronized, non-retroactive, and destination translation reauthorizes them. |
 | Protocol-specific 426 | `0.126.0`, `0.129.0`, `0.137.0`, `0.160.0`, `0.182.1` | Require Upgrade only for HTTP/1 generation, prohibit local HTTP/2 426, distinguish forbidden received Upgrade from semantic 426-without-Upgrade, and prevent strip-and-forward translation. |
-| Conditional and range ownership | `0.180.1`–`0.180.3`, consumed at `0.182.1` | Add dependency-free `vef-conditions`; parse/compare entity tags and HTTP dates, evaluate conditional fields in RFC order, bound checked Range/Content-Range arithmetic and attack work, and seal generation-bound precondition/single-range outcomes. |
+| Injected civil time | `0.157.4`, `0.160.0`, `0.180.1`, `0.182.1` | Core owns checked UTC values/evidence, optional I/O supplies them, monotonic time stays separate, RFC 850 uses the exact 50-year rule, and Date/Last-Modified behavior is explicit for clock availability and forwarding. |
+| Conditional content/method gate | `0.180.2`–`0.180.3`, integrated at `0.183.0` | Publish only a read-only pending request for selection; sealed snapshot evaluation yields content/execution permits or terminal 304/412; no body, 100 Continue, or method side effect precedes authorization. |
+| Conditional and range ownership | `0.180.1`–`0.180.4`, consumed at `0.182.1` | Add dependency-free `vef-conditions`; parse/compare validators, evaluate conditional fields in RFC order, bound checked Range/Content-Range work, seal generation outcomes, and final-validate exact outbound client requests over both protocols. |
+| Client partial-response guard | `0.180.4`, `0.181.0`–`0.181.1` | Bind 206 inspection to the exact request/validator, verify single-range body length before recombination, invalidate partial state on 200, keep multipart opaque, and preserve well-formed unknown units only for proxy forwarding. |
+| Hypothetical 200 metadata | `0.157.4`, `0.180.2`–`0.180.3`, `0.182.1` | One sealed snapshot binds selection, validator, Date, ordered metadata and representation generation; preconditions, range plans, 206, and 304 share it and every mutation invalidates all derived capabilities. |
 | Exact validated-response binding | `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.197.0` | `ValidatedResponse` owns or immutably borrows the precise ordered head, framing, sensitivity/indexing, body, and trailer plan; engines consume it whole, never `(raw_head, permit)`, and every mutation requires revalidation. |
 | Mandatory semantic reserve | `0.25.0`, `0.38.0`, `0.182.1`, `0.183.0`, `0.191.0` | Reserve engine-only validation slots and frozen-head storage for 400/414/431 and other mandatory output; application work cannot exhaust it, and total reserve failure commits one zero-partial-output close/shutdown action. |
-| Unbypassable response semantics | `0.54.0`, `0.137.0`, `0.157.2`, `0.180.1`–`0.180.3`, `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.194.0`, `0.197.0` | Make `vef-semantics` depend on core/auth/conditions, require the frozen sealed response in both engines, remove raw public response serialization, retain validation through facade/fixed/alloc/features, and compile-fail bypasses. |
-| Role-aware response semantics | `0.157.2`, `0.180.1`–`0.180.3`, `0.182.1`, `0.183.0` | Validate 401 over both protocols, 405, HTTP/1-only 426, sealed single-range generated 206, contextual 304/416, and the complete RFC 9110 matrix; preserve received multipart opaquely; separate local InvalidState from received policy and forwarded fields. |
+| Unbypassable response semantics | `0.54.0`, `0.137.0`, `0.157.2`, `0.180.1`–`0.180.4`, `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.194.0`, `0.197.0` | Make `vef-semantics` depend on core/auth/conditions, require frozen sealed request/response objects in both engines, remove raw public serialization, retain validation through facade/fixed/alloc/features, and compile-fail bypasses. |
+| Role-aware response semantics | `0.157.2`, `0.157.4`, `0.180.1`–`0.180.4`, `0.181.1`, `0.182.1`, `0.183.0` | Validate 401/405/426, snapshot-bound 206/304/416 metadata and Date policy, client partial responses, and the complete RFC 9110 matrix; preserve multipart opaquely and separate local InvalidState from received policy/forwarding. |
 | Server-wide OPTIONS final hop | `0.158.0`, `0.160.0` | Preserve absolute-form through intermediate forward proxies, convert empty-path/absent-query OPTIONS to `*` only at the origin-facing hop, and keep empty query and `/` resource-specific. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
@@ -283,8 +288,9 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.157.0` | Connection-field stripping and cache-metadata preservation | Requires Effective URI and authority consistency; Unlocks Via grammar, append, privacy, and loop policy. |
 | `0.157.1` | Via grammar, append, privacy, and loop policy | Requires Connection-field stripping and cache-metadata preservation; Unlocks Dependency-free generic authentication grammar and sensitive storage. |
 | `0.157.2` | Dependency-free generic authentication grammar and sensitive storage | Requires Via grammar, append, privacy, and loop policy; Unlocks Proxy-authentication hop ownership and 407 lifecycle. |
-| `0.157.3` | Proxy-authentication hop ownership and 407 lifecycle | Requires Dependency-free generic authentication grammar and sensitive storage; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
-| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Proxy-authentication hop ownership and 407 lifecycle; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
+| `0.157.3` | Proxy-authentication hop ownership and 407 lifecycle | Requires Dependency-free generic authentication grammar and sensitive storage; Unlocks Injected civil time and HTTP-date policy. |
+| `0.157.4` | Injected civil time and HTTP-date policy | Requires Proxy-authentication hop ownership and 407 lifecycle; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
+| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Injected civil time and HTTP-date policy; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
 | `0.159.0` | HTTP/1 TE request-field and trailers forwarding semantics | Requires Max-Forwards TRACE and OPTIONS intermediary semantics; Unlocks Normative HTTP/1 and HTTP/2 translation matrix. |
 | `0.160.0` | Normative HTTP/1 and HTTP/2 translation matrix | Requires HTTP/1 TE request-field and trailers forwarding semantics; Unlocks CONNECT translation across HTTP versions. |
 | `0.161.0` | CONNECT translation across HTTP versions | Requires Normative HTTP/1 and HTTP/2 translation matrix; Unlocks RFC 8441 extended CONNECT. |
@@ -309,9 +315,11 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.180.0` | Client request builder and target forms | Requires Priority update flood budgeting; Unlocks Dependency-free conditional semantics crate and validators. |
 | `0.180.1` | Dependency-free conditional semantics crate and validators | Requires Client request builder and target forms; Unlocks Conditional request fields and ordered precondition evaluation. |
 | `0.180.2` | Conditional request fields and ordered precondition evaluation | Requires Dependency-free conditional semantics crate and validators; Unlocks Bounded byte ranges and single-range response planning. |
-| `0.180.3` | Bounded byte ranges and single-range response planning | Requires Conditional request fields and ordered precondition evaluation; Unlocks Client correlation, cancellation, and retry tokens. |
-| `0.181.0` | Client correlation, cancellation, and retry tokens | Requires Bounded byte ranges and single-range response planning; Unlocks Retry safety, idempotency, and body-replayability contract. |
-| `0.182.0` | Retry safety, idempotency, and body-replayability contract | Requires Client correlation, cancellation, and retry tokens; Unlocks Role-aware outbound response semantic validator. |
+| `0.180.3` | Bounded byte ranges and single-range response planning | Requires Conditional request fields and ordered precondition evaluation; Unlocks Outbound conditional and range request validation. |
+| `0.180.4` | Outbound conditional and range request validation | Requires Bounded byte ranges and single-range response planning; Unlocks Client correlation, cancellation, and retry tokens. |
+| `0.181.0` | Client correlation, cancellation, and retry tokens | Requires Outbound conditional and range request validation; Unlocks Client partial-response classification and recombination guard. |
+| `0.181.1` | Client partial-response classification and recombination guard | Requires Client correlation, cancellation, and retry tokens; Unlocks Retry safety, idempotency, and body-replayability contract. |
+| `0.182.0` | Retry safety, idempotency, and body-replayability contract | Requires Client partial-response classification and recombination guard; Unlocks Role-aware outbound response semantic validator. |
 | `0.182.1` | Role-aware outbound response semantic validator | Requires Retry safety, idempotency, and body-replayability contract; Unlocks Origin-server role API. |
 | `0.183.0` | Origin-server role API | Requires Role-aware outbound response semantic validator; Unlocks Forward-proxy role API. |
 | `0.184.0` | Forward-proxy role API | Requires Origin-server role API; Unlocks Reverse-proxy and gateway role API. |

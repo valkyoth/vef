@@ -62,6 +62,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   output, event, transition, and blocked states remain distinguishable.
 - Applications receive no request before framing/routing control data is
   complete and validated.
+- Conditional origin requests expose only a read-only selection view until
+  sealed content/execution permits exist; 100 Continue, body publication, and
+  method side effects cannot cross that gate.
 - Borrowed body events require acknowledgement. Connection reuse is impossible
   until the body/trailer lifecycle completes or a mandatory-close action wins.
 - HTTP/2 receive credit is released only for application-acknowledged or
@@ -74,6 +77,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   unpublished unless an explicitly enabled extension owns their type.
 - Outbound framing is validated as strictly as inbound framing, including
   declared lengths, body-forbidden contexts, trailers, and completion.
+- Typed and generic outbound conditional/range fields share one final frozen
+  validation; client partial recombination requires terminal request-bound
+  Content-Type, Content-Range, body-length, and strong-validator evidence.
 - Mandatory generated responses retain engine-only semantic-validation slots
   and frozen-head storage that application work cannot consume; total reserve
   failure commits one deterministic close/shutdown action with no partial head.
@@ -110,8 +116,10 @@ typed invalid received status evidence, versions, URI/request-target forms,
 ordered fields, message heads, roles, limits, policies, progress, and
 structured diagnostics, including opaque generation-safe compression-principal
 provenance supplied by callers without embedding identity policy in HPACK.
-It owns raw protocol-neutral response heads and trailer-permission evidence,
-but neither grants response emission nor exposes a serializer.
+It owns raw protocol-neutral response heads, trailer-permission evidence, and
+checked `UtcCivilTime` plus generation-bound Available/Unavailable evidence;
+civil time is distinct from monotonic deadlines and grants no clock ownership.
+Raw heads grant no emission and core exposes no serializer.
 
 ### `vef-auth` (planned at `0.157.2`)
 
@@ -120,13 +128,16 @@ credentials, token68, auth-param, authentication field, sensitive-storage, and
 scheme-certified authentication-trailer permission behavior. It implements no
 Basic, Digest, application credential validation, or physical buffer erasure.
 
-### `vef-conditions` (planned at `0.180.1`–`0.180.3`)
+### `vef-conditions` (planned at `0.180.1`–`0.181.1`)
 
 Depends only on `vef-core`. Owns bounded entity-tag and HTTP-date validators,
 strong/weak comparison, conditional-field parsing and RFC-ordered evaluation,
-checked Range/Content-Range arithmetic, and single-range planning. Its sealed
-outcomes bind the exact request/exchange generation and caller-supplied
-representation existence, length, validator, and modification evidence.
+checked Range/Content-Range arithmetic, hypothetical-200 snapshots, staged
+content/execution permits, final outbound request validation, single-range
+planning, and client partial-response/recombination disposition. Its sealed
+outcomes bind exact request/exchange/correlation generations, civil time, and
+caller-supplied representation existence, metadata, length, validator, and
+modification evidence.
 
 ### `vef-semantics` (planned at `0.182.1`)
 
@@ -142,8 +153,9 @@ API pairs a raw head with a permit, and every mutation requires revalidation.
 
 Owns HTTP/1.0 and HTTP/1.1 parsing, serialization, framing, bodies,
 persistence, transitions, and connection state. It cannot parse or select
-HTTP/0.9. It depends on `vef-semantics` and has no public response-head output
-entry that accepts a raw `vef-core` head.
+HTTP/0.9. It depends on `vef-conditions` and `vef-semantics`, consumes frozen
+validated requests/responses, and has no public head-output entry accepting a
+raw `vef-core` request or response.
 
 ### `vef-http09` (planned at `0.76.0`)
 
@@ -171,8 +183,9 @@ representations, indexing policy, and compression budgets.
 Owns frame codecs, exhaustive connection/stream state, message mapping, flow
 control, borrowed inbound DATA acknowledgement, outbound per-stream message
 commands, push, errors, priority signals, and hostile-control budgets. It
-depends on `vef-semantics` plus `vef-hpack`; response HEADERS require a matching
-permit, and HTTP/2 status 426 has no local emission path.
+depends on `vef-conditions`, `vef-semantics`, and `vef-hpack`;
+request/response HEADERS require their exact frozen validated object, and
+HTTP/2 status 426 has no local emission path.
 
 ### `vef-structured-fields` (planned at `0.164.0`)
 
@@ -183,9 +196,10 @@ consume its typed results; this crate owns no connection or scheduling state.
 
 ### `vef-io`
 
-Owns minimal synchronous and poll-based byte progress, injected time,
-deadlines, cancellation, and backpressure contracts. Protocol crates do not
-depend on it; drivers compose from outside.
+Depends on `vef-core`. Owns minimal synchronous and poll-based byte progress,
+monotonic deadline providers, optional civil-clock evidence providers,
+cancellation, and backpressure contracts. Protocol crates do not depend on it;
+drivers compose from outside and may instead pass civil evidence directly.
 
 ### `vef-brynja` (planned at `0.203.0`)
 
@@ -355,6 +369,10 @@ cooperative policy. They are never confused with Authorization; proxy
 challenges/info are scoped back only to the next client and every 407 is
 challenged. All proxy-auth fields are redacted/never-indexed/TRACE-excluded,
 and credentials are logically invalidated across retry.
+v0.157.4 adds checked civil time in core and an optional I/O provider, keeps it
+separate from monotonic deadlines, defines Available/Unavailable origin and
+forwarding Date policy, Last-Modified clamping/external assignment, and the RFC
+850 50-year rule without global clock ownership; no-RTC Aesynx stays supported.
 Then build the normative HTTP/1↔HTTP/2 matrix before destination bytes and add
 Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
@@ -364,13 +382,16 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
-Before the origin role facade, v0.180.1–v0.180.3 create dependency-free
-`vef-conditions`: exact entity tags/HTTP dates and comparison, RFC-ordered
-conditional evaluation, bounded overflow-safe Range/Content-Range parsing,
-and sealed request/exchange-bound precondition and single-range outcomes using
-caller representation evidence. v0.182.1 consumes those outcomes and validates
-the complete generated response status/method/field/content matrix, including
-401 over HTTP/1 and HTTP/2, 405, HTTP/1-only 426, and contextual 206/304/416.
+Before the origin role facade, v0.180.1–v0.181.1 create dependency-free
+`vef-conditions`: civil-aware validators, RFC-ordered evaluation before request
+content, one hypothetical-200 snapshot, bounded range parsing, sealed
+content/execution permits, final frozen client request validation, and
+request-bound partial-response/recombination guards. v0.183.0 exposes only the
+read-only pending selection view before those permits and suppresses early 100,
+body delivery, and method effects. v0.182.1 consumes the same snapshot and
+validates the complete generated response matrix, including 401 over HTTP/1
+and HTTP/2, 405, HTTP/1-only 426, hypothetical-200 metadata for 206/304, and
+contextual 416.
 It creates `vef-semantics`; both engines consume its exact frozen
 `ValidatedResponse`, never a raw head beside a permit, so same-generation head
 substitution, mutable aliasing, and facade/fixed/alloc/feature bypasses are

@@ -88,6 +88,9 @@ partial output, retry, or cancellation cannot advance it ahead of the peer.
 Sensitive indexing uses typed directives and conservative defaults; received
 never-indexed fields cannot be downgraded, secret values do not participate in
 attacker-controlled indexing comparisons, and diagnostics remain redacted.
+Caller-supplied compression-principal tokens tag private dynamic entries;
+encoder lookup across principals is forbidden even for equal bytes, while
+explicitly public entries may be shared and unknown provenance is non-indexed.
 
 `vef-http2` separates frame codec, connection/stream state, and HTTP semantic
 mapping. Stream transitions are exhaustive. Header blocks are atomic across
@@ -111,6 +114,9 @@ and optional-field minima. The connection then applies a typed RFC 9113 error
 delta. A stream-scoped delta may touch only its target stream; compression
 errors and connection-scoped violations stop publication and enqueue exactly
 one bounded GOAWAY action.
+For field-block frames, undersized mandatory priority/promised-ID layouts are
+connection FRAME_SIZE_ERROR, invalid padding/identifiers are connection
+PROTOCOL_ERROR, and HEADERS self-dependency is stream PROTOCOL_ERROR.
 
 Unknown frames are bounded, incrementally drained, and state-neutral unless an
 enabled extension owns their type; they cannot interleave an active field
@@ -119,12 +125,20 @@ discarded padding can be credited internally while output is coalesced under
 rate and amplification limits. The scheduler preserves field-block
 contiguity, mandatory-control capacity, unrelated-stream progress, and bounded
 starvation across cancellation and SETTINGS changes.
+Flood budgets independently charge streams/resets, SETTINGS, PING,
+CONTINUATION, WINDOW_UPDATE, unknown frames, HPACK work, and control output
+before work, never refund Rapid Reset, refill from injected monotonic time, and
+optionally consult a caller-shared cross-connection admission hook.
 
 The planned dependency-free `vef-structured-fields` crate owns RFC 9651
 lexing, item/container grammars, canonical serialization, and bounded
 caller-owned incremental storage. Its lexical dispatcher skeleton precedes
 the item grammars; complete bare-item dispatch is claimed only after every
 item type exists. HTTP/2 priority code consumes its typed output.
+RFC-conformant profiles implement duplicate overwrite and mandatory RFC 9651
+minimum capacities; smaller bare-metal profiles are explicitly constrained and
+capacity exhaustion is never reported as malformed syntax. HTTP/2
+PRIORITY_UPDATE owns only type 0x10 and its request/push stream state matrix.
 
 SETTINGS mutations occur atomically before the corresponding ACK is emitted.
 ENABLE_PUSH is integrated by push ownership, ENABLE_CONNECT_PROTOCOL by the

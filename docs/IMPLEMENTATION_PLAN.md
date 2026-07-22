@@ -82,6 +82,10 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   connection-fatal decisions stop all later application publication.
 - Reusable storage and stream slots carry generations, and borrowed events are
   acknowledged before the underlying slot can be recycled.
+- HPACK dynamic entries carry caller-supplied compression-principal provenance;
+  shared/coalesced connections never look up a private entry across principals.
+- Stream/flood counters charge before work, use saturating arithmetic and
+  injected-time refill, and can consult caller-shared cross-connection limits.
 - No HTTP/0.9, CONNECT, Upgrade, ALPN, or cleartext HTTP/2 transition is guessed.
 - Every behavior has a deterministic socket-free test oracle.
 - Every parser milestone includes negative, truncation, all-single-split,
@@ -97,7 +101,8 @@ Feature-controlled re-exports only. It owns no parser or connection state.
 
 Owns byte-oriented methods, status codes, versions, URI/request-target forms,
 ordered fields, message heads, roles, limits, policies, progress, and
-structured diagnostics.
+structured diagnostics, including opaque generation-safe compression-principal
+provenance supplied by callers without embedding identity policy in HPACK.
 
 ### `vef-http1`
 
@@ -210,9 +215,14 @@ mapping, generation-checked streams, and explicit cancellation/flow credit.
 Every frame codec owns exact length, stream-ID, flag, reserved-bit, padding,
 and error-scope contracts. A dedicated error-delta stop proves stream failures
 cannot mutate unrelated connection state before HPACK/header publication.
+HEADERS/PUSH_PROMISE distinguish undersized mandatory layouts from invalid
+padding and identifier errors. Concurrency counts open/half-closed but not
+reserved streams, and local table capacity remains distinct from peer excess.
 Sensitive HPACK indexing, fail-closed ALPN/prior-knowledge selection,
 field-block-contiguous scheduling, reserved mandatory-control capacity,
 credit-update coalescing, and commit-time frame-limit transitions are explicit.
+Rapid Reset and flood charges are independent and non-refundable; required
+ACK/control output either remains reserved or produces one bounded shutdown.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
@@ -229,6 +239,8 @@ Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
 ENABLE_CONNECT_PROTOCOL and NO_RFC7540_PRIORITIES owner integration, complete
 priority/intermediary/flood behavior, replayability-aware retry tokens,
+RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
+PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 

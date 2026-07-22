@@ -100,7 +100,12 @@ def main() -> int:
     for first, second in ordering:
         if compact.find(first) >= compact.find(second):
             failures.append(f"unsafe milestone ordering: {first} must precede {second}")
-    if "Transactional HPACK context" in detailed or "RFC 7239 where Via" in detailed or "Acceptance contract: Expose " in detailed:
+    if (
+        "Transactional HPACK context" in detailed
+        or "RFC 7239 where Via" in detailed
+        or "Acceptance contract: Expose " in detailed
+        or re.search(r"Acceptance contract: Define the .* state graph", detailed)
+    ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
         "borrowed BodyChunk whose acknowledged prefix alone may be released",
@@ -142,6 +147,22 @@ def main() -> int:
         "exact authenticated post-handshake ALPN value h2",
         "no sniffing or guessed HTTP/1 fallback",
         "protocol choice immutable once preface processing begins",
+        "undersized priority layout to connection FRAME_SIZE_ERROR",
+        "undersized promised-stream layout to connection FRAME_SIZE_ERROR",
+        "generation-safe CompressionPrincipal provenance token",
+        "prohibit encoder lookup across principals",
+        "Count open, half-closed-local, and half-closed-remote streams",
+        "do not terminate existing streams solely because a later setting reduces the limit",
+        "independent saturating budgets for streams opened/reset",
+        "caller-supplied shared admission/budget hook",
+        "never refund those charges for immediate RST_STREAM",
+        "never silently ignore them when the ACK/output budget is exhausted",
+        "valid non-ACK PING cannot be ignored",
+        "overwrite the existing value in place so all but the final value are ignored",
+        "at least 1,024 members and 64-character keys",
+        "every Date from year 1 through 9999",
+        "only HTTP/2 PRIORITY_UPDATE type 0x10",
+        "by fixed policy, ignore a malformed update",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

@@ -12,10 +12,11 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review found remaining HPACK confidentiality, unknown-frame,
-receive-credit emission, scheduler, frame-limit activation, and protocol-
-selection invariants that needed binding acceptance text. These map to existing
-owners, so the dependency-correct roadmap remains at `0.225.0`.
+The latest design review corrected field-block frame error scope and bound
+remaining placeholder contracts, flood accounting, Structured Fields resource
+profiles, HTTP/2 priority/admission rules, and compression-principal
+provenance. These map to existing owners, so the dependency-correct roadmap
+remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -24,6 +25,7 @@ owners, so the dependency-correct roadmap remains at `0.225.0`.
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
+| Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |
 | HPACK wire legality | `0.82.0`–`0.93.0` | Accept non-shortest valid integers, emit canonical integers, reject illegal Huffman EOS/padding and invalid indices, and emit at most two ordered table-size changes. |
 | SETTINGS dependency ordering | `0.108.0` then `0.124.0`, `0.135.0`, `0.141.0`, `0.143.0` | Parse/store early; integrate only after HPACK, streams/windows, admission, and scheduling exist. |
 | HTTP/2 publication order | `0.127.0` before `0.128.0` | Malformed names/values, pseudo-fields, context, and initial Content-Length are rejected before mapped messages can become observable. |
@@ -31,13 +33,19 @@ owners, so the dependency-correct roadmap remains at `0.225.0`.
 | HTTP/2 activation/shutdown | `0.119.0`–`0.122.0` | Make preface, first SETTINGS, frame legality, fragmentation, stream exhaustion, GOAWAY, retry cutoff, and backpressured shutdown explicit. |
 | HTTP/2 error-scope isolation | `0.121.0` | Map every violation to exact code/scope, apply stream-only typed deltas, reserve one RST_STREAM/GOAWAY, and prove unrelated state is unchanged. |
 | HTTP/2 frame envelopes | `0.103.0`–`0.114.0` | Bind exact lengths, stream IDs, flags, reserved bits, padding arithmetic, optional minima, outbound zeroing, and RFC error scope per frame type. |
+| Field-block frame error scope | `0.105.0`, `0.114.0` | Distinguish undersized mandatory layouts as connection FRAME_SIZE_ERROR, invalid padding/identifiers as connection PROTOCOL_ERROR, and HEADERS self-dependency as stream PROTOCOL_ERROR. |
 | Unknown-frame isolation | `0.115.0` | Incrementally drain bounded unknown frames without allocation, mutation, publication, or field-block interleaving unless an enabled extension owns the type. |
 | DATA padding and frame limits | `0.104.0`, `0.136.0`, `0.143.0` | Separate flow-controlled padded payload, application data, Content-Length bytes, local inbound limit, peer outbound limit, and absolute RFC ceiling. |
 | Receive-credit emission | `0.136.0` | Account discarded padding internally at once but coalesce WINDOW_UPDATE under threshold, rate, and amplification budgets. |
 | SETTINGS ACK sequencing | `0.139.0` | Track committed local SETTINGS in a bounded FIFO, ACK oldest first, reject unsolicited ACK, inject timeouts, and reserve mandatory output. |
+| Stream concurrency accounting | `0.140.0`–`0.141.0` | Count open/half-closed but not reserved streams, constrain REFUSED_STREAM to pre-application rejection, preserve existing streams after reductions, and distinguish local table capacity. |
 | Extension SETTINGS ownership | `0.143.0`, `0.145.0`, `0.162.0`, `0.175.0` | Apply MAX_FRAME_SIZE before ACK and integrate push, extended CONNECT, and priority settings only in their owning state machines. |
 | Scheduler and limit activation | `0.142.0`–`0.143.0` | Preserve field-block contiguity, mandatory-control capacity, cross-stream fairness, cancellation safety, and commit-time SETTINGS segmentation/receive-limit transitions. |
 | Fail-closed protocol selection | `0.146.0` | Require authenticated exact h2 ALPN or explicit cleartext policy, consume failed-selection bytes once, and freeze choice when preface processing starts. |
+| Flood and Rapid Reset accounting | `0.147.0`–`0.153.0` | Charge independent non-refundable work before admission, refill saturating budgets from injected time, reserve required replies/shutdown, and permit caller-shared cross-connection limits. |
+| Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
+| HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with exact stream/state/error rules, concurrency bounds, and a fixed ignore-malformed-value policy. |
+| Concrete acceptance contracts | `0.1.0`–`0.225.0` | Eliminate generic state-graph placeholders; type, parser, protocol, adapter, campaign, audit, and release stops use outcome-appropriate acceptance evidence. |
 | Intermediary and retry semantics | `0.158.0`, `0.159.0`, `0.182.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
 | Structured Fields and priority | `0.164.0`–`0.179.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
 | Translation and byte handoff | `0.155.0` then `0.160.0`; `0.188.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |

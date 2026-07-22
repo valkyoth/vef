@@ -30,3 +30,14 @@ status = "planned-optional"
 id = "extended-connect"
 documents = [8441]
 status = "planned-optional"
+
+[[extensions]]
+id = "websocket-opening-handshake"
+documents = [6455]
+status = "planned-optional"
+
+[[exclusions]]
+id = "http11-connect-udp"
+documents = [9298]
+status = "not-applicable-1.0"
+condition = "Reopen only if an HTTP/1.1 CONNECT-UDP profile enters scope."

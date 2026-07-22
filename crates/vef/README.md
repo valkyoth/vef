@@ -42,6 +42,7 @@ VEF 1.0.0 targets:
 
 - explicit HTTP/0.9 compatibility in a separate package, disabled by default;
 - HTTP/1.0 and HTTP/1.1, including RFC 9931 security updates;
+- an optional isolated RFC 6455 WebSocket opening handshake, not frame I/O;
 - HTTP/2 and HPACK;
 - shared HTTP semantics for clients, origin servers, intermediaries, proxies,
   gateways, and tunnel endpoints;
@@ -66,7 +67,7 @@ HTTP/3 and QUIC are explicitly outside VEF 1.x.
 | `vef-io` | Runtime-neutral I/O, polling, clock, and deadline contracts | `no_std` |
 
 The current workspace contains no third-party Rust crates. The isolated
-`vef-http09` package is created at milestone `0.67.0`; it will not be included
+`vef-http09` package is created at milestone `0.74.0`; it will not be included
 by the facade's `http1` or `full` features. Runtime and TLS integrations
 described in the roadmap are separate future trust boundaries; they cannot be
 admitted without an explicit policy decision and never become dependencies of

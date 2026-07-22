@@ -19,6 +19,7 @@ and diagnostics while retaining protocol-appropriate state machines.
 ```text
 vef facade
   |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
+  |-- vef-websocket-handshake --> vef-core  (planned optional extension)
   |-- vef-http1 -----> vef-core
   |-- vef-http2 -----> vef-core
   |       `----------> vef-hpack -----> vef-core
@@ -62,10 +63,20 @@ The parser is an incremental byte-state machine. It does not decode the whole
 message as UTF-8, reparse accepted bytes, scan without limits, allocate from a
 peer length, or continue indefinitely without progress.
 
+Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
+and cancellation are commands with explicit connection-reuse consequences.
+Outbound request/response framing uses one state machine that checks body byte
+counts, trailers, body-forbidden contexts, and completion before reuse.
+
+The optional `vef-websocket-handshake` package owns RFC 6455 opening-handshake
+mechanics and the success publication barrier, but no WebSocket frame protocol.
+
 ## HPACK and HTTP/2
 
 `vef-hpack` owns checked integer, string, Huffman, table, and representation
-codecs. It has no HTTP/2 stream or transport knowledge.
+codecs. It has no HTTP/2 stream or transport knowledge. Valid compression
+state updates are never rolled back because later HTTP semantics reject a
+stream; unsafe incomplete decoding closes the connection.
 
 `vef-http2` separates frame codec, connection/stream state, and HTTP semantic
 mapping. Stream transitions are exhaustive. Header blocks are atomic across
@@ -80,6 +91,8 @@ and intermediary policies are explicit. CONNECT and Upgrade do not expose
 post-transition bytes until success is confirmed. TLS adapters return
 authenticated protocol-selection metadata; they never mutate an established
 HTTP engine into a different protocol.
+TLS/runtime adapters also expose authenticated origin inputs needed for safe
+HTTP/2 coalescing; connection-pool policy remains outside VEF.
 
 ## Third-party boundary
 

@@ -59,6 +59,10 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   output, event, transition, and blocked states remain distinguishable.
 - Applications receive no request before framing/routing control data is
   complete and validated.
+- Borrowed body events require acknowledgement. Connection reuse is impossible
+  until the body/trailer lifecycle completes or a mandatory-close action wins.
+- Outbound framing is validated as strictly as inbound framing, including
+  declared lengths, body-forbidden contexts, trailers, and completion.
 - Parsing and validation produce typed deltas before state is committed.
 - Reusable storage and stream slots carry generations, and borrowed events are
   acknowledged before the underlying slot can be recycled.
@@ -85,12 +89,19 @@ Owns HTTP/1.0 and HTTP/1.1 parsing, serialization, framing, bodies,
 persistence, transitions, and connection state. It cannot parse or select
 HTTP/0.9.
 
-### `vef-http09` (planned at `0.67.0`)
+### `vef-http09` (planned at `0.74.0`)
 
 Owns the exact HTTP/0.9 grammar, explicit client and server roles, and the
 dedicated-listener policy. It has no HTTP/1 fallback, pipelining, forwarding,
 or persistent-connection mode and is not enabled by the facade's `http1` or
 `full` features.
+
+### `vef-websocket-handshake` (planned at `0.66.0`)
+
+Owns the optional RFC 6455 opening handshake: key/version/token validation,
+dependency-free accept generation, subprotocol/extension negotiation metadata,
+Origin preservation, and the post-handshake publication barrier. It does not
+implement WebSocket frames and is not part of `http1` or `full` by default.
 
 ### `vef-hpack`
 
@@ -108,7 +119,7 @@ Owns minimal synchronous and poll-based byte progress, injected time,
 deadlines, cancellation, and backpressure contracts. Protocol crates do not
 depend on it; drivers compose from outside.
 
-### `vef-brynja` (planned at `0.161.0`)
+### `vef-brynja` (planned at `0.172.0`)
 
 Owns the optional first-party Brynja TLS integration after its separate
 admission review. It points inward to `vef-io` and protocol crates, returns
@@ -138,45 +149,55 @@ historical compatibility profile, not a modern standards-track claim. The
 ledger also records verified/held RFC 9112 and RFC 9113 errata, the RFC 9298
 non-applicability decision unless HTTP/1.1 CONNECT-UDP is added, RFC 9111
 cache-preservation duties, and the RFC 3986, RFC 7301, and RFC 8446 mappings.
+RFC 6455 is an optional opening-handshake extension. RFC 9298 is locked but
+not applicable unless HTTP/1.1 CONNECT-UDP enters scope. Via maps to RFC 9110;
+RFC 7239 `Forwarded` transformation remains outside 1.0.
 
 ## 5. Phase sequence
 
-### Phase 1 — Foundation and shared semantics (`0.1.0`–`0.24.0`)
+### Phase 1 — Foundation and shared semantics (`0.1.0`–`0.25.0`)
 
 Establish repository integrity, non-zero progress, checked parsing primitives,
 independent budgets, caller-owned storage, shared byte-oriented HTTP types,
-role policies, sync/poll I/O capabilities, fake transports, and executable
+role policies, sync/poll I/O capabilities, fake transports, the complete
+event/command/acknowledgement/publication contract, and executable
 requirements/errata evidence before accepting a complete message.
 
-### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.25.0`–`0.72.0`)
+### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.26.0`–`0.78.0`)
 
 Implement distinct request and response state machines, strict octet parsing,
-all framing and body modes, bounded pipelines, typed connection-close actions,
-RFC 9931 and WebSocket opening-transition barriers, safe reframing, hardened
-HTTP/1.0, and an isolated `vef-http09` package. End with smuggling,
-cross-protocol, conformance, and pentest campaigns.
+all inbound framing/body modes, a unified outbound message state machine,
+borrowed body acknowledgement and drain/discard/cancel/reuse actions, bounded
+pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
+isolated WebSocket handshake crate, safe reframing, hardened HTTP/1.0, and an
+isolated `vef-http09` package.
 
-### Phase 3 — HPACK and HTTP/2 (`0.73.0`–`0.131.0`)
+### Phase 3 — HPACK and HTTP/2 (`0.79.0`–`0.141.0`)
 
 Implement bounded HPACK, every HTTP/2 frame and semantic mapping, typed
-validate-then-commit deltas, generation-checked streams and tombstones, atomic
-header blocks, independent flow-control and work budgets, mandatory ACK
-tracking, reserved control output, and focused rapid-reset and flood defenses.
+compression synchronization and publication barriers, SETTINGS negotiated
+state, malformed-message and content-length barriers, generation-checked
+streams/tombstones, atomic header blocks, explicit cancel/reset/flow-credit
+lifecycle, independent budgets, mandatory ACK tracking, reserved control
+output, and focused rapid-reset and flood defenses.
 
-### Phase 4 — Proxy, client, server, and public APIs (`0.132.0`–`0.157.0`)
+### Phase 4 — Proxy, client, server, and public APIs (`0.142.0`–`0.168.0`)
 
 Complete HTTP/1↔HTTP/2 translation, authority and effective-URI validation,
 hop stripping, Via and cache preservation, CONNECT/WebSocket bridges,
 Structured Fields and priorities, explicit client correlation and retry
-tokens, role facades, half-close behavior, caller-storage and optional `alloc`
-APIs, diagnostics, interop, compile-fail tests, fuzzing, and soak campaigns.
+tokens, authenticated origin/coalescing inputs, role facades, half-close
+behavior, fixed caller-storage before optional `alloc`, diagnostics, interop,
+compile-fail tests, fuzzing, and soak campaigns.
 
-### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.158.0`–`0.181.0`)
+### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.169.0`–`0.193.0`)
 
 Add standard blocking/nonblocking adapters, admit Brynja only through a
 separate first-party adapter, require authenticated ALPN, prohibit TLS 1.3
-early data for 1.0, and prove the fixed-memory Aesynx capability model. Finish
-the target/architecture matrix, Kani and stateful fuzz campaigns,
+early data for 1.0, prove the fixed-memory Aesynx capability model, and enforce
+deterministic CPU, stack, code-size, amplification, fragmentation-cost, and
+scheduler-fairness budgets. Finish the target/architecture matrix, replay and
+expand the Kani and stateful fuzz harnesses created with each component,
 interoperability, whole-project pentest, independent audit, remediation, API
 freeze, packaging, SBOM, provenance, and release-candidate readiness.
 

@@ -15,6 +15,7 @@ MIT or Apache-2.0 software licenses and are excluded from crate packages.
 | 1945 | Historical HTTP/1.0 and simple-request compatibility profile |
 | 2119, 8174 | Normative requirement language |
 | 3986 | URI generic syntax |
+| 6455 | Optional WebSocket opening handshake |
 | 7301 | ALPN |
 | 7541 | HPACK |
 | 8441 | HTTP/2 extended CONNECT |
@@ -24,6 +25,7 @@ MIT or Apache-2.0 software licenses and are excluded from crate packages.
 | 9112 | HTTP/1.1 messaging |
 | 9113 | HTTP/2 |
 | 9218 | Extensible HTTP priorities |
+| 9298 | Locked non-applicable HTTP/1.1 CONNECT-UDP source |
 | 9651 | Structured Fields |
 | 9931 | Current HTTP/1.1 optimistic-transition security update |
 

@@ -35,6 +35,11 @@ RFC 9112 plus RFC 9931 form VEF's effective HTTP/1.1 security baseline.
 Obsoleted historical documents remain evidence only for explicitly named
 compatibility profiles.
 
+RFC 6455 is tracked for the optional WebSocket opening-handshake extension.
+RFC 9298 is source-locked but explicitly not applicable to 1.0 unless an
+HTTP/1.1 CONNECT-UDP profile is added. Via remains mapped to RFC 9110;
+RFC 7239 `Forwarded` transformation is outside the current 1.0 scope.
+
 ## Generated release evidence
 
 Each release generates role-specific coverage, unimplemented MUST/MUST NOT,

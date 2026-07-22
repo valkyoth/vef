@@ -137,9 +137,10 @@ strong/weak comparison, conditional-field parsing and RFC-ordered evaluation,
 checked Range/Content-Range arithmetic, pre-action representation evidence,
 retrieval-only hypothetical-200 snapshots, staged content/execution permits,
 final outbound request validation, single-range planning, individual partial
-and incomplete-prefix validation, generation-safe cross-request assembly
-contexts, immutable stored-byte/output leases, combination refinement, and
-bounded copy/header-synthesis plans. Its sealed
+head/chunk/completion streaming, optional retained-prefix validation,
+generation-safe cross-request assembly contexts, structurally safe stored-byte/
+output leases, trailer-finalized combination refinement, and bounded copy/
+header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
 caller-supplied representation existence, metadata, length, validator, and
 modification evidence without retroactively revoking a consumed mutation
@@ -397,13 +398,13 @@ Before the origin role facade, v0.180.1–v0.181.2 create dependency-free
 content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
 range parsing, sealed content/execution permits, final frozen client request
 validation, individual partial segments, and fixed-capacity interval/header
-combination plans. Standalone 206 validity does not require a strong validator;
-incomplete prefixes exclude malformed completion; every accepted interval
-immutably leases exact transfer-decoded/content-encoded storage bytes. Assembly
-contexts accept matching strong-validator inputs across requests without
-rebinding them, preflight non-aliasing output, invalidate by variant/storage
-replacement identity rather than validator equality, and order headers when
-the correlation engine publishes each validated head. v0.183.0 exposes only the
+combination plans. Standalone 206 streams without storage or a strong validator;
+only opt-in exclusive-slice/sealed-arena retention freezes bytes for assembly.
+Trailer processing finalizes stored validators without changing head decisions.
+Assembly contexts match semantic variant/principal/privacy/navigation identity
+across requests, keep physical generations in leases, reject `Vary: *`, acquire
+non-aliasing output safely, and order headers when the correlation engine
+publishes each validated head. v0.183.0 exposes only the
 read-only pending selection view before those permits and suppresses early 100,
 body delivery, and method effects. A consumed unsafe execution permit survives
 the mutation it authorized; its response uses fresh evidence. v0.182.1 consumes

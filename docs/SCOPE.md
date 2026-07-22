@@ -48,12 +48,13 @@ checked caller/adapter civil-time evidence (including an explicit unavailable
 state) independently of monotonic deadlines. Built-in client handling validates
 single-range 206 and keeps multipart opaque as NeedsMultipartConsumer. Its
 fixed-capacity partial-combination plan handles validated byte-range segments
-and incomplete-200 prefixes from multiple request generations under an exact
-strong-validator assembly context, immutable transfer-decoded/content-encoded
-storage leases, variant/storage replacement identity, and validated-head
-ordering. Input/output aliasing, in-place decoding/transformation, multipart,
-and unknown range units never enter combination. A valid standalone 206 can
-remain non-combinable without becoming a protocol error.
+and incomplete-200 prefixes from multiple request generations, but standalone
+206 bodies can stream without retention. Optional combination requires safely
+frozen transfer-decoded/content-encoded storage, trailer-finalized strong
+validators, semantic variant/principal/privacy/navigation identity, and
+validated-head ordering. Physical arena generations affect leases, not semantic
+replacement; `Vary: *`, input/output aliasing, in-place transformation,
+multipart, and unknown units never enter combination.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

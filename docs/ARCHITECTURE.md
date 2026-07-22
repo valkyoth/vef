@@ -327,19 +327,20 @@ remains opaque and forwardable, never parsed or generated.
 Outbound conditional/range requests receive the same final frozen validation
 over typed or generic fields before either engine serializes them. Client 206
 classification checks Content-Type, Content-Range, request/validator identity,
-and terminal body length before producing one standalone-valid segment even
-when validator evidence is absent or weak; incomplete 200 prefixes have a
-separate typed path that malformed HTTP/1 or HTTP/2 completion can never enter.
-Both contain an inseparable immutable lease over exact transfer-decoded but
-content-encoded bytes and storage generation. A generation-safe assembly
-context refines inputs from distinct original requests only after target,
-representation, coding/domain, length, and strong-validator matching. Its
-bounded plan preflights non-aliasing input/output leases and selects headers by
-an ordinal minted when each validated head is published, never peer Date or
-body completion. A successful complete 200 with the same target/Vary/coding/
-domain/storage replacement identity invalidates the context regardless of
-validator equality; other variants do not. Multipart remains external, and
-unknown units never authorize recombination.
+and publishes a generation-bound validated head. Borrowed accounted chunks can
+stream to the application with no retained storage; terminal standalone proof
+does not require a strong validator. Optional retention safely converts an
+exclusive slice/sealed-arena write into an immutable transfer-decoded but
+content-encoded `StoredPartialSegment`; only this stored form can combine.
+Combination eligibility waits through validated trailers, which may supply
+ETag but cannot change range/domain or the head-published ordinal. A
+generation-safe assembly context matches target, Vary, coding/domain,
+representation principal, privacy partition, navigation, length, and strong
+validator across original requests; `Vary: *` never matches. Physical storage
+generation stays in leases, not semantic replacement identity. Output comes
+from safe non-overlapping splitting or a separate arena, and completed same-key
+200 invalidates across arena generations. Multipart and unknown units remain
+outside recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage
 are reserved for mandatory responses and cannot be consumed by application

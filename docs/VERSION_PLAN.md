@@ -14,9 +14,9 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 The latest design review gates content/method execution behind preconditions,
 separates pre-action evidence from retrieval metadata, resolves obsolete dates
-from a complete instant, validates standalone partial responses independently
-of combination eligibility, and binds cross-request assembly to immutable
-representation bytes and explicit replacement identity. The roadmap
+from a complete instant, streams standalone partial responses without forced
+retention, and binds optional cross-request assembly to structurally safe
+leases and explicit semantic replacement identity. The roadmap
 remains at minor `0.225.0` with focused patch stops at
 `0.157.1`–`0.157.4`, `0.180.1`–`0.180.4`, `0.181.1`–`0.181.2`, and
 `0.182.1`.
@@ -73,10 +73,11 @@ remains at minor `0.225.0` with focused patch stops at
 | Conditional content/method gate | `0.180.2`–`0.180.3`, integrated at `0.183.0` | Publish only a read-only pending request; current pre-action evidence authorizes every conditional method, retrieval-only 200 metadata supports GET/HEAD, and no body, 100 Continue, or side effect precedes a one-shot permit. The mutation caused by a consumed execution permit cannot revoke that admission; response construction uses fresh evidence. |
 | Conditional and range ownership | `0.180.1`–`0.180.4`, consumed at `0.182.1` | Add dependency-free `vef-conditions`; parse/compare validators, evaluate conditional fields in RFC order, bound checked Range/Content-Range work, seal generation outcomes, and final-validate exact outbound client requests over both protocols. |
 | Content-Range generic validity | `0.180.3`, consumed at `0.181.1` | Unknown units remain distinct from malformed input but must still pass one range response alternative, checked decimals, ordered endpoints, complete-length bounds, limits, and injection checks; they never grant recombination authority. |
-| Standalone partial and incomplete input | `0.181.0`–`0.181.1` | A structurally valid correlated 206 remains application-visible with absent/weak validators but is StandaloneOnly/NoRecombine; a prematurely terminated 200 with complete valid head becomes a typed incomplete prefix or discard, never complete fallback. |
+| Streaming standalone partial input | `0.181.0`–`0.181.1` | Validate the 206 head, stream borrowed accounted chunks without retention/allocation, and issue terminal standalone proof even with absent/weak validators; storage is optional and only stored segments can become combinable. |
 | Malformed versus incomplete content | `0.127.0`, `0.130.0`, `0.181.1` | Only premature EOF/reset/failure/cancellation after a valid complete head can yield an incomplete prefix; clean HTTP/2 END_STREAM length mismatch, invalid fields/HPACK/framing, ambiguous HTTP/1 framing, and malformed chunks yield no prefix capability. |
-| Immutable stored representation bytes | `0.181.1`–`0.181.2` | Every partial/prefix inseparably leases exact transfer-decoded but content-encoded bytes and storage generation; combination preflights immutable inputs, a distinct non-aliasing output lease, and a bounded copy schedule before atomic publication. |
-| Cross-request partial assembly | `0.181.1`–`0.181.2` | A generation-safe assembly context refines matching strong-validator inputs from distinct requests while retaining original correlation/storage leases; completed 200 invalidation uses target/Vary/coding/domain/storage replacement identity, not old-validator equality. |
+| Structurally safe stored bytes | `0.181.1`–`0.181.2` | Build optional leases only from exclusive slices/sealed arenas, freeze them after engine writes, prohibit public trust constructors and caller storage traits, require fenced DMA adapters, and obtain output through safe splitting or a separate arena. |
+| Semantic replacement identity | `0.181.1`–`0.181.2` | Keep physical lease generation out of effective-target/Vary/coding/domain/principal/privacy/navigation identity; full 200 supersedes across arenas, different principals/variants do not, and `Vary: *` never combines across requests. |
+| Trailer-finalized combination | `0.52.0`, `0.131.0`, `0.181.1`–`0.181.2` | Stream under the validated head, but finalize stored combination eligibility only after trailers; a permitted trailer ETag may supply the validator, conflicts are deterministic, and trailers cannot change range/domain/head ordinal. |
 | Local head ordering | `0.181.0`, implemented at `0.181.2` | The correlation engine mints a checked monotonic ordinal when each validated head is atomically published—not at body completion and never from peer Date—so body delay, retry, and reordering cannot manipulate header-source selection. |
 | Representation evidence split | `0.180.2`–`0.180.3`, `0.182.1`, `0.183.0` | `CurrentRepresentationEvidence` holds pre-action existence/validator state for all methods; `WouldBe200Snapshot` is a retrieval-only refinement for range, 206, and 304; unsafe success obtains new post-action evidence rather than retroactively invalidating its permit. |
 | Exact validated-response binding | `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.197.0` | `ValidatedResponse` owns or immutably borrows the precise ordered head, framing, sensitivity/indexing, body, and trailer plan; engines consume it whole, never `(raw_head, permit)`, and every mutation requires revalidation. |
@@ -324,9 +325,9 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.180.2` | Conditional request fields and ordered precondition evaluation | Requires Dependency-free conditional semantics crate and validators; Unlocks Bounded byte ranges and single-range response planning. |
 | `0.180.3` | Bounded byte ranges and single-range response planning | Requires Conditional request fields and ordered precondition evaluation; Unlocks Outbound conditional and range request validation. |
 | `0.180.4` | Outbound conditional and range request validation | Requires Bounded byte ranges and single-range response planning; Unlocks Client correlation, cancellation, and retry tokens. |
-| `0.181.0` | Client correlation, cancellation, and retry tokens | Requires Outbound conditional and range request validation; Unlocks Client partial-segment and incomplete-prefix validation. |
-| `0.181.1` | Client partial-segment and incomplete-prefix validation | Requires Client correlation, cancellation, and retry tokens; Unlocks Cross-request partial assembly and header synthesis. |
-| `0.181.2` | Cross-request partial assembly and header synthesis | Requires Client partial-segment and incomplete-prefix validation; Unlocks Retry safety, idempotency, and body-replayability contract. |
+| `0.181.0` | Client correlation, cancellation, and retry tokens | Requires Outbound conditional and range request validation; Unlocks Streaming partial-response and retained-prefix validation. |
+| `0.181.1` | Streaming partial-response and retained-prefix validation | Requires Client correlation, cancellation, and retry tokens; Unlocks Cross-request partial assembly and header synthesis. |
+| `0.181.2` | Cross-request partial assembly and header synthesis | Requires Streaming partial-response and retained-prefix validation; Unlocks Retry safety, idempotency, and body-replayability contract. |
 | `0.182.0` | Retry safety, idempotency, and body-replayability contract | Requires Cross-request partial assembly and header synthesis; Unlocks Role-aware outbound response semantic validator. |
 | `0.182.1` | Role-aware outbound response semantic validator | Requires Retry safety, idempotency, and body-replayability contract; Unlocks Origin-server role API. |
 | `0.183.0` | Origin-server role API | Requires Role-aware outbound response semantic validator; Unlocks Forward-proxy role API. |

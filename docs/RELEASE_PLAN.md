@@ -1555,7 +1555,7 @@ on v0.38.0 (Typed HTTP/1 protocol-error response and close actions) and must be 
 
 #### Deliverables
 
-- Acceptance contract: For every HTTP/1.1 request require exactly one syntactically valid Host field, reject missing, empty, comma-combined, or duplicate Host even when values match, and validate its authority form before request publication; HTTP/1.0 retains Host as an ordinary optional field under its separate profile.
+- Acceptance contract: For every HTTP/1.1 request require exactly one syntactically valid Host field, including the grammar-valid empty value required when the target URI has no authority; reject missing, comma-combined, duplicate even when values match, and otherwise malformed Host before request publication, while deferring empty effective-authority accept/reject policy to v0.156.0; HTTP/1.0 retains Host as an ordinary optional field under its separate profile; named vectors cover missing, duplicate, combined, malformed, and empty Host with targets both with and without authority.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1594,7 +1594,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: Require authority-form only for CONNECT, asterisk-form only for server-wide OPTIONS, origin-form for ordinary origin requests, and absolute-form only where the role permits proxy requests; reject fragments, empty targets, and method/form mismatches before routing publication, while preserving unknown methods as case-sensitive tokens.
+- Acceptance contract: Require authority-form only for CONNECT and asterisk-form only for server-wide OPTIONS; accept origin-form and absolute-form for ordinary requests at every receiving server role, including origin servers; for absolute-form derive routing authority exclusively from the request-target, ignore received Host for that routing decision, and require a forwarding proxy to regenerate Host from the target authority rather than forward the received value; reject fragments, empty targets, and other method/form mismatches before routing publication while preserving unknown methods as case-sensitive tokens.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1606,7 +1606,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Verification
 
-- Test Method and request-target-form coherence and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test origin-server and proxy absolute-form, target-authority/Host conflicts proving the target wins, regenerated forwarding Host, every target form/method mismatch, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1985,7 +1985,7 @@ on v0.49.0 (Incremental chunk-data state) and must be independently trustworthy 
 
 #### Deliverables
 
-- Acceptance contract: Parse each chunk extension as semicolon token with optional token-or-quoted-string value, including quoted-pair rules; reject empty names and malformed quotes/escapes, cap extension count, name/value bytes, total line bytes, and work independently, and ignore unknown extension semantics without allocating from peer lengths.
+- Acceptance contract: Parse exactly *(BWS ";" BWS token [BWS "=" BWS (token / quoted-string)]) after chunk-size, including quoted-pair rules; count every raw BWS octet against line and work limits but remove BWS before extension-semantic interpretation; reject obs-fold, CR/LF injection, empty names, malformed quotes/escapes, cap extension count, name/value bytes, total line bytes, and work independently, and ignore unknown extension semantics without allocating from peer lengths; named vectors cover BWS around each delimiter at every split, semantic trimming, injection, quoting, empty names, and each independent limit.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2336,7 +2336,7 @@ on v0.58.0 (Optional bounded pipelining queue) and must be independently trustwo
 
 #### Deliverables
 
-- Acceptance contract: Permit zero or more 100..199 responses before exactly one final response, keep 101 solely for the validated Upgrade transition, reject informational responses after a final response and invalid body framing on 1xx, and correlate every event to the active request without completing or recycling it early.
+- Acceptance contract: Model two exclusive response branches: zero or more informational responses in 100..=199 excluding 101 followed by exactly one final response, or one validated 101 that terminally ends HTTP and is followed only by the selected protocol; HTTP/1.0 servers never emit any 1xx, informational responses after a final/101 and invalid 1xx framing are rejected, and every event remains correlated to the active request without premature completion or recycling.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2348,7 +2348,7 @@ on v0.58.0 (Optional bounded pipelining queue) and must be independently trustwo
 
 #### Verification
 
-- Test Informational response lifecycle and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test the informational-then-final and terminal-101 branches separately, HTTP/1.0 1xx emission rejection, post-final/post-101 invalid states, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2375,7 +2375,7 @@ on v0.59.0 (Informational response lifecycle) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Recognize exact 100-continue, emit 417 for unsupported expectations by policy, withhold client bodies, accept caller timeout decisions through injected time, handle final-before-100 and server pre-body rejection, bound drain-or-close behavior, and preserve pipeline ordering around interim responses.
+- Acceptance contract: Recognize exact 100-continue, emit 417 for unsupported expectations by policy, withhold client bodies, accept caller timeout decisions through injected time, handle final-before-100 and server pre-body rejection, bound drain-or-close behavior, and preserve pipeline ordering around interim responses; if Upgrade will succeed, require 100 to commit before 101 whenever Expect: 100-continue applies, and forbid 101 until the complete request message has been sent or received.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2387,7 +2387,7 @@ on v0.59.0 (Informational response lifecycle) and must be independently trustwor
 
 #### Verification
 
-- Test Expect: 100-continue state and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test final-before-100, 100-before-body, mandatory 100-before-101, rejection of 101 before request completion, timeout/drain/close choices, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2648,7 +2648,7 @@ on v0.66.0 (Connection-option, Upgrade, and hop-by-hop field grammar) and must b
 
 #### Deliverables
 
-- Acceptance contract: Commit a valid 101 transition before exposing buffered post-handshake bytes and reject success paths whose Connection/Upgrade prerequisites are invalid.
+- Acceptance contract: Commit a valid 101 only after its Connection/Upgrade prerequisites and selected protocol validate and the complete request message has been sent or received; treat it as the terminal HTTP response branch, hand buffered post-handshake bytes exactly once exclusively to the selected protocol, and make every later HTTP response parse, serialization, body, trailer, pipeline, or reuse operation an InvalidState without consuming or emitting bytes.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2660,7 +2660,7 @@ on v0.66.0 (Connection-option, Upgrade, and hop-by-hop field grammar) and must b
 
 #### Verification
 
-- Test 101 Switching Protocols transition and publication barrier and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test complete-request gating, invalid Connection/Upgrade selection, exactly-once over-read handoff, and every HTTP parse/serialize/body/trailer/pipeline operation after 101 returning InvalidState without byte progress, plus all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2726,7 +2726,7 @@ on v0.68.0 (Separate WebSocket handshake crate, key, version, and token validati
 
 #### Deliverables
 
-- Acceptance contract: Require a validated WebSocketNonce([u8; 16]) from the caller or adapter-only entropy capability for every client handshake; core code rejects missing/reused-policy input and never creates deterministic, time-derived, repeated, or weak keys.
+- Acceptance contract: Require a validated WebSocketNonce([u8; 16]) from the caller or adapter-only entropy capability for every client handshake, including each HTTP/2-downstream to HTTP/1-upstream bridge attempt; core code rejects missing/reused-policy input and never creates deterministic, time-derived, repeated, or weak keys.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6150,7 +6150,7 @@ on v0.155.0 (Protocol-neutral HTTP translation representation) and must be indep
 
 #### Deliverables
 
-- Acceptance contract: Derive scheme, authority, port, path, request-target form, Host/:authority consistency, CONNECT tunnel authority, and end-origin identity without normalization; reject ambiguity before translation IR publication and distinguish syntax, policy, and caller-capacity failures.
+- Acceptance contract: Derive scheme, authority, port, path, request-target form, Host/:authority consistency, CONNECT tunnel authority, and end-origin identity without normalization; for an absolute-form request use its target authority and ignore Host for routing, while an empty resulting effective authority is either rejected by explicit policy or replaced only by an explicitly configured connection-context default and is never inferred; reject every remaining ambiguity before translation IR publication and distinguish syntax, policy, and caller-capacity failures.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6162,7 +6162,7 @@ on v0.155.0 (Protocol-neutral HTTP translation representation) and must be indep
 
 #### Verification
 
-- Test Effective URI and authority consistency and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test absolute-target authority versus conflicting Host, origin-server absolute-form, grammar-valid empty Host, explicit reject/default handling for empty effective authority, regenerated proxy Host, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6380,11 +6380,11 @@ Status: planned
 #### Goal
 
 Deliver **RFC 8441 extended CONNECT** as the sole primary capability in this stop. It builds
-on v0.161.0 (CONNECT translation across HTTP versions) and must be independently trustworthy before v0.163.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) begins.
+on v0.161.0 (CONNECT translation across HTTP versions) and must be independently trustworthy before v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) begins.
 
 #### Deliverables
 
-- Acceptance contract: Permit extended CONNECT only after the peer's SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective and the completed translation matrix authorizes the request; enforce :protocol plus the extended :scheme/:path/:authority matrix, distinguish ordinary CONNECT, reject 101 semantics, and publish no tunnel or WebSocket transition before the final response and byte-handoff contract succeeds.
+- Acceptance contract: Permit extended CONNECT only after the peer's SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective and the completed translation matrix authorizes the request; a proxy/gateway advertises local ENABLE_CONNECT_PROTOCOL only when its native endpoint or fully configured bridge is actually available, including the caller entropy capability needed for HTTP/1 upstream handshakes; enforce :protocol plus the extended :scheme/:path/:authority matrix, distinguish ordinary CONNECT, reject 101 semantics, and publish no tunnel or WebSocket transition before the final response and byte-handoff contract succeeds.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6396,7 +6396,7 @@ on v0.161.0 (CONNECT translation across HTTP versions) and must be independently
 
 #### Verification
 
-- Test RFC 8441 extended CONNECT and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test peer activation and local advertisement separately, including disabled/missing bridge, missing entropy capability, native endpoint ownership, ordinary versus extended CONNECT, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6406,24 +6406,24 @@ on v0.161.0 (CONNECT translation across HTTP versions) and must be independently
 #### Exit criteria
 
 The RFC 8441 extended CONNECT contract and all previously implemented relevant behavior have
-reproducible evidence; v0.161.0 (CONNECT translation across HTTP versions) still passes; no behavior assigned to v0.163.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) is
+reproducible evidence; v0.161.0 (CONNECT translation across HTTP versions) still passes; no behavior assigned to v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.162.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.163.0 — WebSocket HTTP/1 to HTTP/2 handshake bridge
+### v0.163.0 — Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge
 
 Status: planned
 
 #### Goal
 
-Deliver **WebSocket HTTP/1 to HTTP/2 handshake bridge** as the sole primary capability in this stop. It builds
+Deliver **Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge** as the sole primary capability in this stop. It builds
 on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy before v0.164.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) begins.
 
 #### Deliverables
 
-- Acceptance contract: Translate a validated HTTP/1 GET Upgrade websocket handshake to RFC 8441 extended CONNECT only after peer ENABLE_CONNECT_PROTOCOL, and map a successful HTTP/2 2xx back to HTTP/1 101 with validated accept/subprotocol/extensions; failure remains HTTP, and no WebSocket byte crosses either side before both transitions commit.
+- Acceptance contract: For HTTP/1 downstream to HTTP/2 upstream, validate and retain the HTTP/1 Sec-WebSocket-Key, strip Connection, Upgrade, Host, Sec-WebSocket-Key, and any Sec-WebSocket-Accept, construct the extended CONNECT pseudo-fields, validate the HTTP/2-selected subprotocol/extensions against the original offers without processing key/accept upstream, and only after the HTTP/2 2xx commits locally compute the HTTP/1 Sec-WebSocket-Accept and commit 101; for HTTP/2 downstream to HTTP/1 upstream, obtain a fresh v0.69.0 nonce, generate the HTTP/1 key, validate the upstream 101 plus accept hash and selected negotiation, then translate success to HTTP/2 2xx; no WebSocket byte crosses until both sides commit, and either-direction failure remains independently HTTP-framed on each side.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6435,6 +6435,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Verification
 
+- Test both translation directions with RFC 6455/RFC 8441 vectors: stripped/generated fields, fresh nonce use, locally generated downstream accept, upstream accept validation, subprotocol/extension mismatch, independent failure responses, cancellation, and zero WebSocket bytes before both commits.
 - Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
 - Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
@@ -6445,7 +6446,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Exit criteria
 
-The WebSocket HTTP/1 to HTTP/2 handshake bridge contract and all previously implemented relevant behavior have
+The Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge contract and all previously implemented relevant behavior have
 reproducible evidence; v0.162.0 (RFC 8441 extended CONNECT) still passes; no behavior assigned to v0.164.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
@@ -6459,7 +6460,7 @@ Status: planned
 #### Goal
 
 Deliver **vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton** as the sole primary capability in this stop. It builds
-on v0.163.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) and must be independently trustworthy before v0.165.0 (Structured Fields integer and decimal ranges) begins.
+on v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) and must be independently trustworthy before v0.165.0 (Structured Fields integer and decimal ranges) begins.
 
 #### Deliverables
 
@@ -6485,7 +6486,7 @@ on v0.163.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) and must be independen
 #### Exit criteria
 
 The vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton contract and all previously implemented relevant behavior have
-reproducible evidence; v0.163.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) still passes; no behavior assigned to v0.165.0 (Structured Fields integer and decimal ranges) is
+reproducible evidence; v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) still passes; no behavior assigned to v0.165.0 (Structured Fields integer and decimal ranges) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 

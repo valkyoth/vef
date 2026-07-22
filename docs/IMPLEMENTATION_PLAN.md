@@ -210,10 +210,19 @@ borrowed body acknowledgement and drain/discard/cancel/reuse actions, bounded
 pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
 isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
+Host syntax accepts the RFC-required empty value; every server accepts
+absolute-form, routes it by request-target authority, and a forwarding proxy
+regenerates Host. Empty effective authority needs explicit reject/default
+policy and is never inferred.
 Request transfer codings require final chunked; responses may instead become
 close-delimited, with repeated chunked and unsupported coding kept distinct.
 RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close,
 and no failed optimistic transition bytes are reparsed as HTTP.
+Informational responses exclude 101: an exchange ends through either ordinary
+1xx then one final response, or one validated terminal 101 after complete
+request processing (and required 100), after which every HTTP operation fails.
+Chunk extensions implement the exact BWS-delimited RFC grammar while charging
+raw whitespace and stripping it only for semantic interpretation.
 
 ### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.154.0`)
 
@@ -254,6 +263,10 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
+The v0.163 bridge is bidirectional: HTTP/1-side key/accept processing never
+leaks into RFC 8441, the reverse direction consumes fresh caller entropy, local
+ENABLE_CONNECT_PROTOCOL advertisement requires an available endpoint/bridge,
+and no WebSocket data crosses before both handshakes commit.
 PRIORITY_UPDATE request and push targets use one receiver-server-relative state
 convention, including reserved-local and half-closed-remote push targets.
 

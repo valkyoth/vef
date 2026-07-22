@@ -12,19 +12,21 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review corrected status-code domains, request/response
-transfer-coding asymmetry, RFC 9931 transition defenses, receiver-relative
-priority states, HPACK synchronization during refusal, and compression
-provenance bookkeeping. It also replaced every remaining family-template
-acceptance clause with milestone-specific behavior. These map to existing
-owners, so the dependency-correct roadmap remains at `0.225.0`.
+The latest design review corrected Host/absolute-form authority handling,
+made the WebSocket HTTP/1↔HTTP/2 bridge bidirectional, separated terminal 101
+from ordinary informational/final response flow, and bound the exact
+chunk-extension BWS grammar. These map to existing owners, so the
+dependency-correct roadmap remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
 | Early resource ceilings | `0.7.0`; replay at `0.211.0` | Set measurable ceilings before layouts/state machines land and verify every later component against them. |
 | Capacity versus protocol errors | `0.10.0` | Local storage/backpressure/control-capacity failures never masquerade as peer protocol violations. |
 | Status-code validity | `0.12.0` | Limit StatusCode to 100..=599, preserve unknown valid codes, retain received 600..=999 only as typed invalid wire evidence, process them under client 5xx policy, and prohibit serialization. |
+| Host and absolute-form authority | `0.39.0`, `0.40.0`, `0.156.0` | Accept grammar-valid empty Host, accept absolute-form at all servers, route it by target authority, regenerate proxy Host, and require explicit empty-effective-authority policy/default. |
+| Terminal 101 response branch | `0.59.0`, `0.60.0`, `0.67.0` | Separate informational-then-final from terminal 101, prohibit HTTP/1.0 1xx emission, complete the request and any required 100 first, and reject all HTTP operations after handoff. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
+| Bidirectional WebSocket bridge | `0.69.0`, `0.162.0`, `0.163.0` | Bridge both HTTP/1→HTTP/2 and HTTP/2→HTTP/1, keep key/accept processing on the HTTP/1 side, gate settings advertisement on availability, and commit both sides before WebSocket bytes. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
 | Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |
@@ -48,6 +50,7 @@ owners, so the dependency-correct roadmap remains at `0.225.0`.
 | Fail-closed protocol selection | `0.146.0` | Require authenticated exact h2 ALPN or explicit cleartext policy, consume failed-selection bytes once, and freeze choice when preface processing starts. |
 | Flood and Rapid Reset accounting | `0.147.0`–`0.153.0` | Charge independent non-refundable work before admission, refill saturating budgets from injected time, reserve required replies/shutdown, and permit caller-shared cross-connection limits. |
 | HTTP/1 transfer-coding roles | `0.43.0`–`0.45.0` | Require final chunked on requests, permit response close delimitation for other/non-final transfer codings, reject repeated chunked, and separate unsupported coding from malformed order. |
+| Chunk-extension BWS grammar | `0.50.0` | Accept BWS around semicolon and equals exactly, charge raw whitespace to limits, trim before semantic interpretation, and retain injection/quoting rejection. |
 | RFC 9931 optimistic-data closure | `0.65.0` | Require CONNECT proxy wait-or-close behavior, mandatory close after rejected CONNECT, no pre-101 WebSocket or HTTP/1.x CONNECT-UDP data, and no failed-transition reparsing. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
@@ -261,9 +264,9 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.159.0` | HTTP/1 TE request-field and trailers forwarding semantics | Requires Max-Forwards TRACE and OPTIONS intermediary semantics; Unlocks Normative HTTP/1 and HTTP/2 translation matrix. |
 | `0.160.0` | Normative HTTP/1 and HTTP/2 translation matrix | Requires HTTP/1 TE request-field and trailers forwarding semantics; Unlocks CONNECT translation across HTTP versions. |
 | `0.161.0` | CONNECT translation across HTTP versions | Requires Normative HTTP/1 and HTTP/2 translation matrix; Unlocks RFC 8441 extended CONNECT. |
-| `0.162.0` | RFC 8441 extended CONNECT | Requires CONNECT translation across HTTP versions; Unlocks WebSocket HTTP/1 to HTTP/2 handshake bridge. |
-| `0.163.0` | WebSocket HTTP/1 to HTTP/2 handshake bridge | Requires RFC 8441 extended CONNECT; Unlocks vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton. |
-| `0.164.0` | vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton | Requires WebSocket HTTP/1 to HTTP/2 handshake bridge; Unlocks Structured Fields integer and decimal ranges. |
+| `0.162.0` | RFC 8441 extended CONNECT | Requires CONNECT translation across HTTP versions; Unlocks Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge. |
+| `0.163.0` | Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge | Requires RFC 8441 extended CONNECT; Unlocks vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton. |
+| `0.164.0` | vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton | Requires Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge; Unlocks Structured Fields integer and decimal ranges. |
 | `0.165.0` | Structured Fields integer and decimal ranges | Requires vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton; Unlocks Structured Fields strings, tokens, bytes, booleans, dates, and display strings. |
 | `0.166.0` | Structured Fields strings, tokens, bytes, booleans, dates, and display strings | Requires Structured Fields integer and decimal ranges; Unlocks Structured Fields complete bare-item dispatcher. |
 | `0.167.0` | Structured Fields complete bare-item dispatcher | Requires Structured Fields strings, tokens, bytes, booleans, dates, and display strings; Unlocks Structured Fields parameters. |

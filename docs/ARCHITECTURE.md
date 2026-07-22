@@ -71,6 +71,11 @@ HTTP/0.9.
 The parser is an incremental byte-state machine. It does not decode the whole
 message as UTF-8, reparse accepted bytes, scan without limits, allocate from a
 peer length, or continue indefinitely without progress.
+HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
+when the target URI has no authority. Every server accepts absolute-form and
+routes from its target authority rather than Host; forwarding proxies
+regenerate Host. Empty effective authority is rejected or supplied only by an
+explicit connection-context policy, never inferred.
 
 Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
@@ -81,9 +86,20 @@ whereas responses can be delimited by close when chunked is non-final or a
 different coding is final. Repeated chunked is malformed; an unsupported valid
 coding is a separate policy outcome. RFC 9931 CONNECT rejection always closes
 and optimistic protocol bytes never re-enter HTTP parsing after failed handoff.
+An HTTP response lifecycle has two terminal shapes: non-101 informational
+responses followed by one final response, or one validated 101 after the full
+request (and any required 100) commits. After 101, only the selected protocol
+can consume or emit bytes. Chunk extensions accept RFC 9112 BWS around `;` and
+`=`, charge raw BWS to limits, and trim it only for extension semantics.
 
 The optional `vef-websocket-handshake` package owns RFC 6455 opening-handshake
 mechanics and the success publication barrier, but no WebSocket frame protocol.
+The cross-version gateway is bidirectional. HTTP/1-to-HTTP/2 retains the key
+and generates the downstream accept locally after the RFC 8441 2xx; the reverse
+direction obtains fresh caller entropy and validates the HTTP/1 upstream 101.
+HTTP/2 never processes key/accept fields, settings advertisement requires an
+available endpoint/bridge, failures stay independently HTTP-framed, and data
+handoff waits for both sides to commit.
 
 ## HPACK and HTTP/2
 

@@ -64,6 +64,7 @@ def main() -> int:
         "Retry safety, idempotency, and body-replayability contract",
         "Exact CONNECT, Upgrade, and tunnel byte-handoff ownership",
         "HTTP/2 TLS admission prerequisites and authenticated metadata",
+        "Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge",
     )
     for marker in required_markers:
         if marker not in detailed or marker not in compact:
@@ -110,6 +111,12 @@ def main() -> int:
         or re.search(r"Acceptance contract: Bind .* to the exact RFC 9113 wire/state rule by endpoint role", detailed)
         or re.search(r"Acceptance contract: The .* outcome must enumerate", detailed)
         or "status digits in 100..=999" in detailed
+        or "reject missing, empty, comma-combined" in detailed
+        or "absolute-form only where the role permits proxy requests" in detailed
+        or "Parse each chunk extension as semicolon token" in detailed
+        or "Permit zero or more 100..199 responses before exactly one final response" in detailed
+        or "WebSocket HTTP/1 to HTTP/2 handshake bridge" in detailed
+        or "HTTP/2 2xx back to HTTP/1 101 with validated accept" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -180,6 +187,19 @@ def main() -> int:
         "REFUSED_STREAM remains available only before application processing",
         "every target state expressed from the receiving server's perspective",
         "for push streams accept reserved-local or half-closed-remote",
+        "including the grammar-valid empty value required when the target URI has no authority",
+        "accept origin-form and absolute-form for ordinary requests at every receiving server role",
+        "require a forwarding proxy to regenerate Host from the target authority",
+        "empty resulting effective authority is either rejected by explicit policy",
+        "Parse exactly *(BWS \";\" BWS token [BWS \"=\" BWS (token / quoted-string)])",
+        "two exclusive response branches",
+        "require 100 to commit before 101 whenever Expect: 100-continue applies",
+        "make every later HTTP response parse, serialization, body, trailer, pipeline, or reuse operation an InvalidState",
+        "advertises local ENABLE_CONNECT_PROTOCOL only when its native endpoint or fully configured bridge is actually available",
+        "For HTTP/1 downstream to HTTP/2 upstream",
+        "for HTTP/2 downstream to HTTP/1 upstream",
+        "without processing key/accept upstream",
+        "no WebSocket byte crosses until both sides commit",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

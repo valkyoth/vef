@@ -3823,7 +3823,7 @@ on v0.96.0 (HPACK non-indexing and never-indexed literal) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: Define the Sensitive-field indexing policy state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Represent typed Index, WithoutIndexing, and NeverIndexed directives; default credentials, Authorization and Proxy-Authorization fields, cookies, and caller-marked secrets to the enforced conservative profile; never let an intermediary downgrade a received never-indexed representation to indexed; prohibit indexing decisions based on secret-value comparisons with attacker-controlled values; redact sensitive values from diagnostics; and reject caller overrides that weaken the active security profile.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3835,7 +3835,9 @@ on v0.96.0 (HPACK non-indexing and never-indexed literal) and must be independen
 
 #### Verification
 
-- Test Sensitive-field indexing policy and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test every directive/default/override combination, intermediary forwarding of
+  never-indexed fields, diagnostic redaction, and decision traces proving that
+  attacker-controlled equality does not influence secret indexing.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -4527,7 +4529,7 @@ on v0.114.0 (PUSH_PROMISE frame handling) and must be independently trustworthy 
 
 #### Deliverables
 
-- Acceptance contract: Define the Unknown-frame extension policy state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Ignore an unknown frame unless an explicitly enabled extension owns its type; enforce the effective inbound frame-size limit, drain its payload incrementally without allocation from the declared length, emit no application event by default, and preserve nonzero progress under every payload fragmentation; an ignored frame cannot mutate stream, compression, priority, or flow-control state and cannot interrupt an active HEADERS/CONTINUATION sequence, where any intervening type remains connection PROTOCOL_ERROR.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4539,7 +4541,9 @@ on v0.114.0 (PUSH_PROMISE frame handling) and must be independently trustworthy 
 
 #### Verification
 
-- Test Unknown-frame extension policy and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test every unknown type, stream identifier, payload size, byte split,
+  extension-disabled/enabled disposition, active field-block position, and
+  before/after state snapshot with no allocation or application publication.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5351,7 +5355,7 @@ on v0.135.0 (SETTINGS initial-window active-stream integration and atomic rollba
 
 #### Deliverables
 
-- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked application-data range; separately record flow-controlled payload length (including Pad Length and padding) and application DATA length (excluding both), use only application bytes for Content-Length reconciliation, immediately policy-discard and credit padding octets the application never sees, permit partial acknowledgement while retaining the unconsumed data suffix, and release remaining stream/connection credit only for explicitly acknowledged or policy-discarded octets; stop publication and WINDOW_UPDATE generation under application-storage backpressure and define one terminal ordering across DATA, trailers, END_STREAM, reset, cancellation, and shutdown.
+- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked application-data range; separately record flow-controlled payload length (including Pad Length and padding) and application DATA length (excluding both), use only application bytes for Content-Length reconciliation, and immediately add padding the application never sees to internal consumed-credit accounting for both stream and connection without requiring a WINDOW_UPDATE per frame; permit partial acknowledgement while retaining the unconsumed data suffix, release remaining credit only for explicitly acknowledged or policy-discarded octets, and coalesce WINDOW_UPDATE emission under independent threshold, rate, and amplification budgets; stop publication and update generation under application-storage backpressure and define one terminal ordering across DATA, trailers, END_STREAM, reset, cancellation, and shutdown.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5365,7 +5369,8 @@ on v0.135.0 (SETTINGS initial-window active-stream integration and atomic rollba
 
 - Extend the HTTP/2 frame/state harness with every DATA split, partial
   acknowledgement, backpressure, trailers/END_STREAM, reset, cancellation,
-  shutdown, and stream-slot reuse ordering permutation.
+  shutdown, stream-slot reuse, all-padding tiny-frame churn, threshold crossing,
+  coalescing, and amplification-budget permutation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5589,7 +5594,7 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
 
 #### Deliverables
 
-- Acceptance contract: Define the Bounded outbound scheduling state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Once HEADERS or PUSH_PROMISE begins without END_HEADERS, emit only CONTINUATION frames for that same stream until the block commits; flow-controlled DATA cannot block mandatory control output or runnable unrelated streams; reserve application-independent capacity for RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY; cancellation cannot strand a partially emitted HPACK block; deterministic tie-breaking and bounded starvation hold under continuous higher-priority arrivals; and SETTINGS frame-segmentation changes affect only uncommitted frames.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5601,7 +5606,9 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Model-check field-block contiguity, mandatory-control preemption, cross-stream
+  progress, cancellation at every partial-output boundary, deterministic ties,
+  starvation ceilings, and SETTINGS changes at every commit boundary.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5628,7 +5635,7 @@ on v0.142.0 (Bounded outbound scheduling) and must be independently trustworthy 
 
 #### Deliverables
 
-- Acceptance contract: Maintain three distinct checked values: the peer-advertised limit governing VEF outbound segmentation, VEF's effective locally advertised inbound limit governing received frames (initially 16,384), and the absolute RFC maximum 16,777,215; during atomic SETTINGS processing apply a valid peer value before emitting its ACK, roll back on failure, and never allocate directly from any advertised value.
+- Acceptance contract: Maintain three distinct checked values: the peer-advertised limit governing VEF outbound segmentation, VEF's effective locally advertised inbound limit governing received frames (initially 16,384), and the absolute RFC maximum 16,777,215; a larger local inbound limit becomes enforceable no later than commitment of the complete outbound SETTINGS frame that advertises it, while a reduction never retroactively invalidates an already accepted or partially received frame; segment queued outbound frames against the peer limit effective when each frame's bytes commit, not when its high-level command was created; during atomic inbound SETTINGS processing apply a valid peer value before emitting its ACK, roll back on failure, and never allocate directly from any advertised value.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5640,7 +5647,9 @@ on v0.142.0 (Bounded outbound scheduling) and must be independently trustworthy 
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Test increase/reduction activation at every outbound SETTINGS byte split,
+  partially received inbound frames across a reduction, queued commands across
+  peer-limit changes, rollback, ACK ordering, and absolute-boundary values.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5745,7 +5754,7 @@ on v0.145.0 (Server-push lifecycle) and must be independently trustworthy before
 
 #### Deliverables
 
-- Acceptance contract: Define the ALPN and cleartext prior-knowledge selection state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Select encrypted HTTP/2 only from the exact authenticated post-handshake ALPN value h2; absent, unknown, unauthenticated, or pre-handshake ALPN fails closed and never selects HTTP/2; select cleartext prior knowledge only through explicit caller policy or a dedicated endpoint, with no sniffing or guessed HTTP/1 fallback; never reuse bytes consumed under a failed selection; and make the protocol choice immutable once preface processing begins.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5757,7 +5766,9 @@ on v0.145.0 (Server-push lifecycle) and must be independently trustworthy before
 
 #### Verification
 
-- Test ALPN and cleartext prior-knowledge selection and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test exact and near-match ALPN bytes, every authentication/handshake state,
+  explicit/dedicated cleartext policy, failed-selection byte ownership, preface
+  fragmentation, and every attempted post-preface protocol switch.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.

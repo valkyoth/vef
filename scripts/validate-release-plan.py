@@ -127,6 +127,21 @@ def main() -> int:
         "effective locally advertised inbound limit governing received frames (initially 16,384)",
         "bounded FIFO only after each complete frame's bytes commit",
         "every unrelated stream, scheduler entry, flow window",
+        "typed Index, WithoutIndexing, and NeverIndexed directives",
+        "never let an intermediary downgrade a received never-indexed representation",
+        "prohibit indexing decisions based on secret-value comparisons",
+        "Ignore an unknown frame unless an explicitly enabled extension owns its type",
+        "drain its payload incrementally without allocation from the declared length",
+        "immediately add padding the application never sees to internal consumed-credit accounting",
+        "coalesce WINDOW_UPDATE emission under independent threshold, rate, and amplification budgets",
+        "Once HEADERS or PUSH_PROMISE begins without END_HEADERS",
+        "application-independent capacity for RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY",
+        "larger local inbound limit becomes enforceable no later than commitment",
+        "reduction never retroactively invalidates an already accepted or partially received frame",
+        "peer limit effective when each frame's bytes commit",
+        "exact authenticated post-handshake ALPN value h2",
+        "no sniffing or guessed HTTP/1 fallback",
+        "protocol choice immutable once preface processing begins",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

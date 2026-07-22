@@ -85,6 +85,9 @@ state updates are never rolled back because later HTTP semantics reject a
 stream; unsafe incomplete decoding closes the connection.
 Encoder table mutation occurs only when the corresponding output bytes commit;
 partial output, retry, or cancellation cannot advance it ahead of the peer.
+Sensitive indexing uses typed directives and conservative defaults; received
+never-indexed fields cannot be downgraded, secret values do not participate in
+attacker-controlled indexing comparisons, and diagnostics remain redacted.
 
 `vef-http2` separates frame codec, connection/stream state, and HTTP semantic
 mapping. Stream transitions are exhaustive. Header blocks are atomic across
@@ -109,6 +112,14 @@ delta. A stream-scoped delta may touch only its target stream; compression
 errors and connection-scoped violations stop publication and enqueue exactly
 one bounded GOAWAY action.
 
+Unknown frames are bounded, incrementally drained, and state-neutral unless an
+enabled extension owns their type; they cannot interleave an active field
+block. Receive-credit accounting is separate from WINDOW_UPDATE emission so
+discarded padding can be credited internally while output is coalesced under
+rate and amplification limits. The scheduler preserves field-block
+contiguity, mandatory-control capacity, unrelated-stream progress, and bounded
+starvation across cancellation and SETTINGS changes.
+
 The planned dependency-free `vef-structured-fields` crate owns RFC 9651
 lexing, item/container grammars, canonical serialization, and bounded
 caller-owned incremental storage. Its lexical dispatcher skeleton precedes
@@ -119,6 +130,10 @@ SETTINGS mutations occur atomically before the corresponding ACK is emitted.
 ENABLE_PUSH is integrated by push ownership, ENABLE_CONNECT_PROTOCOL by the
 extended CONNECT boundary, and NO_RFC7540_PRIORITIES by the priority-mode
 state machine with its initial-SETTINGS-only rule.
+Authenticated exact `h2` ALPN is the only encrypted HTTP/2 selector. Cleartext
+prior knowledge requires explicit caller policy or a dedicated endpoint; the
+engine never sniffs, guesses a fallback, reuses failed-selection bytes, or
+changes protocol after preface processing begins.
 
 ## Roles and transitions
 

@@ -68,6 +68,10 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   explicitly discarded DATA octets, never merely because a frame was parsed.
 - HTTP/2 outbound HEADERS, DATA, trailers, END_STREAM, partial output, and
   cancellation follow one generation-checked per-stream command lifecycle.
+- Internal receive-credit accounting is distinct from bounded, coalesced
+  WINDOW_UPDATE emission; padding cannot drive one control frame per DATA frame.
+- Unknown HTTP/2 frames are bounded, incrementally drained, state-neutral, and
+  unpublished unless an explicitly enabled extension owns their type.
 - Outbound framing is validated as strictly as inbound framing, including
   declared lengths, body-forbidden contexts, trailers, and completion.
 - Peer protocol violations, configured policy excess, insufficient caller
@@ -206,6 +210,9 @@ mapping, generation-checked streams, and explicit cancellation/flow credit.
 Every frame codec owns exact length, stream-ID, flag, reserved-bit, padding,
 and error-scope contracts. A dedicated error-delta stop proves stream failures
 cannot mutate unrelated connection state before HPACK/header publication.
+Sensitive HPACK indexing, fail-closed ALPN/prior-knowledge selection,
+field-block-contiguous scheduling, reserved mandatory-control capacity,
+credit-update coalescing, and commit-time frame-limit transitions are explicit.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound

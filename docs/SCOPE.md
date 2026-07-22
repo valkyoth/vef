@@ -94,12 +94,17 @@ DATA+END_STREAM accounts/discards full payload and padding before closure.
 Reserved(remote) DATA and duplicate promised IDs are connection PROTOCOL_ERROR.
 Peer reset can supersede a zero-byte action. END_STREAM makes an unsent policy
 CANCEL dormant but retains its reset slot through fragmented HPACK and sealed
-monotonic semantic stages. HPACK completion never marks Valid directly; only the
-final applicable owner releases the slot, while malformed status/fields/
+monotonic semantic stages. HPACK completion atomically seals an immutable
+generation-bound decoded field-section lease and releases only compression
+workspace; the lease preserves exact bytes/order/duplicates/empty values and
+sensitivity/never-index metadata without borrowing dynamic-table or recyclable
+caller storage. Only the final applicable owner transfers it and releases the
+slot, while malformed status/fields/
 trailers/Content-Length/body phase re-arms PROTOCOL_ERROR. Peer reset aborts
 pending semantics without publication, after finishing active HPACK; GOAWAY
 alone preserves validation, and fatal failure transfers cleanup to bounded
-connection shutdown. One partially serialized reset remains immutable
+connection shutdown. Malformed/abort release the section once; shutdown owns
+fatal cleanup with redaction and caller-scrub rules intact. One partially serialized reset remains immutable
 and finishes without duplication if the connection survives; tolerated
 post-reset DATA restores connection credit without stream WINDOW_UPDATE.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/

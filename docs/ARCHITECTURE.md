@@ -191,6 +191,14 @@ explicitly public entries may be shared and unknown provenance is non-indexed.
 Provenance is immutable encoder-side metadata: it changes no entry size,
 insertion, eviction, or index, skipped private entries retain their indices,
 and eviction/reset removes entry data and provenance atomically.
+Decoder ownership is split explicitly. `CompressionWorkspace` owns encoded
+fragments, integer/Huffman scratch, and CONTINUATION assembly and is releasable
+after HPACK synchronization. Independently preflighted `TerminalFieldSection`
+storage owns immutable decoded bytes, ordered boundaries, duplicates/empty
+values, pseudo classification, sensitivity/never-index provenance, and stream/
+generation binding. Indexed fields are materialized or independently leased;
+semantic spans never borrow dynamic-table entries, compression scratch, or
+recyclable caller buffers, so eviction and table-size changes cannot alter them.
 
 `vef-http2` separates frame codec, connection/stream state, and HTTP semantic
 mapping. Stream transitions are exhaustive. Header blocks are atomic across
@@ -239,15 +247,16 @@ and padding before closure. Reserved(remote) DATA and reuse of its non-idle ID
 are connection PROTOCOL_ERROR; tolerated post-reset DATA restores only
 connection credit and never emits stream WINDOW_UPDATE. Terminal validation is
 an independent sealed state machine: NotTerminal, PendingFieldBlock(disposition),
-PendingSemantics(stage), Valid, Malformed(code), or AbortedByPeerReset. HPACK
-completion transfers PendingFieldBlock to the first semantic stage, never
-directly to Valid; monotonic stages cover pseudo/connection fields, field and
+PendingSemantics { stage, fields: TerminalFieldSectionLease }, Valid, Malformed(code), or
+AbortedByPeerReset. HPACK completion atomically seals and transfers the decoded
+section while releasing only compression workspace, never directly marking
+Valid; monotonic stages cover pseudo/connection fields, field and
 context checks, request/response mapping, content/phase, and trailer/role rules.
 Peer reset supersedes a zero-byte action, aborting pending semantics immediately
 or after an active block finishes HPACK, with no later publication. END_STREAM
 instead makes an unsent policy CANCEL dormant through every stage; only the
-final semantic owner releases it, while any malformed stage re-arms it and a
-fatal connection decision owns cleanup. A partially serialized reset is
+final semantic owner transfers the immutable section to the unpublished event,
+while malformed/abort release it once and fatal shutdown owns cleanup. A partially serialized reset is
 immutable, finishes once when the connection survives, and prevents a second
 stream reset.
 A generation-checked associated-stream tombstone

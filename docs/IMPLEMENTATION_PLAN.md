@@ -97,10 +97,11 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   waits for every body/identity/output lease despite semantic invalidation.
 - A live/reserved HTTP/2 slot preflights cutoff storage before release and is
   never untracked. Rejection disposition, RFC wire state, and reset-output
-  progress/reason/reservation, remote-closure cause, terminal state/stage, and
-  field-block ownership remain independent. Sealed transitions move terminal
-  work from PendingFieldBlock through monotonic PendingSemantics stages to one
-  final result. END_STREAM can make a zero-byte policy reset dormant but no
+  progress/reason/reservation, remote-closure cause, terminal state/stage,
+  compression workspace, immutable field-section lease, and block ownership
+  remain independent. HPACK atomically transfers a sealed non-Copy/non-Clone
+  section lease into monotonic PendingSemantics while releasing only compression
+  scratch. END_STREAM can make a zero-byte policy reset dormant but no
   intermediate stage releases it; peer reset aborts publication after required
   HPACK drain, and connection failure transfers cleanup to shutdown ownership.
 - Assembly-enabled local correlation reserves a linear engine-only target/
@@ -386,6 +387,12 @@ ACK/control output either remains reserved or produces one bounded shutdown.
 Refusal/reset/cancellation never abandons an inbound HPACK block: a refused
 stream finishes synchronization without application publication, or lack of
 remaining HPACK/CONTINUATION capacity forces bounded connection shutdown.
+Preflight semantic field-section storage independently from compression
+workspace and dynamic-table capacity. Materialize indexed/literal output into
+immutable ordered bytes plus boundaries and sensitivity/never-index metadata;
+never let it borrow table entries, scratch, or recyclable input/output. A
+one-byte shortage finishes synchronization and selects bounded shutdown, never
+truncation or partial semantics.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
@@ -396,13 +403,15 @@ stage, and active block. Normalize HEADERS/DATA and END_STREAM separately:
 HEADERS+END_STREAM can close while fragmented
 CONTINUATION still owns HPACK; half-closed(local) rejected DATA+END_STREAM uses
 normal discard credit before closure; reserved(remote) DATA remains connection
-PROTOCOL_ERROR. HPACK completion transfers PendingFieldBlock to the first sealed
-semantic stage, never Valid; v0.125.0–v0.131.0 advance monotonically, and only
-the final applicable owner releases a dormant policy CANCEL. Any stage can
+PROTOCOL_ERROR. HPACK completion transfers PendingFieldBlock plus one sealed
+`TerminalFieldSectionLease` to the first semantic stage, never Valid, and frees
+only `CompressionWorkspace`; v0.125.0–v0.131.0 carry the exact lease without
+reparse. Only the final owner transfers it to unpublished message state. Any stage can
 re-arm the same slot as PROTOCOL_ERROR. Peer reset aborts pending semantics, but
 an active block first drains HPACK; GOAWAY alone does not abort. Finish one begun
-reset and never emit another; fatal input transfers cleanup to bounded shutdown.
-Drive every stage/event/output-offset product through the model/fuzz table.
+reset and never emit another; malformed/abort release the lease once and fatal
+input transfers it to bounded shutdown. Drive every ownership/stage/event/output
+product through the model/fuzz table.
 Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
 post-initial-HEADERS DATA into fixed-capacity PendingConnect while
 AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without

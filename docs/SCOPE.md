@@ -49,9 +49,11 @@ state) independently of monotonic deadlines. Built-in client handling validates
 single-range 206 and keeps multipart opaque as NeedsMultipartConsumer. Its
 fixed-capacity partial-combination plan handles validated byte-range segments
 and incomplete-200 prefixes from multiple request generations under an exact
-strong-validator assembly context and local receipt ordering, but never
-multipart or unknown range units. A valid standalone 206 can remain
-non-combinable without becoming a protocol error.
+strong-validator assembly context, immutable transfer-decoded/content-encoded
+storage leases, variant/storage replacement identity, and validated-head
+ordering. Input/output aliasing, in-place decoding/transformation, multipart,
+and unknown range units never enter combination. A valid standalone 206 can
+remain non-combinable without becoming a protocol error.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

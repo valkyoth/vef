@@ -15,7 +15,8 @@ dependency context, exit criteria, and exact-commit pentest stop.
 The latest design review gates content/method execution behind preconditions,
 separates pre-action evidence from retrieval metadata, resolves obsolete dates
 from a complete instant, validates standalone partial responses independently
-of combination eligibility, and bounds cross-request assembly. The roadmap
+of combination eligibility, and binds cross-request assembly to immutable
+representation bytes and explicit replacement identity. The roadmap
 remains at minor `0.225.0` with focused patch stops at
 `0.157.1`–`0.157.4`, `0.180.1`–`0.180.4`, `0.181.1`–`0.181.2`, and
 `0.182.1`.
@@ -73,8 +74,10 @@ remains at minor `0.225.0` with focused patch stops at
 | Conditional and range ownership | `0.180.1`–`0.180.4`, consumed at `0.182.1` | Add dependency-free `vef-conditions`; parse/compare validators, evaluate conditional fields in RFC order, bound checked Range/Content-Range work, seal generation outcomes, and final-validate exact outbound client requests over both protocols. |
 | Content-Range generic validity | `0.180.3`, consumed at `0.181.1` | Unknown units remain distinct from malformed input but must still pass one range response alternative, checked decimals, ordered endpoints, complete-length bounds, limits, and injection checks; they never grant recombination authority. |
 | Standalone partial and incomplete input | `0.181.0`–`0.181.1` | A structurally valid correlated 206 remains application-visible with absent/weak validators but is StandaloneOnly/NoRecombine; a prematurely terminated 200 with complete valid head becomes a typed incomplete prefix or discard, never complete fallback. |
-| Cross-request partial assembly | `0.181.1`–`0.181.2` | A generation-safe assembly context refines matching strong-validator inputs from distinct Range request generations, preserves every original correlation, accepts validated incomplete-200 prefixes, and invalidates only on matching successful complete 200. |
-| Local combination ordering | `0.181.0`, implemented at `0.181.2` | Checked monotonic receipt ordinals—not peer Date—select the most recent header source under reordering and retry; bounded plans apply exact interval, header-source, and output-status synthesis while multipart/unknown units remain outside combination. |
+| Malformed versus incomplete content | `0.127.0`, `0.130.0`, `0.181.1` | Only premature EOF/reset/failure/cancellation after a valid complete head can yield an incomplete prefix; clean HTTP/2 END_STREAM length mismatch, invalid fields/HPACK/framing, ambiguous HTTP/1 framing, and malformed chunks yield no prefix capability. |
+| Immutable stored representation bytes | `0.181.1`–`0.181.2` | Every partial/prefix inseparably leases exact transfer-decoded but content-encoded bytes and storage generation; combination preflights immutable inputs, a distinct non-aliasing output lease, and a bounded copy schedule before atomic publication. |
+| Cross-request partial assembly | `0.181.1`–`0.181.2` | A generation-safe assembly context refines matching strong-validator inputs from distinct requests while retaining original correlation/storage leases; completed 200 invalidation uses target/Vary/coding/domain/storage replacement identity, not old-validator equality. |
+| Local head ordering | `0.181.0`, implemented at `0.181.2` | The correlation engine mints a checked monotonic ordinal when each validated head is atomically published—not at body completion and never from peer Date—so body delay, retry, and reordering cannot manipulate header-source selection. |
 | Representation evidence split | `0.180.2`–`0.180.3`, `0.182.1`, `0.183.0` | `CurrentRepresentationEvidence` holds pre-action existence/validator state for all methods; `WouldBe200Snapshot` is a retrieval-only refinement for range, 206, and 304; unsafe success obtains new post-action evidence rather than retroactively invalidating its permit. |
 | Exact validated-response binding | `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.197.0` | `ValidatedResponse` owns or immutably borrows the precise ordered head, framing, sensitivity/indexing, body, and trailer plan; engines consume it whole, never `(raw_head, permit)`, and every mutation requires revalidation. |
 | Mandatory semantic reserve | `0.25.0`, `0.38.0`, `0.182.1`, `0.183.0`, `0.191.0` | Reserve engine-only validation slots and frozen-head storage for 400/414/431 and other mandatory output; application work cannot exhaust it, and total reserve failure commits one zero-partial-output close/shutdown action. |

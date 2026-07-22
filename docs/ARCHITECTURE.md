@@ -329,14 +329,17 @@ over typed or generic fields before either engine serializes them. Client 206
 classification checks Content-Type, Content-Range, request/validator identity,
 and terminal body length before producing one standalone-valid segment even
 when validator evidence is absent or weak; incomplete 200 prefixes have a
-separate typed path. A generation-safe assembly context can refine inputs from
-distinct original request generations only after target, representation,
-coding, length, and strong-validator matching. Its bounded plan normalizes
-fixed-capacity intervals and selects headers using an assembly-scoped local
-receipt-order source shared across requests/connections, never peer Date. Only
-a matching successful complete 200 invalidates the context; multipart requires
-an external consumer, and proxies alone can preserve generically valid unknown
-units without authorizing recombination.
+separate typed path that malformed HTTP/1 or HTTP/2 completion can never enter.
+Both contain an inseparable immutable lease over exact transfer-decoded but
+content-encoded bytes and storage generation. A generation-safe assembly
+context refines inputs from distinct original requests only after target,
+representation, coding/domain, length, and strong-validator matching. Its
+bounded plan preflights non-aliasing input/output leases and selects headers by
+an ordinal minted when each validated head is published, never peer Date or
+body completion. A successful complete 200 with the same target/Vary/coding/
+domain/storage replacement identity invalidates the context regardless of
+validator equality; other variants do not. Multipart remains external, and
+unknown units never authorize recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage
 are reserved for mandatory responses and cannot be consumed by application

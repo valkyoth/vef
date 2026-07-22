@@ -138,7 +138,8 @@ checked Range/Content-Range arithmetic, pre-action representation evidence,
 retrieval-only hypothetical-200 snapshots, staged content/execution permits,
 final outbound request validation, single-range planning, individual partial
 and incomplete-prefix validation, generation-safe cross-request assembly
-contexts, combination refinement, and bounded header-synthesis plans. Its sealed
+contexts, immutable stored-byte/output leases, combination refinement, and
+bounded copy/header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
 caller-supplied representation existence, metadata, length, validator, and
 modification evidence without retroactively revoking a consumed mutation
@@ -397,10 +398,12 @@ content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
 range parsing, sealed content/execution permits, final frozen client request
 validation, individual partial segments, and fixed-capacity interval/header
 combination plans. Standalone 206 validity does not require a strong validator;
-incomplete 200 prefixes stay explicitly incomplete; assembly contexts accept
-matching strong-validator inputs across request generations without rebinding
-them and order header sources through a generation-bound local source shared
-across relevant requests and connections. v0.183.0 exposes only the
+incomplete prefixes exclude malformed completion; every accepted interval
+immutably leases exact transfer-decoded/content-encoded storage bytes. Assembly
+contexts accept matching strong-validator inputs across requests without
+rebinding them, preflight non-aliasing output, invalidate by variant/storage
+replacement identity rather than validator equality, and order headers when
+the correlation engine publishes each validated head. v0.183.0 exposes only the
 read-only pending selection view before those permits and suppresses early 100,
 body delivery, and method effects. A consumed unsafe execution permit survives
 the mutation it authorized; its response uses fresh evidence. v0.182.1 consumes

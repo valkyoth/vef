@@ -74,15 +74,26 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   END_STREAM command acceptance seals the application send direction; only
   complete carrying-frame acknowledgement changes wire state, while partial
   output/failure does not and fragmented HEADERS retain CONTINUATION ownership.
-  AcceptedPrivate ordinary output may be superseded by reset and releases any
-  dual DATA reservation; first exposure freezes it, commits stream+connection
-  debit, and forces whole-frame suffix completion before RST_STREAM.
+  AcceptedPrivate ordinary output may be superseded by reset only when it is
+  outside a committed outbound field block. A whole Private HEADERS/
+  PUSH_PROMISE block may roll back before initial exposure; first exposure
+  commits its connection-scoped obligation through END_HEADERS, so no reset,
+  control, GOAWAY, or other stream can supersede/interleave its CONTINUATIONs.
+  Transport failure abandons the connection, while the initial HEADERS
+  completion hook remains frame-scoped. First ordinary exposure freezes its
+  exact slot, commits stream+connection debit, and forces suffix completion.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.
   Available, reserved-unexposed, and committed-debited states are distinct;
   WINDOW_UPDATE and SETTINGS/resegmentation reconcile only unexposed state,
-  frozen debit never refunds, and negative windows block later exposure.
+  frozen debit never refunds, and negative windows block later exposure. Copy
+  each exact frame into an exclusive generation-checked slot in a caller-owned
+  fixed-capacity `OutboundFrameArena`; a nonzero local
+  `max_outbound_frame_payload` caps segmentation independently of peer
+  MAX_FRAME_SIZE. Slot bytes remain unavailable until supersession, full
+  acknowledgement, or connection cleanup, while queue-byte and queue-entry
+  exhaustion produce distinct typed local backpressure.
 - Internal receive-credit accounting is distinct from bounded, coalesced
   WINDOW_UPDATE emission; padding cannot drive one control frame per DATA frame.
 - Unknown HTTP/2 frames are bounded, incrementally drained, state-neutral, and
@@ -445,9 +456,15 @@ does not abort. First non-empty reset exposure freezes frame identity/bytes;
 acknowledge by generation token, resume only at the exact suffix, and never emit
 another reset. Prefixes 0..=12 do not change wire state; acknowledgement 13
 applies one local close only if the stream is not already remotely closed.
-For ordinary output, peer/local reset supersedes only AcceptedPrivate; Frozen
-output—including zero acknowledged—retains debit, finishes the exact frame
-before reset serialization, and executes its completion hook once.
+For ordinary output, peer/local reset supersedes only AcceptedPrivate outside a
+committed block. Before initial exposure, supersede the entire Private HEADERS/
+PUSH_PROMISE block or none of it. First initial exposure commits every remaining
+CONTINUATION through END_HEADERS; controls and other streams wait even when the
+next continuation is still AcceptedPrivate. Frozen output—including zero
+acknowledged—retains its arena slot/debit, finishes the exact frame before reset
+serialization, and executes its completion hook once. Transport failure may
+abandon the block only with the connection; an initial HEADERS END_STREAM hook
+still fires at that frame's completion.
 Malformed/abort release semantic leases once and fatal input owns
 acknowledged-prefix cleanup without an incomplete close. Drive every
 ownership/stage/event/output product through the model/fuzz table.

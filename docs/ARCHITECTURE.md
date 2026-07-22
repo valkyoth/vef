@@ -232,7 +232,16 @@ HEADERS completion performs the transition even when CONTINUATION/HPACK
 ownership remains live until END_HEADERS.
 Ordinary frames retain an explicit AcceptedPrivate/Frozen/Complete/
 SupersededBeforeExposure disposition. Peer or completed local reset can discard
-only AcceptedPrivate bytes and release their unexposed credit. First non-empty
+only AcceptedPrivate bytes that do not belong to a committed field block and
+release their unexposed credit. Before any initial HEADERS/PUSH_PROMISE byte is
+exposed, its whole Private field block may be superseded together. First
+non-empty initial-frame exposure creates a connection-scoped Committed field
+block through END_HEADERS: every remaining CONTINUATION is non-supersedable
+even while individually AcceptedPrivate, and RST_STREAM, GOAWAY, required
+control replies, and other streams wait. Transport failure abandons that block
+only with the whole connection and emits no interleaved GOAWAY. The initial
+HEADERS END_STREAM hook still runs at that frame's full acknowledgement,
+independently of the block obligation. Outside that obligation, first non-empty
 exposure freezes the exact frame even after a zero acknowledgement; its suffix
 owns connection framing and must finish before a same-connection RST_STREAM,
 then its completion hook runs once without overwriting peer-first closure.
@@ -241,7 +250,16 @@ padding, but excluding the nine-byte header, moves from stream+connection
 available to reserved-unexposed before exposure and to committed-debited at
 first exposure. Unexposed supersession or SETTINGS reconciliation releases both
 reservations; frozen debit is never refunded. Negative stream windows block new
-exposure, and zero-length END_STREAM DATA consumes zero credit.
+exposure, and zero-length END_STREAM DATA consumes zero credit. Exact DATA
+frames are copied into exclusive generation-checked slots in one caller-provided
+fixed-capacity `OutboundFrameArena`; source payload may be released after the
+copy, but staged bytes cannot be accessed, mutated, or reused until
+supersession, full acknowledgement, or connection cleanup. Segmentation uses
+the minimum of peer MAX_FRAME_SIZE, nonzero local
+`max_outbound_frame_payload`, both available credits, and remaining padded
+payload. Peer limits never dictate local allocation. Queue-byte and queue-entry
+capacity are independent, and exhaustion is typed local
+`OutboundFrameStorageCapacity` backpressure rather than a peer error.
 HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
 reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
 the RFC-required contexts.
@@ -349,9 +367,12 @@ Unknown frames are bounded, incrementally drained, and state-neutral unless an
 enabled extension owns their type; they cannot interleave an active field
 block. Receive-credit accounting is separate from WINDOW_UPDATE emission so
 discarded padding can be credited internally while output is coalesced under
-rate and amplification limits. The scheduler preserves field-block
-contiguity, mandatory-control capacity, unrelated-stream progress, and bounded
-starvation across cancellation and SETTINGS changes.
+rate and amplification limits. The scheduler preserves inbound field-block
+contiguity and treats a committed outbound field block as its highest framing
+obligation through END_HEADERS; mandatory-control capacity remains reserved
+while serialization waits. Outside that obligation it preserves
+unrelated-stream progress and bounded starvation across cancellation and
+SETTINGS changes.
 Flood budgets independently charge streams/resets, SETTINGS, PING,
 CONTINUATION, WINDOW_UPDATE, unknown frames, HPACK work, and control output
 before work, never refund Rapid Reset, refill from injected monotonic time, and

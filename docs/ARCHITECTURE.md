@@ -53,6 +53,9 @@ authorities, four explicit request-target forms, ordered field lines, message
 heads, trailers, limits, policies, roles, and structured diagnostics. Ordered
 field lines remain authoritative: duplicate order is preserved and values are
 never combined automatically.
+`StatusCode` represents only 100..=599, including unregistered valid codes;
+received 600..=999 digits survive only in typed invalid wire evidence for
+client 5xx handling and can never enter valid server/serializer output.
 
 ## HTTP/0.9 and HTTP/1 boundaries
 
@@ -73,6 +76,11 @@ Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
 Outbound request/response framing uses one state machine that checks body byte
 counts, trailers, body-forbidden contexts, and completion before reuse.
+Transfer-Encoding selection is role-specific: requests require final chunked,
+whereas responses can be delimited by close when chunked is non-final or a
+different coding is final. Repeated chunked is malformed; an unsupported valid
+coding is a separate policy outcome. RFC 9931 CONNECT rejection always closes
+and optimistic protocol bytes never re-enter HTTP parsing after failed handoff.
 
 The optional `vef-websocket-handshake` package owns RFC 6455 opening-handshake
 mechanics and the success publication barrier, but no WebSocket frame protocol.
@@ -91,6 +99,9 @@ attacker-controlled indexing comparisons, and diagnostics remain redacted.
 Caller-supplied compression-principal tokens tag private dynamic entries;
 encoder lookup across principals is forbidden even for equal bytes, while
 explicitly public entries may be shared and unknown provenance is non-indexed.
+Provenance is immutable encoder-side metadata: it changes no entry size,
+insertion, eviction, or index, skipped private entries retain their indices,
+and eviction/reset removes entry data and provenance atomically.
 
 `vef-http2` separates frame codec, connection/stream state, and HTTP semantic
 mapping. Stream transitions are exhaustive. Header blocks are atomic across
@@ -129,6 +140,10 @@ Flood budgets independently charge streams/resets, SETTINGS, PING,
 CONTINUATION, WINDOW_UPDATE, unknown frames, HPACK work, and control output
 before work, never refund Rapid Reset, refill from injected monotonic time, and
 optionally consult a caller-shared cross-connection admission hook.
+An inbound HPACK block always reaches a synchronization-safe terminal state.
+RST_STREAM, refusal, or cancellation cannot abandon it; synchronization-only
+decode exposes no fields, and insufficient continuation/work/storage capacity
+selects bounded connection shutdown instead of REFUSED_STREAM.
 
 The planned dependency-free `vef-structured-fields` crate owns RFC 9651
 lexing, item/container grammars, canonical serialization, and bounded
@@ -139,6 +154,9 @@ RFC-conformant profiles implement duplicate overwrite and mandatory RFC 9651
 minimum capacities; smaller bare-metal profiles are explicitly constrained and
 capacity exhaustion is never reported as malformed syntax. HTTP/2
 PRIORITY_UPDATE owns only type 0x10 and its request/push stream state matrix.
+That matrix is receiver-server-relative throughout: valid push targets are
+reserved-local and half-closed-remote, closed targets are discarded, and idle
+push targets are connection PROTOCOL_ERROR.
 
 SETTINGS mutations occur atomically before the corresponding ACK is emitted.
 ENABLE_PUSH is integrated by push ownership, ENABLE_CONNECT_PROTOCOL by the

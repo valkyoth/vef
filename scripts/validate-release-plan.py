@@ -105,6 +105,11 @@ def main() -> int:
         or "RFC 7239 where Via" in detailed
         or "Acceptance contract: Expose " in detailed
         or re.search(r"Acceptance contract: Define the .* state graph", detailed)
+        or re.search(r"Acceptance contract: Bind .* to the exact cited HTTP/1 octet grammar and role matrix", detailed)
+        or re.search(r"Acceptance contract: Bind .* to the exact RFC 7541 representation and table rules", detailed)
+        or re.search(r"Acceptance contract: Bind .* to the exact RFC 9113 wire/state rule by endpoint role", detailed)
+        or re.search(r"Acceptance contract: The .* outcome must enumerate", detailed)
+        or "status digits in 100..=999" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -163,6 +168,18 @@ def main() -> int:
         "every Date from year 1 through 9999",
         "only HTTP/2 PRIORITY_UPDATE type 0x10",
         "by fixed policy, ignore a malformed update",
+        "Construct StatusCode only from exactly three decimal digits in 100..=599",
+        "typed InvalidStatusCode result carrying its raw digits",
+        "for requests require chunked as the final coding",
+        "for responses select chunk framing when chunked is final",
+        "proxy client either waits for the CONNECT 2xx",
+        "rejecting CONNECT closes the transport and processes no later request",
+        "encoder-only sidecar metadata that never changes HPACK entry size",
+        "skipped cross-principal entries still occupy their normal indices",
+        "immediate RST_STREAM, refusal, application cancellation",
+        "REFUSED_STREAM remains available only before application processing",
+        "every target state expressed from the receiving server's perspective",
+        "for push streams accept reserved-local or half-closed-remote",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

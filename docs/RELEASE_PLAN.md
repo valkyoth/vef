@@ -498,7 +498,7 @@ on v0.11.0 (Case-sensitive extension-capable Method) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Represent exactly three decimal status digits in 100..=999 while preserving unknown valid codes, reject non-digits and out-of-range values before construction, compare by numeric code, and serialize exactly three ASCII digits.
+- Acceptance contract: Construct StatusCode only from exactly three decimal digits in 100..=599, preserve unregistered values such as 471 as valid extension codes, compare by numeric code, and serialize exactly three ASCII digits; retain a received 600..=999 wire value only in a typed InvalidStatusCode result carrying its raw digits so client policy can process the response as 5xx, while server builders and every serializer reject that value and can never emit it as a valid HTTP status.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1126,7 +1126,7 @@ on v0.27.0 (Foundation Kani campaign, audit, and pentest) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/1 role and parser profiles to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Fix ClientResponse, OriginServerRequest, and IntermediaryRequest/Response profiles: each accepts only its role's start-line, applies immutable per-message line/field/section/work ceilings, returns NeedInput only without consumption, and maps peer syntax, local capacity, and required close actions to distinct typed outcomes before head publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1165,7 +1165,7 @@ on v0.28.0 (HTTP/1 role and parser profiles) and must be independently trustwort
 
 #### Deliverables
 
-- Acceptance contract: Bind Incremental HTTP/1 request-line parser to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Accept method SP request-target SP HTTP-version CRLF with exactly one SP at each separator; reject HTAB, empty components, extra separators, controls, bare CR/LF, and component-limit overflow; retain checked component spans across splits and publish a request line only after the terminating CRLF commits.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1204,7 +1204,7 @@ on v0.29.0 (Incremental HTTP/1 request-line parser) and must be independently tr
 
 #### Deliverables
 
-- Acceptance contract: Bind Incremental HTTP/1 status-line parser to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Accept HTTP-version SP three-digit status-code SP optional reason-phrase CRLF; permit only HTAB, SP, VCHAR, and obs-text in the reason phrase, reject controls, malformed spacing, invalid status syntax, bare CR/LF, and configured line overflow, and publish no status line before its final CRLF.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1243,7 +1243,7 @@ on v0.30.0 (Incremental HTTP/1 status-line parser) and must be independently tru
 
 #### Deliverables
 
-- Acceptance contract: Bind Every-byte fragmentation support to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: For every request/status/field line and every byte boundary, parsing the same octets in one slice or all possible fragmentations produces the same value, consumed count, error offset, and close action; empty or incomplete input returns NeedInput without mutation, and each successful nonterminal call consumes bytes or records a distinct state transition.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1321,7 +1321,7 @@ on v0.32.0 (Strict CRLF and separately named LF compatibility) and must be indep
 
 #### Deliverables
 
-- Acceptance contract: Bind Incremental HTTP/1 field-line parser to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Parse field-name colon OWS field-value OWS CRLF incrementally, reject empty/invalid names, whitespace before the colon, NUL and forbidden controls, bare CR/LF, and undeclared continuation lines; preserve ordered raw bytes plus validated semantic spans and publish a field only after CRLF and capacity checks succeed.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1360,7 +1360,7 @@ on v0.33.0 (Incremental HTTP/1 field-line parser) and must be independently trus
 
 #### Deliverables
 
-- Acceptance contract: Bind Explicit OWS handling with raw-value preservation to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Keep the exact raw field-value octets and a semantic view that removes only leading/trailing SP or HTAB; preserve interior whitespace and obs-text byte-for-byte, never normalize quoted or comma syntax here, and reject NUL/CR/LF before either view becomes observable.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1399,7 +1399,7 @@ on v0.34.0 (Explicit OWS handling with raw-value preservation) and must be indep
 
 #### Deliverables
 
-- Acceptance contract: Bind Injection-proof HTTP/1 head serialization to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Serialize only validated method, target, version, status, reason, field-name, and field-value types; emit canonical SP and CRLF delimiters, reject any component containing CR, LF, NUL, invalid field-name bytes, or a length above the output profile before writing, and resume partial output without duplicating committed bytes.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1477,7 +1477,7 @@ on v0.36.0 (Role-specific obs-fold and invalid-field disposition) and must be in
 
 #### Deliverables
 
-- Acceptance contract: Bind Field count, line, and section caps to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Enforce independent saturating maxima for start-line bytes, field-line bytes, field count, total section bytes, and parse work; charge before scan/copy/publication, return typed peer-limit or caller-capacity outcomes without partial field insertion, and require the role policy to select a bounded error response and mandatory close where applicable.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1555,7 +1555,7 @@ on v0.38.0 (Typed HTTP/1 protocol-error response and close actions) and must be 
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/1.1 Host validation and duplicate rejection to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: For every HTTP/1.1 request require exactly one syntactically valid Host field, reject missing, empty, comma-combined, or duplicate Host even when values match, and validate its authority form before request publication; HTTP/1.0 retains Host as an ordinary optional field under its separate profile.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1594,7 +1594,7 @@ on v0.39.0 (HTTP/1.1 Host validation and duplicate rejection) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: Bind Method and request-target-form coherence to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Require authority-form only for CONNECT, asterisk-form only for server-wide OPTIONS, origin-form for ordinary origin requests, and absolute-form only where the role permits proxy requests; reject fragments, empty targets, and method/form mismatches before routing publication, while preserving unknown methods as case-sensitive tokens.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1672,7 +1672,7 @@ on v0.41.0 (Checked Content-Length grammar) and must be independently trustworth
 
 #### Deliverables
 
-- Acceptance contract: Bind Repeated and comma-list Content-Length resolution to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Parse every Content-Length field and comma member as a nonempty decimal value with checked arithmetic; accept duplicates only when every parsed value is numerically identical, reject empty members, signs, overflow, or unequal values as unrecoverable framing errors with mandatory close, and publish one canonical length without silently selecting a first or last value.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1711,7 +1711,7 @@ on v0.42.0 (Repeated and comma-list Content-Length resolution) and must be indep
 
 #### Deliverables
 
-- Acceptance contract: Parse Transfer-Encoding as a case-insensitive comma list of transfer-coding tokens and bounded parameters, reject empty elements and invalid token/quoted syntax, require chunked to occur at most once and as the final coding, distinguish unsupported coding policy from malformed ordering, and apply exact request-versus-response reject/close actions before framing publication.
+- Acceptance contract: Parse Transfer-Encoding as a case-insensitive comma list of transfer-coding tokens and bounded parameters, reject empty elements, invalid token/quoted syntax, and repeated chunked as malformed; for requests require chunked as the final coding or return bounded 400 plus mandatory close, while for responses select chunk framing when chunked is final and otherwise select close-delimited framing for non-final chunked or another final transfer coding; outbound responses may use such non-final/non-chunked transfer coding only with committed Connection: close termination, and unsupported-but-well-formed coding remains distinct from malformed ordering before framing publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1750,7 +1750,7 @@ on v0.43.0 (Transfer-Encoding grammar and ordering) and must be independently tr
 
 #### Deliverables
 
-- Acceptance contract: Bind TE/CL conflict resolution and mandatory close action to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Treat any inbound Transfer-Encoding plus Content-Length as ambiguous framing: servers reject with a bounded 400 and close, clients mark the response connection unusable, and intermediaries may forward only after fully decoding or explicitly reframing and removing the received Content-Length; no conflicting message reaches application or routing publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1829,7 +1829,7 @@ on v0.45.0 (Central HTTP/1 message-body-length algorithm) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: Bind Fixed-length body decoder to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Yield borrowed body slices totaling exactly the selected Content-Length, release bytes only on acknowledgement, report premature EOF as truncation with no reuse, leave octets after the exact boundary for the next message, and distinguish destination capacity/backpressure from peer length violations without republishing acknowledged data.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1868,7 +1868,7 @@ on v0.46.0 (Fixed-length body decoder) and must be independently trustworthy bef
 
 #### Deliverables
 
-- Acceptance contract: Bind Close-delimited response decoder to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Use close-delimited decoding only for response contexts selected by the central length algorithm; yield and acknowledge bounded slices until clean transport EOF completes the body, treat cancellation or transport failure as incomplete, and permanently disable connection reuse because EOF is the delimiter.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1907,7 +1907,7 @@ on v0.47.0 (Close-delimited response decoder) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Bind Checked chunk-size parser to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Require one or more hexadecimal digits for chunk-size before optional extension or CRLF, use checked arithmetic against body/profile limits, reject signs, 0x prefixes, whitespace, invalid digits, overflow, and bare line endings, and publish neither size nor body state until the complete size line commits.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1946,7 +1946,7 @@ on v0.48.0 (Checked chunk-size parser) and must be independently trustworthy bef
 
 #### Deliverables
 
-- Acceptance contract: Bind Incremental chunk-data state to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: After a committed nonzero chunk size, expose exactly that many borrowed data octets, wait for acknowledgement before release, then require the following CRLF; premature EOF, missing CRLF, excess arithmetic, or cancellation is terminal and cannot reinterpret data as a new chunk or message.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1985,7 +1985,7 @@ on v0.49.0 (Incremental chunk-data state) and must be independently trustworthy 
 
 #### Deliverables
 
-- Acceptance contract: Bind Bounded chunk-extension parser to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Parse each chunk extension as semicolon token with optional token-or-quoted-string value, including quoted-pair rules; reject empty names and malformed quotes/escapes, cap extension count, name/value bytes, total line bytes, and work independently, and ignore unknown extension semantics without allocating from peer lengths.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2024,7 +2024,7 @@ on v0.50.0 (Bounded chunk-extension parser) and must be independently trustworth
 
 #### Deliverables
 
-- Acceptance contract: Bind Last-chunk and trailer transition to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: A zero chunk commits the transition from chunk data to the trailer section, accepts no further chunk data, parses the terminating trailer block through the field parser, and completes only at its empty-line CRLF; partial trailers, cancellation, or EOF cannot publish message completion or permit reuse.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2063,7 +2063,7 @@ on v0.51.0 (Last-chunk and trailer transition) and must be independently trustwo
 
 #### Deliverables
 
-- Acceptance contract: Bind Trailer declarations and prohibited-trailer policy to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Parse Trailer as a case-insensitive bounded name list, reject invalid names, and forbid trailer fields that affect framing, routing, request method/target, authentication, response control, or representation processing; undeclared trailers follow an explicit role policy, while every accepted trailer remains ordered and is published only with body completion.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2102,7 +2102,7 @@ on v0.52.0 (Trailer declarations and prohibited-trailer policy) and must be inde
 
 #### Deliverables
 
-- Acceptance contract: Bind Chunked encoder with partial-output state to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Emit canonical hexadecimal chunk-size CRLF, exactly the supplied data, and trailing CRLF; finish with zero CRLF, validated trailers, and final CRLF, retain offsets for every partially written segment, never repeat committed bytes after backpressure, and forbid trailers or completion until all declared data commits.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2219,7 +2219,7 @@ on v0.55.0 (Inbound body acknowledgement, drain, discard, cancellation, and reus
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/1.1 persistence and Connection semantics to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: HTTP/1.1 is persistent by default only after a self-delimited complete message; parse Connection tokens case-insensitively, let close override keep-alive, remove nominated hop fields at intermediaries, and mark reuse impossible after close-delimited bodies, framing errors, incomplete bodies, failed transitions, cancellation, or mandatory-close policy.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2258,7 +2258,7 @@ on v0.56.0 (HTTP/1.1 persistence and Connection semantics) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Bind Sequential request/response connection state to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Without pipelining, admit one request and its ordered informational/final response lifecycle at a time; reject or backpressure a second request until body acknowledgement and response completion make reuse legal, bind cancellation to that exchange generation, and never attach late bytes/events to the next exchange.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2297,7 +2297,7 @@ on v0.57.0 (Sequential request/response connection state) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: Bind Optional bounded pipelining queue to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: When explicitly enabled, queue at most the configured number and bytes of fully validated requests, preserve request and response FIFO order, stop parsing at capacity without partial enqueue, associate bodies/cancellation by generation, and close rather than emit an out-of-order, ambiguous, or post-error response.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2336,7 +2336,7 @@ on v0.58.0 (Optional bounded pipelining queue) and must be independently trustwo
 
 #### Deliverables
 
-- Acceptance contract: Bind Informational response lifecycle to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Permit zero or more 100..199 responses before exactly one final response, keep 101 solely for the validated Upgrade transition, reject informational responses after a final response and invalid body framing on 1xx, and correlate every event to the active request without completing or recycling it early.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2414,7 +2414,7 @@ on v0.60.0 (Expect: 100-continue state) and must be independently trustworthy be
 
 #### Deliverables
 
-- Acceptance contract: Bind EOF, truncation, and incomplete-message rules to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: EOF completes only a selected close-delimited response or an already complete message; EOF inside a start line, field section, fixed body, chunk-size/data/trailers, or required transition is typed truncation, publishes no synthetic completion, and makes the connection non-reusable, with transport failure distinct from clean EOF.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2453,7 +2453,7 @@ on v0.61.0 (EOF, truncation, and incomplete-message rules) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Bind HEAD response-framing context to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: For a response to HEAD, consume and validate the head using the corresponding GET metadata rules but select no message body regardless of Content-Length or Transfer-Encoding; any following octets belong to the next protocol state, and the response remains correlated to the original HEAD request before framing selection.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2492,7 +2492,7 @@ on v0.62.0 (HEAD response-framing context) and must be independently trustworthy
 
 #### Deliverables
 
-- Acceptance contract: Bind 1xx, 204, 304, and body-forbidden response handling to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Select no body for every 1xx, 204, and 304 response and for successful CONNECT according to its tunnel rule; reject forbidden 204 transfer coding and invalid framing metadata, allow HEAD/304 Content-Length only as representation metadata under RFC rules, and never expose following bytes as body data.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2531,7 +2531,7 @@ on v0.63.0 (1xx, 204, 304, and body-forbidden response handling) and must be ind
 
 #### Deliverables
 
-- Acceptance contract: Bind CONNECT request and successful tunnel transition to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Accept CONNECT only with authority-form and role authorization; on a final 2xx response ignore Content-Length and Transfer-Encoding for framing, atomically end HTTP parsing, and hand over each over-read byte exactly once, while every non-2xx remains an ordinary response and cannot publish a tunnel.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2570,7 +2570,7 @@ on v0.64.0 (CONNECT request and successful tunnel transition) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: Bind RFC 9931 optimistic-data protections to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: For an untrusted downstream TCP client, a proxy client either waits for the CONNECT 2xx before forwarding payload or sends Connection: close; a proxy server rejecting CONNECT closes the transport and processes no later request regardless of Connection, WebSocket sends no data before 101, CONNECT-UDP sends no optimistic HTTP/1.x payload, and failed transition bytes never return to the HTTP parser.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2843,7 +2843,7 @@ on v0.71.0 (WebSocket negotiation, origin metadata, and byte-publication barrier
 
 #### Deliverables
 
-- Acceptance contract: Bind Safe forwarding and explicit reframing plan to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Forward only a fully validated message with one selected body length; remove hop-by-hop fields and received framing metadata, choose exactly one destination framing, serialize a complete destination head before body bytes, and on unsupported coding, capacity failure, cancellation, or output backpressure emit no partially reinterpretable downstream message.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2882,7 +2882,7 @@ on v0.72.0 (Safe forwarding and explicit reframing plan) and must be independent
 
 #### Deliverables
 
-- Acceptance contract: Bind RFC 1945 HTTP/1.0 parser and hardened profile to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: In the explicit HTTP/1.0 profile accept only RFC 1945 request/status lines and fields under strict configured CRLF/obs-fold policy, do not require Host, reject chunked framing and HTTP/1.1-only transfer semantics, preserve unknown methods/statuses within shared valid domains, and apply hardened size/work ceilings before publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2921,7 +2921,7 @@ on v0.73.0 (RFC 1945 HTTP/1.0 parser and hardened profile) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/1.0 default-close lifecycle to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Treat every HTTP/1.0 exchange as connection-close by default, delimit an unlengthened response by EOF, never pipeline, and permit no reuse merely because a message is self-delimited or carries an unrecognized Connection token; cancellation, error, or EOF completes the transport lifecycle deterministically.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2960,7 +2960,7 @@ on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Bind Explicit HTTP/1.0 keep-alive extension profile to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Enable HTTP/1.0 keep-alive only through explicit policy and a recognized Connection: keep-alive exchange with self-delimited messages; require Content-Length where closure would otherwise delimit, remove hop fields when forwarding, bound request count/idle time, and fall back to mandatory close on ambiguity or incomplete bodies.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2999,7 +2999,7 @@ on v0.75.0 (Explicit HTTP/1.0 keep-alive extension profile) and must be independ
 
 #### Deliverables
 
-- Acceptance contract: Bind Separate vef-http09 package and exact grammar to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: The separate vef-http09 package accepts only GET SP nonempty request-target CRLF on a dedicated configured endpoint, rejects version tokens, fields, other methods, controls, fragments, and over-limit targets, emits no HTTP/1 types, and can never be entered through fallback from rejected HTTP/1 bytes.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3038,7 +3038,7 @@ on v0.76.0 (Separate vef-http09 package and exact grammar) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Bind Explicit HTTP/0.9 client API to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: The explicit HTTP/0.9 client serializes GET SP target CRLF, treats all response octets as a borrowed body until clean EOF, has no status/field/trailer interpretation or persistence, and reports cancellation/transport failure separately from successful EOF completion.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3077,7 +3077,7 @@ on v0.77.0 (Explicit HTTP/0.9 client API) and must be independently trustworthy 
 
 #### Deliverables
 
-- Acceptance contract: Bind Explicit HTTP/0.9 server and dedicated-listener API to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: The explicit HTTP/0.9 server exists only on a dedicated-listener policy, accepts one valid simple GET, sends raw response body bytes followed by close, processes no second request, and closes without HTTP/1 error serialization on invalid, ambiguous, or over-capacity input.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3116,7 +3116,7 @@ on v0.78.0 (Explicit HTTP/0.9 server and dedicated-listener API) and must be ind
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/0.9 cross-protocol rejection corpus to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: The rejection corpus covers HTTP/1 versioned lines, PRI prefaces, TLS records, SSH/SMTP prefixes, control bytes, overlong targets, malformed CRLF, and split variants; every case is rejected without protocol fallback, response reflection, unbounded scan, or publication under both HTTP/0.9 and HTTP/1 entry points.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3155,7 +3155,7 @@ on v0.79.0 (HTTP/0.9 cross-protocol rejection corpus) and must be independently 
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/1 smuggling and ambiguity corpus to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: The smuggling corpus fixes expected framing and close outcomes for conflicting/duplicate Content-Length, TE/CL, repeated or non-final chunked, obs-fold, whitespace-before-colon, bare line endings, malformed chunks, Host ambiguity, and transition over-read across every split and intermediary role.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3194,7 +3194,7 @@ on v0.80.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently tru
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/1 and HTTP/0.9 conformance audit and pentest to the exact cited HTTP/1 octet grammar and role matrix: enumerate accepted and forbidden forms, rejection status and connection-reuse/close action, first publication and mutation/rollback points, every partial-input/output and cancellation state, capacity-versus-peer failure, and saturating byte/work counters with a maximum cost per consumed byte.
+- Acceptance contract: Close every applicable RFC 1945/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on any divergent framing, publication, close, capacity, or bounded-work result.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3354,7 +3354,7 @@ on v0.84.0 (HPACK integer overflow and canonical encoder proofs) and must be ind
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK string representation codec to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Decode the Huffman flag and seven-bit-prefixed string length incrementally, accept raw or RFC Huffman payload of exactly that encoded length, cap encoded bytes, decoded bytes, and work before output, reject truncated/invalid Huffman as COMPRESSION_ERROR, and publish the string only after complete validation and capacity preflight.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3393,7 +3393,7 @@ on v0.85.0 (HPACK string representation codec) and must be independently trustwo
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK Huffman tables to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Store exactly the 257 RFC 7541 Appendix B symbol codes and bit lengths, verify every constant against the locked source at build/test time, decode all 256 octets plus EOS-prefix padding vectors, and reject duplicate/prefix-conflicting table entries or any generated decoder state that can accept EOS as data.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3471,7 +3471,7 @@ on v0.87.0 (HPACK Huffman decoder) and must be independently trustworthy before 
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK Huffman encoder to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Encode each input octet with its exact Appendix B code, concatenate most-significant bits, pad the final byte with at most seven one bits, never emit EOS, preflight worst-case output/work, and resume partial output by bit/byte offset without changing or duplicating committed bytes.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3510,7 +3510,7 @@ on v0.88.0 (HPACK Huffman encoder) and must be independently trustworthy before 
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK static table to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Provide exactly the 61 RFC 7541 static entries at one-based indices 1..=61 in normative order, reject index zero/out-of-range access without mutation, preserve empty values where specified, and test every index in both lookup directions including duplicate-name selection.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3549,7 +3549,7 @@ on v0.89.0 (HPACK static table) and must be independently trustworthy before v0.
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK dynamic table storage to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Index dynamic entries newest-first immediately after the 61 static entries, account each as name length plus value length plus 32 with checked arithmetic, store exact insertion order in caller capacity, and make lookup/index numbering deterministic across wrap, eviction, and every table-size setting.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3588,7 +3588,7 @@ on v0.90.0 (HPACK dynamic table storage) and must be independently trustworthy b
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK eviction and oversize-entry behavior to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Before insertion evict oldest entries until the new entry fits; if its size exceeds the maximum, empty the table and do not insert it; a maximum of zero clears all entries, and capacity failure cannot leave partial bytes, provenance, size totals, or index order out of sync.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3706,7 +3706,7 @@ on v0.93.0 (HPACK caller-owned ring lookup) and must be independently trustworth
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK indexed representation to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Decode an indexed field from the one-bit pattern and seven-bit prefix, require a nonzero index within the current combined table, return the exact referenced name/value without table mutation, and map zero, stale, or out-of-range indices to connection COMPRESSION_ERROR before field publication.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3745,7 +3745,7 @@ on v0.94.0 (HPACK indexed representation) and must be independently trustworthy 
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK incremental-indexing literal to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Decode the 01 incremental-indexing representation with a six-bit name index or bounded literal name followed by a bounded literal value; validate the full representation and insertion capacity, then insert exactly once in wire order even if later HTTP semantics reject the field, with no field publication before block completion.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3784,7 +3784,7 @@ on v0.95.0 (HPACK incremental-indexing literal) and must be independently trustw
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK non-indexing and never-indexed literal to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Decode 0000 without-indexing and 0001 never-indexed forms with four-bit name indices or literal names, never mutate the dynamic table, preserve the never-indexed directive through intermediary APIs, and reject invalid indices/strings as COMPRESSION_ERROR before any field becomes visible.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3823,7 +3823,7 @@ on v0.96.0 (HPACK non-indexing and never-indexed literal) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: Represent typed Index, WithoutIndexing, and NeverIndexed directives plus a caller-supplied generation-safe CompressionPrincipal provenance token; tag dynamic-table entries as principal-owned or explicitly public, prohibit encoder lookup across principals even when name/value bytes compare equal, and default unknown provenance to WithoutIndexing or NeverIndexed; default credentials, Authorization and Proxy-Authorization fields, cookies, and caller-marked secrets to the enforced conservative profile; never let an intermediary downgrade a received never-indexed representation to indexed; prohibit indexing decisions based on secret-value comparisons with attacker-controlled values; redact sensitive values from diagnostics; and reject caller overrides that weaken the active security profile.
+- Acceptance contract: Represent typed Index, WithoutIndexing, and NeverIndexed directives plus a caller-supplied generation-safe CompressionPrincipal provenance token; keep provenance as encoder-only sidecar metadata that never changes HPACK entry size, insertion order, eviction, or index numbering, so skipped cross-principal entries still occupy their normal indices; tag each insertion immutably as principal-owned or explicitly public, remove its provenance atomically on eviction/reset, and never relabel a private entry public because another principal produces equal bytes; prohibit encoder lookup across principals and default unknown provenance to WithoutIndexing or NeverIndexed; default credentials, Authorization and Proxy-Authorization fields, cookies, and caller-marked secrets to the enforced conservative profile; never let an intermediary downgrade a received never-indexed representation to indexed; prohibit indexing decisions based on secret-value comparisons with attacker-controlled values; redact sensitive values from diagnostics; and reject caller overrides that weaken the active security profile.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3982,7 +3982,7 @@ on v0.100.0 (HPACK synchronization, publication barrier, and error scope) and mu
 
 #### Deliverables
 
-- Acceptance contract: Bind HPACK conformance audit and pentest to the exact RFC 7541 representation and table rules: enumerate accepted encodings and compression errors, incremental input/output commit points, dynamic-table mutation and rollback prohibition, caller-capacity separation, bounded integer/Huffman/table work, and vectors for every byte split and boundary value.
+- Acceptance contract: Run every RFC 7541 request/response example, integer/string/Huffman/table vector, all-byte-split case, table-size transition, malformed index/EOS/padding case, and at least two independent implementation transcripts under all resource profiles; require identical headers, table snapshots, error scope, and bounded work before the HPACK pentest exit.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4022,7 +4022,7 @@ on v0.101.0 (HPACK conformance audit and pentest) and must be independently trus
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/2 client and server prefaces to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: A server consumes exactly the 24-byte client connection preface before frames and treats mismatch as connection PROTOCOL_ERROR; both endpoints send SETTINGS as their first frame, a client validates the server's first frame as non-ACK SETTINGS, and partial preface/SETTINGS input publishes no stream or application event.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4570,7 +4570,7 @@ on v0.115.0 (Unknown-frame extension policy) and must be independently trustwort
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/2 stream-identifier rules to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Use reserved-bit-masked 31-bit identifiers with client-initiated odd and server-push even parity, require monotonically increasing new IDs, keep stream zero only for connection frames, reject reused/lower illegal IDs with exact RFC scope, and on identifier exhaustion send bounded GOAWAY instead of wrapping.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4609,7 +4609,7 @@ on v0.116.0 (HTTP/2 stream-identifier rules) and must be independently trustwort
 
 #### Deliverables
 
-- Acceptance contract: Bind Generation-checked stream table and tombstones to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Store each live stream in a fixed slot with a generation token and retain bounded tombstones/cutoff metadata for closed IDs; reject stale commands and borrowed acknowledgements, never recycle before terminal events release, distinguish known-closed from idle IDs, and report local slot exhaustion without inventing a peer protocol error.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4848,7 +4848,7 @@ on v0.122.0 (HTTP/2 graceful GOAWAY and bounded shutdown sequencing) and must be
 
 #### Deliverables
 
-- Acceptance contract: Decode one complete HEADERS/PUSH_PROMISE plus CONTINUATION block through HPACK before field publication; commit valid compression-context changes even when later semantics cause a stream error, make incomplete/invalid compression connection-fatal, publish the field section atomically after capacity and semantic preflight, and preserve exact partial-input and cancellation state.
+- Acceptance contract: Decode one complete HEADERS/PUSH_PROMISE plus CONTINUATION block through HPACK before field publication; once a block starts, immediate RST_STREAM, refusal, application cancellation, or later semantic stream error cannot cancel decoding or valid table changes, and a synchronization-only path completes the block with no decoded field exposed to the application; permit REFUSED_STREAM only when remaining HPACK/CONTINUATION work and storage can finish safely, otherwise perform bounded connection shutdown; make incomplete/invalid compression connection-fatal, publish an admitted field section atomically after capacity and semantic preflight, and preserve exact partial-input state.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4926,7 +4926,7 @@ on v0.124.0 (SETTINGS header-table encoder and header-list policy coupling) and 
 
 #### Deliverables
 
-- Acceptance contract: Bind Pseudo-field ordering and uniqueness to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Require all pseudo-fields before regular fields, reject any duplicate or unknown pseudo-field, allow only request pseudo-fields in requests and :status in responses, forbid every pseudo-field in trailers, and complete these checks after HPACK synchronization but before mapped message publication.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4965,7 +4965,7 @@ on v0.125.0 (Pseudo-field ordering and uniqueness) and must be independently tru
 
 #### Deliverables
 
-- Acceptance contract: Bind Connection-specific field and TE validation to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Reject Connection, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade in HTTP/2 field sections; accept TE only with the case-insensitive value trailers and no other list member, classify violations as stream PROTOCOL_ERROR after full HPACK decode, and publish no invalid field section.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5043,7 +5043,7 @@ on v0.127.0 (HTTP/2 malformed initial-field-block publication barrier) and must 
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/2 request mapping to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Map validated :method/:scheme/:authority/:path into the exact ordinary, CONNECT, or extended-CONNECT request form, reconcile Host and :authority, preserve ordered ordinary fields without pseudo-fields, and emit one request event only after the initial-field publication barrier and stream transition commit.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5082,7 +5082,7 @@ on v0.128.0 (HTTP/2 request mapping) and must be independently trustworthy befor
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/2 response mapping to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Require exactly one three-digit valid :status and no request pseudo-field, correlate informational and final responses to the initiating request, preserve ordered ordinary fields and Set-Cookie lines, reject 101 in HTTP/2, and publish only after complete HPACK, semantic, capacity, and stream-state validation.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5160,7 +5160,7 @@ on v0.130.0 (HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliatio
 
 #### Deliverables
 
-- Acceptance contract: Bind Informational responses and trailers to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Allow ordered informational responses before one final response without prematurely completing the stream; accept trailers only after the body on a trailing HEADERS with END_STREAM, forbid pseudo-fields and Content-Length there, and publish trailers atomically without changing prior response metadata.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5199,7 +5199,7 @@ on v0.131.0 (Informational responses and trailers) and must be independently tru
 
 #### Deliverables
 
-- Acceptance contract: Bind Cookie field combination and Set-Cookie preservation to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: When mapping HTTP/2 requests, concatenate multiple Cookie values in arrival order with exactly semicolon plus SP for the semantic cookie view while retaining source lines; never combine Set-Cookie response fields, preserve their order and bytes independently, and enforce field/output limits before producing either view.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5676,7 +5676,7 @@ on v0.143.0 (SETTINGS max-frame-size outbound integration) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Bind GOAWAY cutoff and retry classification to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Record each received/sent GOAWAY last-stream ID monotonically non-increasing, classify locally initiated streams above the peer cutoff as possibly unprocessed and those at/below separately, reject new streams after the cutoff, and never equate cutoff classification with replay authorization or duplicate terminal events.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5834,7 +5834,7 @@ on v0.147.0 (Independent HTTP/2 rate and work budgets) and must be independently
 
 #### Deliverables
 
-- Acceptance contract: Charge stream creation, initial HEADERS/HPACK work, admission lookup, and reset work before application admission; never refund those charges for immediate RST_STREAM, refusal, cancellation, or connection close; apply both connection-local opened/reset ceilings and the caller-injected shared admission hook before allocating a stream slot; on exhaustion refuse or perform one bounded shutdown action without misclassifying policy exhaustion as peer PROTOCOL_ERROR.
+- Acceptance contract: Charge stream creation, initial HEADERS/HPACK work, admission lookup, and reset work before application admission; never refund those charges for immediate RST_STREAM, refusal, cancellation, or connection close; apply both connection-local opened/reset ceilings and the caller-injected shared admission hook before allocating a stream slot; REFUSED_STREAM remains available only before application processing and only when VEF can consume every CONTINUATION, finish the complete HPACK block, and commit its valid table changes without exposing decoded fields, while insufficient HPACK/CONTINUATION work budget or storage requires exactly one bounded connection shutdown action rather than abandonment or compression desynchronization; policy exhaustion never becomes peer PROTOCOL_ERROR.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6068,7 +6068,7 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
 
 #### Deliverables
 
-- Acceptance contract: Bind HTTP/2 conformance audit and pentest to the exact RFC 9113 wire/state rule by endpoint role: enumerate legal frames, flags, stream states, publication and typed-delta mutation points, partial input/output and cancellation, local capacity versus peer violation, exact HTTP/2 error code and connection/stream scope, and saturating frame/byte/work/output charges before mutation.
+- Acceptance contract: Replay every RFC 9113 frame, stream-state, continuation, flow-control, SETTINGS, GOAWAY, push, priority, HPACK, malformed-field, flood, and shutdown vector for both roles; require exact connection/stream error code, state delta, publication trace, control output, work charge, and interop transcript before the HTTP/2 pentest exit.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6345,7 +6345,7 @@ on v0.160.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be indepen
 
 #### Deliverables
 
-- Acceptance contract: The CONNECT translation across HTTP versions outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Translate HTTP/1 CONNECT authority-form to HTTP/2 :method CONNECT plus :authority with no :scheme/:path and reverse it exactly; map non-2xx as ordinary responses, publish a tunnel only after the successful destination response commits, and buffer/return optimistic or over-read bytes exactly once without HTTP reinterpretation.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6423,7 +6423,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Deliverables
 
-- Acceptance contract: The WebSocket HTTP/1 to HTTP/2 handshake bridge outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Translate a validated HTTP/1 GET Upgrade websocket handshake to RFC 8441 extended CONNECT only after peer ENABLE_CONNECT_PROTOCOL, and map a successful HTTP/2 2xx back to HTTP/1 101 with validated accept/subprotocol/extensions; failure remains HTTP, and no WebSocket byte crosses either side before both transitions commit.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7012,7 +7012,7 @@ on v0.177.0 (Priority intermediary behavior) and must be independently trustwort
 
 #### Deliverables
 
-- Acceptance contract: Implement only HTTP/2 PRIORITY_UPDATE type 0x10 with frame-header stream identifier zero, ignored unknown flags, and zero outbound reserved bits; require at least four payload bytes for a nonzero reserved-bit-masked 31-bit prioritized stream identifier or return connection FRAME_SIZE_ERROR/PROTOCOL_ERROR respectively; permit only client-to-server frames and return connection PROTOCOL_ERROR if a client receives one; for request streams apply/buffer the latest update in idle, open, or half-closed-remote states and discard half-closed-local/closed targets, for push streams accept reserved-remote or half-closed-local, discard closed, and reject idle with connection PROTOCOL_ERROR; keep idle-prioritized plus active streams within SETTINGS_MAX_CONCURRENT_STREAMS or return connection PROTOCOL_ERROR; parse the remaining ASCII Priority Field Value and, by fixed policy, ignore a malformed update while retaining prior/default priority and charging its flood budget.
+- Acceptance contract: Implement only HTTP/2 PRIORITY_UPDATE type 0x10 with every target state expressed from the receiving server's perspective, frame-header stream identifier zero, ignored unknown flags, and zero outbound reserved bits; require at least four payload bytes for a nonzero reserved-bit-masked 31-bit prioritized stream identifier or return connection FRAME_SIZE_ERROR/PROTOCOL_ERROR respectively; permit only client-to-server frames and return connection PROTOCOL_ERROR if a client receives one; for request streams apply/buffer the latest update in idle, open, or half-closed-remote and discard half-closed-local/closed targets; for push streams accept reserved-local or half-closed-remote, discard closed, and reject idle with connection PROTOCOL_ERROR; keep idle-prioritized plus active streams within SETTINGS_MAX_CONCURRENT_STREAMS or return connection PROTOCOL_ERROR; parse the remaining ASCII Priority Field Value and, by fixed policy, ignore a malformed update while retaining prior/default priority and charging its flood budget.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7597,7 +7597,7 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
 
 #### Deliverables
 
-- Acceptance contract: The Stable diagnostics and security events outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Assign stable non-secret diagnostic codes to syntax, protocol scope/code, policy, capacity, cancellation, timeout, transport, and peer/local role; include bounded offsets/counters and generation identifiers, redact field values, credentials, nonces, and compression contents, and emit each security event once at its committed disposition.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7636,7 +7636,7 @@ on v0.193.0 (Stable diagnostics and security events) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: The Feature and dependency-policy surface outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Keep default and all feature combinations no_std, safe, and free of third-party Cargo dependencies; features only add separately owned APIs/crates, never weaken limits or validation, compile under Rust 1.90.0..=1.97.1, and fail policy checks on dependency, std, unsafe, or unintended facade-surface drift.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7675,7 +7675,7 @@ on v0.194.0 (Feature and dependency-policy surface) and must be independently tr
 
 #### Deliverables
 
-- Acceptance contract: The Multi-implementation interoperability outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Run fixed HTTP/1, HTTP/2, HPACK, Structured Fields, Upgrade, CONNECT, and proxy transcripts against at least two independent peers per applicable protocol; record versions and wire artifacts, require semantic and error-scope agreement, and resolve every divergence without adding permissive parser exceptions.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7714,7 +7714,7 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
 
 #### Deliverables
 
-- Acceptance contract: The Adversarial and stateful fuzz campaign outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Maintain stateful fuzz targets for HTTP/1 framing/transitions, HPACK tables/blocks, HTTP/2 frames/streams/flow/flood, Structured Fields, and translation; seed RFC/adversarial corpora, assert progress/capacity/no-panic/state-isolation oracles, minimize crashes, and replay every regression deterministically at the milestone gate.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7753,7 +7753,7 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: The Compile-fail state and lifetime tests outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7792,7 +7792,7 @@ on v0.197.0 (Compile-fail state and lifetime tests) and must be independently tr
 
 #### Deliverables
 
-- Acceptance contract: The Long-running soak and exhaustion campaign outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Soak long-lived HTTP/1 and HTTP/2 connections through counter saturation, stream/table generation wrap boundaries, repeated cancellation, flow-control stalls, mandatory-control backpressure, flood refill, and caller-capacity exhaustion; memory/storage remains flat, work stays within profile, and shutdown completes within bounded steps.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7831,7 +7831,7 @@ on v0.198.0 (Long-running soak and exhaustion campaign) and must be independentl
 
 #### Deliverables
 
-- Acceptance contract: The Role and API conformance audit and pentest outcome must enumerate authorized inputs and role decisions, borrowed/fixed-capacity ownership, validation-before-publication and byte-commit boundaries, retry/cancellation/transition aftermath, typed local-versus-peer failures, bounded work/output, and negative tests proving no partial cross-role state or bytes escape.
+- Acceptance contract: Audit client, origin, intermediary, proxy, gateway, tunnel, HTTP/0.9, HTTP/1, and HTTP/2 public APIs against their capability matrix; prove no role can construct an unauthorized target, field, retry, transition, push, coalescing, or close action, then pentest the frozen role surface and close every critical/high finding.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

@@ -84,6 +84,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   acknowledged before the underlying slot can be recycled.
 - HPACK dynamic entries carry caller-supplied compression-principal provenance;
   shared/coalesced connections never look up a private entry across principals.
+- Compression-principal provenance is immutable encoder-side metadata: it does
+  not alter HPACK size or indices, skipped entries retain their wire index, and
+  eviction/reset removes entry bytes and provenance in one operation.
 - Stream/flood counters charge before work, use saturating arithmetic and
   injected-time refill, and can consult caller-shared cross-connection limits.
 - No HTTP/0.9, CONNECT, Upgrade, ALPN, or cleartext HTTP/2 transition is guessed.
@@ -99,7 +102,8 @@ Feature-controlled re-exports only. It owns no parser or connection state.
 
 ### `vef-core`
 
-Owns byte-oriented methods, status codes, versions, URI/request-target forms,
+Owns byte-oriented methods, status codes restricted to valid HTTP 100..=599,
+typed invalid received status evidence, versions, URI/request-target forms,
 ordered fields, message heads, roles, limits, policies, progress, and
 structured diagnostics, including opaque generation-safe compression-principal
 provenance supplied by callers without embedding identity policy in HPACK.
@@ -206,6 +210,10 @@ borrowed body acknowledgement and drain/discard/cancel/reuse actions, bounded
 pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
 isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
+Request transfer codings require final chunked; responses may instead become
+close-delimited, with repeated chunked and unsupported coding kept distinct.
+RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close,
+and no failed optimistic transition bytes are reparsed as HTTP.
 
 ### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.154.0`)
 
@@ -223,6 +231,9 @@ field-block-contiguous scheduling, reserved mandatory-control capacity,
 credit-update coalescing, and commit-time frame-limit transitions are explicit.
 Rapid Reset and flood charges are independent and non-refundable; required
 ACK/control output either remains reserved or produces one bounded shutdown.
+Refusal/reset/cancellation never abandons an inbound HPACK block: a refused
+stream finishes synchronization without application publication, or lack of
+remaining HPACK/CONTINUATION capacity forces bounded connection shutdown.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
@@ -243,6 +254,8 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
+PRIORITY_UPDATE request and push targets use one receiver-server-relative state
+convention, including reserved-local and half-closed-remote push targets.
 
 ### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.200.0`–`0.225.0`)
 

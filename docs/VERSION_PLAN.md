@@ -12,23 +12,27 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review corrected field-block frame error scope and bound
-remaining placeholder contracts, flood accounting, Structured Fields resource
-profiles, HTTP/2 priority/admission rules, and compression-principal
-provenance. These map to existing owners, so the dependency-correct roadmap
-remains at `0.225.0`.
+The latest design review corrected status-code domains, request/response
+transfer-coding asymmetry, RFC 9931 transition defenses, receiver-relative
+priority states, HPACK synchronization during refusal, and compression
+provenance bookkeeping. It also replaced every remaining family-template
+acceptance clause with milestone-specific behavior. These map to existing
+owners, so the dependency-correct roadmap remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
 | Early resource ceilings | `0.7.0`; replay at `0.211.0` | Set measurable ceilings before layouts/state machines land and verify every later component against them. |
 | Capacity versus protocol errors | `0.10.0` | Local storage/backpressure/control-capacity failures never masquerade as peer protocol violations. |
+| Status-code validity | `0.12.0` | Limit StatusCode to 100..=599, preserve unknown valid codes, retain received 600..=999 only as typed invalid wire evidence, process them under client 5xx policy, and prohibit serialization. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
 | Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |
+| Compression provenance bookkeeping | `0.90.0`–`0.91.0`, `0.97.0` | Keep immutable provenance as an encoder sidecar that never changes HPACK size/index order, and remove it atomically with entry eviction or reset. |
 | HPACK wire legality | `0.82.0`–`0.93.0` | Accept non-shortest valid integers, emit canonical integers, reject illegal Huffman EOS/padding and invalid indices, and emit at most two ordered table-size changes. |
 | SETTINGS dependency ordering | `0.108.0` then `0.124.0`, `0.135.0`, `0.141.0`, `0.143.0` | Parse/store early; integrate only after HPACK, streams/windows, admission, and scheduling exist. |
 | HTTP/2 publication order | `0.127.0` before `0.128.0` | Malformed names/values, pseudo-fields, context, and initial Content-Length are rejected before mapped messages can become observable. |
+| HPACK refusal synchronization | `0.123.0`, `0.148.0` | RST/refusal/cancellation never abandons an inbound block; REFUSED_STREAM requires capacity to finish HPACK invisibly, otherwise the connection shuts down boundedly. |
 | HTTP/2 DATA and command ownership | `0.136.0`–`0.137.0` | Application acknowledgement, not parsing, releases inbound credit; outbound HEADERS/DATA/trailers/END_STREAM and partial output use one per-stream lifecycle. |
 | HTTP/2 activation/shutdown | `0.119.0`–`0.122.0` | Make preface, first SETTINGS, frame legality, fragmentation, stream exhaustion, GOAWAY, retry cutoff, and backpressured shutdown explicit. |
 | HTTP/2 error-scope isolation | `0.121.0` | Map every violation to exact code/scope, apply stream-only typed deltas, reserve one RST_STREAM/GOAWAY, and prove unrelated state is unchanged. |
@@ -43,9 +47,11 @@ remains at `0.225.0`.
 | Scheduler and limit activation | `0.142.0`–`0.143.0` | Preserve field-block contiguity, mandatory-control capacity, cross-stream fairness, cancellation safety, and commit-time SETTINGS segmentation/receive-limit transitions. |
 | Fail-closed protocol selection | `0.146.0` | Require authenticated exact h2 ALPN or explicit cleartext policy, consume failed-selection bytes once, and freeze choice when preface processing starts. |
 | Flood and Rapid Reset accounting | `0.147.0`–`0.153.0` | Charge independent non-refundable work before admission, refill saturating budgets from injected time, reserve required replies/shutdown, and permit caller-shared cross-connection limits. |
+| HTTP/1 transfer-coding roles | `0.43.0`–`0.45.0` | Require final chunked on requests, permit response close delimitation for other/non-final transfer codings, reject repeated chunked, and separate unsupported coding from malformed order. |
+| RFC 9931 optimistic-data closure | `0.65.0` | Require CONNECT proxy wait-or-close behavior, mandatory close after rejected CONNECT, no pre-101 WebSocket or HTTP/1.x CONNECT-UDP data, and no failed-transition reparsing. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
-| HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with exact stream/state/error rules, concurrency bounds, and a fixed ignore-malformed-value policy. |
-| Concrete acceptance contracts | `0.1.0`–`0.225.0` | Eliminate generic state-graph placeholders; type, parser, protocol, adapter, campaign, audit, and release stops use outcome-appropriate acceptance evidence. |
+| HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
+| Concrete acceptance contracts | `0.1.0`–`0.225.0` | Eliminate generic state-graph and family templates; every type, parser, codec, protocol, adapter, campaign, audit, and release stop states its actual accepted input, state, error, capacity, and publication evidence. |
 | Intermediary and retry semantics | `0.158.0`, `0.159.0`, `0.182.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
 | Structured Fields and priority | `0.164.0`–`0.179.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
 | Translation and byte handoff | `0.155.0` then `0.160.0`; `0.188.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |

@@ -77,11 +77,12 @@ monotonic deadlines and is always caller/adapter supplied.
 
 `vef-auth` owns bounded scheme-neutral authentication grammar and sensitive
 borrowed/caller storage. `vef-media-type` owns bounded dependency-free media
-type/subtype/parameter grammar, exact field-bound validation evidence, and later
-sealed partial-content classification; it validates generated OPTIONS content
-but does not parse multipart bodies. `vef-conditions` owns entity
-tags, civil-evidence-aware HTTP dates, conditional-field evaluation, checked
-range planning, final client request validation, individual partial segments, and bounded combination
+type/subtype/parameter syntax that preserves ordered duplicates and empty slots,
+then separate generated-media and partial-response policies. Generic syntax
+never assigns duplicate meaning; the generated policy validates OPTIONS content,
+and neither layer parses multipart bodies. `vef-conditions` owns entity tags,
+civil-evidence-aware HTTP dates, conditional-field evaluation, checked range
+planning, final client request validation, individual partial segments, and bounded combination
 plans. Its sealed pre-action evidence, retrieval-only snapshot, and outcomes
 bind the exact request/exchange generation, civil time, and caller
 representation evidence.
@@ -346,20 +347,24 @@ Combination eligibility waits through validated trailers, which may supply
 ETag but cannot change range/domain or the head-published ordinal. A
 generation-safe assembly context compares an engine-derived semantic variant
 identity from bounded Vary, exact original-request values, principal, privacy
-partition, and navigation identity. Each segment separately carries fresh
-request/response provenance evidence; those generations never enter identity
-equality. Coding/domain, length, and strong-validator constraints still apply,
-and `Vary: *` never matches. Physical storage
+partition, and navigation identity. Exact values live in immutable original-
+request leases or engine-written caller fixed storage; there is no truncation,
+digest authority, or opaque-token substitution, and sensitive Vary values stay
+redacted. Each segment separately carries fresh request/response and storage
+provenance evidence; releasing storage invalidates admission, while generations
+never enter identity equality. Coding/domain, length, and strong-validator
+constraints still apply, and `Vary: *` never matches. Physical storage
 generation stays in leases, not semantic replacement identity. Output comes
 from safe non-overlapping splitting or a separate arena, and completed same-key
-200 invalidates across arena generations. Combination sorts intervals under a
-dedicated comparison budget: equal overlaps deduplicate, while unequal bytes
+200 invalidates across arena generations. A public requested overlap budget is
+validated before work into a sealed plan-bound active budget capped by the
+resource profile; sort/comparison charging cannot reset or enlarge. Equal
+overlaps deduplicate, while unequal bytes
 emit no output, return `ConflictingPartialContent`, and quarantine the full
 context and validator association. Only complete same-key 200 replacement or
 destruction followed by a different-validator/new-generation empty context can
 clear it; 304, unchanged revalidation, and separate selection contexts cannot.
-Multipart and unknown units remain outside
-recombination.
+Multipart and unknown units remain outside recombination.
 The gate freezes the exact validated response; serialization never accepts a
 raw head beside a permit. Engine-only semantic slots and frozen-head storage
 are reserved for mandatory responses and cannot be consumed by application

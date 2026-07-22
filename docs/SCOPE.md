@@ -40,8 +40,9 @@ validation, DNS, cache storage, cookie jars, redirect policy, connection-pool
 policy, proxy discovery, content compression, WebSocket frames, HTML/forms,
 general-purpose multipart parsing/generation, routers, templates, server
 binaries, and CLIs are out of scope. VEF 1.0 generates only single-range 206;
-its reusable bounded media-type grammar validates generated content and later
-classifies partial Content-Type exactly, including required RFC 2046 boundary grammar, while
+its reusable bounded media-type syntax preserves ordered duplicate parameters
+and empty slots; separate generated-content and partial-response policies later
+classify Content-Type, including required RFC 2046 boundary grammar, while
 received multipart/byteranges bodies remain opaque bytes that can be preserved
 and forwarded without boundary or part validation. VEF parses entity tags,
 HTTP dates, conditional fields, Range, and Content-Range and evaluates them
@@ -51,13 +52,19 @@ checked caller/adapter civil-time evidence (including an explicit unavailable
 state) independently of monotonic deadlines. Built-in client handling validates
 single-range 206 and keeps multipart opaque as NeedsMultipartConsumer. Its
 fixed-capacity partial-combination plan handles validated byte-range segments
-and incomplete-200 prefixes from multiple request generations, but standalone
-206 bodies accept a public StreamOnly, RetainOnly, or StreamAndRetain preference
-but require an engine-selected permit and can stream without retention. Optional combination requires safely
+and incomplete-200 prefixes from multiple request generations. Standalone 206
+bodies accept a public StreamOnly, RetainOnly, or StreamAndRetain preference but
+require an engine-selected permit and can stream without retention. Optional
+combination requires safely
 frozen transfer-decoded/content-encoded storage, trailer-finalized strong
 validators, an engine-derived semantic exact-request/Vary/principal/privacy/
-navigation identity plus separately fresh provenance evidence, and validated-head
-ordering. Equal overlap deduplicates; conflicting bytes publish nothing and
+navigation identity plus separately fresh provenance evidence and immutable
+exact-value leases/caller storage. Sensitive values remain redacted; no
+truncation,
+digest equality, or token substitution is allowed; capacity/release locally
+downgrades to NoRecombine. A caller-requested overlap budget becomes usable
+only through a resource-profile-capped engine permit.
+Equal overlap deduplicates; conflicting bytes publish nothing and
 quarantine the context under a dedicated comparison budget until complete 200
 replacement or a destroyed-and-new different-validator representation context.
 Physical arena generations affect leases, not semantic replacement; `Vary: *`,

@@ -82,11 +82,14 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   Content-Type, Content-Range, body-length, and strong-validator evidence.
 - Partial Content-Type classification comes only from the bounded sealed
   `vef-media-type` result; multipart never grants top-level range authority.
-- Generated OPTIONS Content-Type validation reuses the same parser from
-  v0.157.5; protocol engines and role code cannot carry temporary grammars.
-- A public delivery preference confers no authority; the engine-selected permit
-  is fixed before body consumption. Retention commits before publication/
-  acknowledgement, and unequal overlaps quarantine the assembly context without publishing bytes or synthesized metadata.
+- Generic media-type syntax preserves RFC-valid duplicate parameters and empty
+  slots; generated OPTIONS and partial responses apply separate policies over
+  the same v0.157.5 parser. Engines and role code cannot carry temporary grammars.
+- A public delivery preference or requested work budget confers no authority;
+  engine-selected delivery and profile-capped active-work permits are fixed
+  before body consumption or combination work. Retention commits before
+  publication/acknowledgement, and unequal overlaps quarantine the assembly
+  context without publishing bytes or synthesized metadata.
 - Mandatory generated responses retain engine-only semantic-validation slots
   and frozen-head storage that application work cannot consume; total reserve
   failure commits one deterministic close/shutdown action with no partial head.
@@ -140,21 +143,25 @@ Basic, Digest, application credential validation, or physical buffer erasure.
 ### `vef-media-type` (planned at `0.157.5`, partial integration at `0.180.5`)
 
 Depends only on `vef-core`. Owns bounded incremental media type, subtype,
-parameter, quoted-string, and escape grammar plus sealed exact field/generation
-validation used by generated OPTIONS. At `0.180.5` it adds RFC 2046-boundary-
-aware partial-response classification. It neither parses multipart bodies nor grants Content-Range, storage, or combination authority.
+parameter, empty-slot, quoted-string, and escape syntax that preserves ordered
+duplicates, forbids whitespace around `=`, and distinguishes empty quoted from
+missing values. Separate sealed generated-media validation is used by OPTIONS;
+at `0.180.5` a media-specific RFC 2046 boundary policy adds partial-response
+classification. It neither parses multipart bodies nor grants range authority.
 
 ### `vef-conditions` (planned at `0.180.1`–`0.181.2`)
 
 Depends on `vef-core` and, starting at `0.180.5`, `vef-media-type`. Owns bounded
 entity-tag and HTTP-date validators, strong/weak comparison, conditional-field
-parsing and RFC-ordered evaluation, checked Range/Content-Range arithmetic, pre-action representation evidence,
+parsing and RFC-ordered evaluation, checked Range/Content-Range arithmetic,
+pre-action representation evidence,
 retrieval-only hypothetical-200 snapshots, staged content/execution permits,
 final outbound request validation, single-range planning, individual partial
 head/chunk/completion streaming, optional retained-prefix validation,
 generation-safe cross-request assembly contexts, structurally safe stored-byte/
-output leases, trailer-finalized combination refinement, and bounded copy/
-header-synthesis plans. Its sealed
+output leases, exact redacted Vary identity leases/fixed storage, trailer-
+finalized combination refinement, requested/profile-capped active work budgets,
+and bounded copy/header-synthesis plans. Its sealed
 outcomes bind exact request/exchange/correlation generations, civil time, and
 caller-supplied representation existence, metadata, length, validator, and
 modification evidence without retroactively revoking a consumed mutation
@@ -398,9 +405,10 @@ separate from monotonic deadlines, defines Available/Unavailable origin and
 forwarding Date policy, Last-Modified clamping/external assignment, and the RFC
 850 complete-instant 50-year rule without global clock ownership; generic
 civil years precede 1900 but validated HTTP dates do not. No-RTC Aesynx stays
-supported. v0.157.5 then creates dependency-free `vef-media-type`; v0.158.0
-consumes its exact field/generation evidence for generated OPTIONS content, so
-no interim Content-Type parser enters HTTP or role code.
+supported. v0.157.5 then creates dependency-free `vef-media-type`; generic
+syntax preserves duplicate parameters and empty slots, while v0.158.0 consumes
+separate conservative generated field/generation evidence for OPTIONS content,
+so no interim Content-Type parser enters HTTP or role code.
 Then build the normative HTTP/1↔HTTP/2 matrix before destination bytes and add
 Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
@@ -417,16 +425,20 @@ content, separate pre-action evidence and retrieval-only 200 snapshots, bounded
 range parsing, sealed content/execution permits, final frozen client request
 validation, exact RFC 2046-aware Content-Type classification, individual partial
 segments, and fixed-capacity interval/header combination plans. Standalone 206
-accepts a public preference but requires an engine-selected delivery permit and can stream without storage or a strong validator;
-only opt-in exclusive-slice/sealed-arena retention freezes bytes for assembly.
+accepts a public preference but requires an engine-selected delivery permit; it
+can stream without storage or a strong validator. Only opt-in exclusive-slice/
+sealed-arena retention freezes bytes for assembly.
 Trailer processing finalizes stored validators without changing head decisions.
-Assembly contexts compare semantic exact-request/Vary/principal/privacy/
-navigation identities only after separately validating each request/response
-provenance token, keep physical generations in leases, reject `Vary: *`, acquire
-non-aliasing output safely, compare sorted overlaps under a dedicated budget,
-quarantine conflicting bytes with zero output until complete replacement or a
+Assembly contexts retain exact Vary-selected bytes in immutable request leases
+or fixed caller storage with redaction and no digest/token substitution, compare
+semantic request/Vary/principal/privacy/navigation identities only after
+validating request/response/storage provenance, reject `Vary: *`, acquire
+non-aliasing output safely, and compare sorted overlaps only after activating a
+profile-capped non-resettable budget. Conflicting bytes are quarantined with
+zero output until complete replacement or a
 destroyed-and-new different-validator representation context, and order
-headers when the correlation engine publishes each validated head. v0.183.0 exposes only the
+headers when the correlation engine publishes each validated head. v0.183.0
+exposes only the
 read-only pending selection view before those permits and suppresses early 100,
 body delivery, and method effects. A consumed unsafe execution permit survives
 the mutation it authorized; its response uses fresh evidence. v0.182.1 consumes

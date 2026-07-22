@@ -12,10 +12,10 @@ dependency context, exit criteria, and exact-commit pentest stop.
 
 ## Gap closure map
 
-The latest design review bound strict CONNECT authority/content policy,
-flush-then-close tunnel draining, complete TRACE/OPTIONS semantics, and trusted
-scheme reconstruction with adapter-authenticated connection context. These map
-to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
+The latest design review separated HTTP/1 closure from HTTP/2 directional FIN,
+bound native HTTP/2 CONNECT DATA before/after establishment, added final-hop
+server-wide OPTIONS conversion, and completed 205 zero-content semantics. These
+map to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -25,6 +25,8 @@ to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 | URI path/query identity | `0.17.0`, `0.128.0`, `0.160.0` | Store raw path and optional query separately, preserve absent versus empty query and percent encoding, map exact `:path`, and perform only required empty-path-to-slash conversion. |
 | Trusted effective target | `0.19.0`, `0.40.0`, `0.156.0`, `0.203.0`, `0.208.0` | Bind fixed/gateway/transport scheme evidence to connection generation, apply explicit precedence/conflict policy before publication, and reuse the complete scheme/authority/path/query decision. |
 | CONNECT authority and policy | `0.40.0`, `0.64.0`, `0.161.0` | Require explicit checked port 1..=65535, bracket-safe host parsing, no Host/default substitution, caller target authorization before external action, no request content, strict success fields, and non-cacheability. |
+| HTTP/2 CONNECT tunnel DATA | `0.130.0`, `0.136.0`, `0.137.0`, `0.161.0` | Treat post-initial-HEADERS DATA as stream-local tunnel bytes, bound/backpressure pending data, forward only after authorization/connect success, constrain connected frames, and map TCP/HTTP2 resets exactly. |
+| 205 zero-content semantics | `0.63.0`, `0.130.0`, `0.137.0`, `0.160.0` | Guarantee zero outbound content, retain ordinary inbound framing for synchronization, diagnose and suppress malicious nonzero content, and test HTTP/1 pipelines plus HTTP/2 DATA/END_STREAM. |
 | Terminal 101 response branch | `0.59.0`, `0.60.0`, `0.67.0` | Separate informational-then-final from terminal 101, prohibit HTTP/1.0 1xx emission, complete the request and any required 100 first, and reject all HTTP operations after handoff. |
 | WebSocket entropy | `0.69.0` | Require a fresh caller/adapter-provided 16-byte nonce; core never invents weak entropy. |
 | Directional extended CONNECT setting | `0.139.0`, `0.162.0` | Separate peer-enabled outbound initiation from committed local inbound advertisement, accept only 0/1, prohibit withdrawal after 1, and fail unadvertised inbound requests before publication. |
@@ -55,13 +57,14 @@ to existing owners, so the dependency-correct roadmap remains at `0.225.0`.
 | Chunk-extension BWS grammar | `0.50.0` | Accept BWS around semicolon and equals exactly, charge raw whitespace to limits, trim before semantic interpretation, and retain injection/quoting rejection. |
 | RFC 9931 optimistic-data closure | `0.65.0` | Require CONNECT proxy wait-or-close behavior, mandatory close after rejected CONNECT, no pre-101 WebSocket or HTTP/1.x CONNECT-UDP data, and no failed-transition reparsing. |
 | Complete TRACE/OPTIONS semantics | `0.158.0` | Complete Max-Forwards absence/zero behavior, prohibit generated TRACE content/secrets, sanitize bounded reflection, require Content-Type for generated OPTIONS content, and mark responses non-cacheable. |
+| Server-wide OPTIONS final hop | `0.158.0`, `0.160.0` | Preserve absolute-form through intermediate forward proxies, convert empty-path/absent-query OPTIONS to `*` only at the origin-facing hop, and keep empty query and `/` resource-specific. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
 | Concrete acceptance contracts | `0.1.0`–`0.225.0` | Eliminate generic state-graph and family templates; every type, parser, codec, protocol, adapter, campaign, audit, and release stop states its actual accepted input, state, error, capacity, and publication evidence. |
 | Intermediary and retry semantics | `0.158.0`, `0.159.0`, `0.182.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
 | Structured Fields and priority | `0.164.0`–`0.179.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
 | Translation and byte handoff | `0.155.0` then `0.160.0`; `0.188.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |
-| Tunnel flush-then-close | `0.186.0` | Drain only already-owned closed-side bytes under injected deadline/work/byte bounds, then close both sides, discard with diagnostics, and prohibit HTTP reuse or indefinite half-open state. |
+| Protocol-specific tunnel closure | `0.186.0` | HTTP/1 EOF flushes then closes both sides; HTTP/2/RFC8441 END_STREAM is a directional FIN that preserves reverse traffic until both finish, while resets/fatal errors abort both. |
 | TLS and bare-metal contracts | `0.204.0`–`0.205.0` plus adapter milestones | Enumerate RFC 9113 TLS prerequisites and concrete short-I/O/readiness/deadline/EOF/alignment/scatter-gather behavior. |
 
 ## Standards disposition
@@ -154,9 +157,9 @@ HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownersh
 | `0.59.0` | Informational response lifecycle | Requires Optional bounded pipelining queue; Unlocks Expect: 100-continue state. |
 | `0.60.0` | Expect: 100-continue state | Requires Informational response lifecycle; Unlocks EOF, truncation, and incomplete-message rules. |
 | `0.61.0` | EOF, truncation, and incomplete-message rules | Requires Expect: 100-continue state; Unlocks HEAD response-framing context. |
-| `0.62.0` | HEAD response-framing context | Requires EOF, truncation, and incomplete-message rules; Unlocks 1xx, 204, 304, and body-forbidden response handling. |
-| `0.63.0` | 1xx, 204, 304, and body-forbidden response handling | Requires HEAD response-framing context; Unlocks CONNECT request and successful tunnel transition. |
-| `0.64.0` | CONNECT request and successful tunnel transition | Requires 1xx, 204, 304, and body-forbidden response handling; Unlocks RFC 9931 optimistic-data protections. |
+| `0.62.0` | HEAD response-framing context | Requires EOF, truncation, and incomplete-message rules; Unlocks 1xx, 204, 205, 304, and body-forbidden response handling. |
+| `0.63.0` | 1xx, 204, 205, 304, and body-forbidden response handling | Requires HEAD response-framing context; Unlocks CONNECT request and successful tunnel transition. |
+| `0.64.0` | CONNECT request and successful tunnel transition | Requires 1xx, 204, 205, 304, and body-forbidden response handling; Unlocks RFC 9931 optimistic-data protections. |
 | `0.65.0` | RFC 9931 optimistic-data protections | Requires CONNECT request and successful tunnel transition; Unlocks Connection-option, Upgrade, and hop-by-hop field grammar. |
 | `0.66.0` | Connection-option, Upgrade, and hop-by-hop field grammar | Requires RFC 9931 optimistic-data protections; Unlocks 101 Switching Protocols transition and publication barrier. |
 | `0.67.0` | 101 Switching Protocols transition and publication barrier | Requires Connection-option, Upgrade, and hop-by-hop field grammar; Unlocks Separate WebSocket handshake crate, key, version, and token validation. |

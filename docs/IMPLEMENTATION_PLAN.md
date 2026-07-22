@@ -231,6 +231,9 @@ CONNECT target policy runs before DNS/dial/output/tunnel work; builders attach
 no request content, hardened inbound framing rejects and closes, successful
 server responses emit no length/transfer fields, and all responses are
 non-cacheable.
+HTTP/1 205 output is provably zero content; inbound 205 still follows ordinary
+framing so nonzero content is drained-or-closed without pipeline desynchrony
+and cannot be forwarded as a valid 205.
 Informational responses exclude 101: an exchange ends through either ordinary
 1xx then one final response, or one validated terminal 101 after complete
 request processing (and required 100), after which every HTTP operation fails.
@@ -260,6 +263,12 @@ Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
+Native HTTP/2 CONNECT routes post-initial-HEADERS DATA through a bounded
+stream-local PendingConnect/tunnel path rather than application content,
+forwards only after authorization and connection success, constrains connected
+frames, and maps TCP failure to CONNECT_ERROR plus HTTP/2 failure to TCP reset.
+HTTP/2 205 rejects outbound DATA and drains/resets malicious inbound DATA under
+ordinary stream framing without disturbing other streams.
 Integrate ENABLE_PUSH in push ownership and apply MAX_FRAME_SIZE atomically
 before emitting its SETTINGS ACK. Retain independent budgets, mandatory ACK
 tracking, reserved output, and flood defenses.
@@ -282,6 +291,9 @@ where the RFC requires it.
 TRACE/OPTIONS completes Max-Forwards without synthesis, safe zero handling,
 content/sensitive-field builder rules, bounded sanitized reflection, required
 OPTIONS Content-Type, and non-cacheable responses.
+Absolute-form OPTIONS with empty path and absent query remains absolute through
+intermediate proxies and becomes `*` only at the final origin-facing hop;
+present-empty query and `/` never convert, including HTTP/2 `:path` mapping.
 Extended CONNECT keeps peer-enabled outbound initiation separate from locally
 advertised inbound acceptance. Advertisement becomes effective at SETTINGS
 byte commit, accepts only 0/1, cannot be withdrawn after 1, and never rolls
@@ -291,10 +303,11 @@ leaks into RFC 8441, ws/wss and retained negotiation/end-to-end fields map
 exactly with lowercase HTTP/2 names, hostile HTTP/2 key/accept fields cannot
 influence fresh HTTP/1 keys, the reverse direction consumes caller entropy,
 and no WebSocket data crosses before both handshakes commit.
-Tunnel closure enters bounded draining of already-owned closed-side bytes,
-then closes both sides and diagnoses discarded bytes for EOF, END_STREAM,
-reset, TLS closure/alert, cancellation, timeout, or failure; it never reuses
-the connection as HTTP.
+Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
+closes both sides, while HTTP/2/RFC8441 END_STREAM forwards a directional FIN
+and preserves reverse traffic until both directions finish. Reset, TCP error,
+fatal alert, cancellation, or connection error aborts both; half-close timeout
+is injected and no tunnel returns to HTTP reuse.
 PRIORITY_UPDATE request and push targets use one receiver-server-relative state
 convention, including reserved-local and half-closed-remote push targets.
 

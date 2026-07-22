@@ -125,6 +125,10 @@ def main() -> int:
         or "Parse one valid Max-Forwards value, decrement on forwarded TRACE/OPTIONS" in detailed
         or "local-half-closed, peer-half-closed" in detailed
         or "derive effective authority from the authorized target, Host, and explicit context" in detailed
+        or "DrainingAfterPeerClose" in detailed
+        or "Reconcile content-length with DATA octets and enforce final-response" in detailed
+        or "reject request content/framing according to source protocol" in detailed
+        or "1xx, 204, 304, and body-forbidden response handling" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -250,14 +254,32 @@ def main() -> int:
         "OPTIONS client content requires a valid Content-Type",
         "shared validated ConnectAuthority between HTTP/1 authority-form and HTTP/2",
         "same ConnectTargetPolicy authorization before DNS, dialing, upstream output, or tunnel publication",
-        "DrainingAfterPeerClose",
-        "TCP EOF, HTTP/2 END_STREAM, RST_STREAM, TLS close_notify, fatal TLS alert",
-        "attempt delivery only of already-owned bytes",
-        "caller-injected drain deadline plus byte/work limits",
-        "discard undelivered bytes with a typed diagnostic",
-        "never remain indefinitely half-open, reopen, or return a tunnel connection to HTTP reuse",
+        "RST_STREAM, TCP reset/error, fatal TLS alert",
         "TrustedRequestContext carrying authenticated transport-security state",
         "never infer TLS from Aesynx handle or socket types",
+        "1xx, 204, 205, 304, and body-forbidden response handling",
+        "outbound HTTP/1 205 permit only zero-content serialization",
+        "inbound 205 still uses the ordinary HTTP/1 body-length algorithm",
+        "never misclassify following octets as a new response",
+        "bounded PendingConnect while target authorization/dialing is incomplete",
+        "no forwarding before authorization plus successful connection",
+        "once connected allow only DATA and applicable stream-management frames",
+        "map TCP failure/reset to RST_STREAM(CONNECT_ERROR)",
+        "map stream/connection failure to upstream TCP reset",
+        "route CONNECT PendingConnect/connected ranges only to stream-local bounded tunnel ownership",
+        "for 205 require initial response HEADERS with END_STREAM and optional Content-Length: 0",
+        "established HTTP/2 CONNECT or RFC 8441 stream expose separate tunnel DATA/finish commands",
+        "ServerWideOptionsCandidate",
+        "convert it to asterisk-form only at the final origin-facing hop",
+        "present-but-empty query, `OPTIONS /`, and every resource path remain distinct",
+        "map its empty-path/absent-query target to HTTP/1 `OPTIONS *` or HTTP/2 `:path: *`",
+        "treat HTTP/2 DATA after initial CONNECT HEADERS as tunnel bytes",
+        "Http1DrainingAfterClose",
+        "HTTP/2 CONNECT and applicable RFC 8441 END_STREAM enter genuine local/remote half-closed states",
+        "map upstream TCP FIN to final DATA plus END_STREAM",
+        "close normally only after both directions finish",
+        "END_STREAM alone never closes the opposite direction",
+        "an injected idle/half-close timeout may abort a stuck tunnel",
     )
     for contract_text in required_contract_text:
         if contract_text not in detailed:

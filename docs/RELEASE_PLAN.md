@@ -2449,7 +2449,7 @@ Status: planned
 #### Goal
 
 Deliver **HEAD response-framing context** as the sole primary capability in this stop. It builds
-on v0.61.0 (EOF, truncation, and incomplete-message rules) and must be independently trustworthy before v0.63.0 (1xx, 204, 304, and body-forbidden response handling) begins.
+on v0.61.0 (EOF, truncation, and incomplete-message rules) and must be independently trustworthy before v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) begins.
 
 #### Deliverables
 
@@ -2475,24 +2475,24 @@ on v0.61.0 (EOF, truncation, and incomplete-message rules) and must be independe
 #### Exit criteria
 
 The HEAD response-framing context contract and all previously implemented relevant behavior have
-reproducible evidence; v0.61.0 (EOF, truncation, and incomplete-message rules) still passes; no behavior assigned to v0.63.0 (1xx, 204, 304, and body-forbidden response handling) is
+reproducible evidence; v0.61.0 (EOF, truncation, and incomplete-message rules) still passes; no behavior assigned to v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.62.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.63.0 — 1xx, 204, 304, and body-forbidden response handling
+### v0.63.0 — 1xx, 204, 205, 304, and body-forbidden response handling
 
 Status: planned
 
 #### Goal
 
-Deliver **1xx, 204, 304, and body-forbidden response handling** as the sole primary capability in this stop. It builds
+Deliver **1xx, 204, 205, 304, and body-forbidden response handling** as the sole primary capability in this stop. It builds
 on v0.62.0 (HEAD response-framing context) and must be independently trustworthy before v0.64.0 (CONNECT request and successful tunnel transition) begins.
 
 #### Deliverables
 
-- Acceptance contract: Select no body for every 1xx, 204, and 304 response and for successful CONNECT according to its tunnel rule; reject forbidden 204 transfer coding and invalid framing metadata, allow HEAD/304 Content-Length only as representation metadata under RFC rules, and never expose following bytes as body data.
+- Acceptance contract: Select no body for every 1xx, 204, and 304 response and for successful CONNECT according to its tunnel rule; for outbound HTTP/1 205 permit only zero-content serialization—canonical Content-Length: 0, an explicitly selected chunked body containing only the terminating zero chunk, or connection close immediately after the head—and reject every nonzero body command; inbound 205 still uses the ordinary HTTP/1 body-length algorithm, so nonzero fixed/chunked/close-delimited content is boundedly consumed/discarded to its delimiter or forces close before reuse, produces a typed semantic violation, and cannot be forwarded as a valid 205; reject forbidden 204 transfer coding and invalid framing metadata, allow HEAD/304 Content-Length only as representation metadata, and never misclassify following octets as a new response.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2504,7 +2504,7 @@ on v0.62.0 (HEAD response-framing context) and must be independently trustworthy
 
 #### Verification
 
-- Test 1xx, 204, 304, and body-forbidden response handling and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test 1xx/204/304 body prohibition plus outbound 205 Content-Length: 0, zero-chunked, close-delimited-zero, and nonzero-command rejection; pipeline malicious fixed/chunked/close-delimited nonzero 205 content and prove bounded discard-or-close, typed violation, no false next response, no forwarding, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2513,7 +2513,7 @@ on v0.62.0 (HEAD response-framing context) and must be independently trustworthy
 
 #### Exit criteria
 
-The 1xx, 204, 304, and body-forbidden response handling contract and all previously implemented relevant behavior have
+The 1xx, 204, 205, 304, and body-forbidden response handling contract and all previously implemented relevant behavior have
 reproducible evidence; v0.62.0 (HEAD response-framing context) still passes; no behavior assigned to v0.64.0 (CONNECT request and successful tunnel transition) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
@@ -2527,7 +2527,7 @@ Status: planned
 #### Goal
 
 Deliver **CONNECT request and successful tunnel transition** as the sole primary capability in this stop. It builds
-on v0.63.0 (1xx, 204, 304, and body-forbidden response handling) and must be independently trustworthy before v0.65.0 (RFC 9931 optimistic-data protections) begins.
+on v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) and must be independently trustworthy before v0.65.0 (RFC 9931 optimistic-data protections) begins.
 
 #### Deliverables
 
@@ -2553,7 +2553,7 @@ on v0.63.0 (1xx, 204, 304, and body-forbidden response handling) and must be ind
 #### Exit criteria
 
 The CONNECT request and successful tunnel transition contract and all previously implemented relevant behavior have
-reproducible evidence; v0.63.0 (1xx, 204, 304, and body-forbidden response handling) still passes; no behavior assigned to v0.65.0 (RFC 9931 optimistic-data protections) is
+reproducible evidence; v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) still passes; no behavior assigned to v0.65.0 (RFC 9931 optimistic-data protections) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -5121,7 +5121,7 @@ on v0.129.0 (HTTP/2 response mapping) and must be independently trustworthy befo
 
 #### Deliverables
 
-- Acceptance contract: Reconcile content-length with DATA octets and enforce final-response, body-forbidden, trailer, DATA-after-trailer, and END_STREAM ordering for requests, responses, and CONNECT.
+- Acceptance contract: Reconcile Content-Length with DATA octets and enforce final-response, body-forbidden, trailer, DATA-after-trailer, and END_STREAM ordering for ordinary messages; for HTTP/2 CONNECT treat every DATA octet after initial request HEADERS as tunnel data rather than request content, using bounded PendingConnect while target authorization/dialing is incomplete, caller storage or flow-control backpressure without peer-sized allocation, and no forwarding before authorization plus successful connection; on non-2xx discard/reset pending data without application-content publication or unrelated-stream mutation; once connected allow only DATA and applicable stream-management frames, reject later HEADERS/trailers or other frames with stream PROTOCOL_ERROR, map TCP failure/reset to RST_STREAM(CONNECT_ERROR), and map stream/connection failure to upstream TCP reset; for inbound 205 use ordinary DATA/END_STREAM framing, boundedly discard nonzero DATA with stream-local credit or reset on policy exhaustion, emit a typed semantic violation, and prevent valid-205 forwarding.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5133,6 +5133,7 @@ on v0.129.0 (HTTP/2 response mapping) and must be independently trustworthy befo
 
 #### Verification
 
+- Test PendingConnect at every DATA split/capacity/backpressure/authorization/dial/non-2xx transition, no early forwarding or content event, connected legal/illegal frame matrix, TCP-to-CONNECT_ERROR and HTTP/2-to-TCP-reset mapping, stream isolation, plus 205 zero/nonzero DATA and END_STREAM synchronization/violation cases.
 - Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
@@ -5355,7 +5356,7 @@ on v0.135.0 (SETTINGS initial-window active-stream integration and atomic rollba
 
 #### Deliverables
 
-- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked application-data range; separately record flow-controlled payload length (including Pad Length and padding) and application DATA length (excluding both), use only application bytes for Content-Length reconciliation, and immediately add padding the application never sees to internal consumed-credit accounting for both stream and connection without requiring a WINDOW_UPDATE per frame; permit partial acknowledgement while retaining the unconsumed data suffix, release remaining credit only for explicitly acknowledged or policy-discarded octets, and coalesce WINDOW_UPDATE emission under independent threshold, rate, and amplification budgets; stop publication and update generation under application-storage backpressure and define one terminal ordering across DATA, trailers, END_STREAM, reset, cancellation, and shutdown.
+- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked range; separately record flow-controlled payload length (including Pad Length and padding) and semantic DATA length (excluding both), route ordinary ranges to application Content-Length reconciliation but route CONNECT PendingConnect/connected ranges only to stream-local bounded tunnel ownership with no application-content event; immediately add padding the application never sees to internal consumed-credit accounting for both stream and connection, permit partial acknowledgement while retaining the suffix, release credit only for acknowledged or policy-discarded octets, and coalesce WINDOW_UPDATE emission under independent threshold, rate, and amplification budgets; backpressure PendingConnect without peer-sized allocation, and keep its credit, cancellation, discard, reset, generation, and non-2xx cleanup local to that stream while preserving one terminal ordering across DATA, trailers, END_STREAM, reset, cancellation, and shutdown.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5370,7 +5371,8 @@ on v0.135.0 (SETTINGS initial-window active-stream integration and atomic rollba
 - Extend the HTTP/2 frame/state harness with every DATA split, partial
   acknowledgement, backpressure, trailers/END_STREAM, reset, cancellation,
   shutdown, stream-slot reuse, all-padding tiny-frame churn, threshold crossing,
-  coalescing, and amplification-budget permutation.
+  coalescing, amplification-budget, PendingConnect capacity/non-2xx cleanup,
+  and ordinary-versus-tunnel publication permutation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5397,7 +5399,7 @@ on v0.136.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release)
 
 #### Deliverables
 
-- Acceptance contract: Define capacity-bounded HEADERS, DATA, trailers, and END_STREAM commands per generation-checked stream; reject illegal ordering, duplicate completion, body-forbidden data, and locally generated Content-Length disagreement; track partial HPACK and frame output by committed wire bytes; and make cancellation discard only uncommitted work while preserving the shared compression context and all mandatory reset or shutdown actions.
+- Acceptance contract: Define capacity-bounded HEADERS, DATA, trailers, and END_STREAM commands per generation-checked stream; reject illegal ordering, duplicate completion, ordinary body-forbidden data, and locally generated Content-Length disagreement; for 205 require initial response HEADERS with END_STREAM and optional Content-Length: 0, reject every DATA/trailer/nonzero-length command; for an established HTTP/2 CONNECT or RFC 8441 stream expose separate tunnel DATA/finish commands where DATA is not request/response content, forbid later HEADERS/trailers, and preserve directional END_STREAM; track partial HPACK/frame output by committed bytes and make cancellation discard only uncommitted work while preserving compression and mandatory reset/shutdown actions.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5411,7 +5413,8 @@ on v0.136.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release)
 
 - Extend the HTTP/2 frame/state harness with every command ordering, partial
   HPACK/frame write, declared-length boundary, cancellation point, mandatory
-  reset path, and retry-after-NeedOutput permutation.
+  reset path, 205 HEADERS-END_STREAM/Content-Length-zero/nonzero DATA rejection,
+  CONNECT tunnel DATA/directional finish, and retry-after-NeedOutput permutation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6228,7 +6231,7 @@ on v0.157.0 (Connection-field stripping, Via, and cache preservation) and must b
 
 #### Deliverables
 
-- Acceptance contract: Parse one valid Max-Forwards value, decrement only a received value on forwarded TRACE/OPTIONS, never synthesize it when absent, handle zero locally without forwarding, define malformed/duplicate disposition, and preserve or ignore it correctly for other methods; TRACE client builders reject content, Cookie, Authorization, Proxy-Authorization, and caller-marked sensitive fields, while a final TRACE responder produces only a bounded sanitized reflection representation excluding sensitive fields; OPTIONS client content requires a valid Content-Type; TRACE and OPTIONS responses carry typed non-cacheable metadata.
+- Acceptance contract: Parse one valid Max-Forwards value, decrement only a received value on forwarded TRACE/OPTIONS, never synthesize it when absent, handle zero locally without forwarding, define malformed/duplicate disposition, and preserve or ignore it correctly for other methods; classify only absolute-form OPTIONS with empty path and absent query as ServerWideOptionsCandidate, preserve its absolute-form when forwarding to another forward proxy, and convert it to asterisk-form only at the final origin-facing hop, while present-but-empty query, `OPTIONS /`, and every resource path remain distinct and never convert; TRACE client builders reject content, Cookie, Authorization, Proxy-Authorization, and caller-marked sensitive fields, a final TRACE responder produces only a bounded sanitized reflection representation excluding sensitive fields, OPTIONS client content requires a valid Content-Type, and both response types are non-cacheable.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6240,7 +6243,7 @@ on v0.157.0 (Connection-field stripping, Via, and cache preservation) and must b
 
 #### Verification
 
-- Test absent Max-Forwards remains absent, decrement/zero-local/no-forward behavior, malformed/duplicate values, TRACE builder content and sensitive-field rejection, bounded sanitized reflection, zero reflection leakage, OPTIONS content with missing/invalid/valid Content-Type, and non-cacheable response metadata.
+- Test absent Max-Forwards, decrement/zero-local/no-forward, malformed/duplicate values; absolute empty-path/no-query OPTIONS across intermediate and final proxy hops; present-empty query, `/`, and resource nonconversion; TRACE builder content/sensitive rejection, bounded reflection/no leakage, OPTIONS Content-Type, and non-cacheable metadata.
 - Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
@@ -6307,7 +6310,7 @@ on v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must
 
 #### Deliverables
 
-- Acceptance contract: Map target/Host to pseudo-fields and back while carrying raw path plus optional raw query exactly: construct :path as path followed by `?` plus query when present, preserve an empty query's trailing `?`, split inbound :path only on the first `?`, preserve percent-encoded octets byte-for-byte, and replace an empty HTTP URI path with `/` only where RFC 9112 requires; proxies never otherwise modify path/query; also map status, Content-Length/DATA/trailers/END_STREAM, TE: trailers, connection fields, Cookie/Set-Cookie, informational/HEAD/body-forbidden responses, CONNECT/Upgrade, and close-delimited reframing, validating the complete destination head/framing decision before emitting bytes.
+- Acceptance contract: Map target/Host to pseudo-fields and back while carrying raw path plus optional raw query exactly: construct :path as path followed by `?` plus query when present, preserve an empty query's trailing `?`, split inbound :path only on the first `?`, preserve percent-encoded octets byte-for-byte, and replace an empty HTTP URI path with `/` only where RFC 9112 requires; preserve absolute-form ServerWideOptionsCandidate when the next hop is another forward proxy, but at the final origin-facing hop map its empty-path/absent-query target to HTTP/1 `OPTIONS *` or HTTP/2 `:path: *`; never convert present-empty query or `OPTIONS /`; proxies never otherwise modify path/query; also map status, framing, fields, informational/HEAD/body-forbidden responses including invalid 205 suppression, CONNECT/Upgrade, and close-delimited reframing before emitting bytes.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6319,7 +6322,7 @@ on v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must
 
 #### Verification
 
-- Test every matrix cell in both directions, including absent/empty/multi-question queries, percent-encoded path/query identity, required empty-path-to-slash conversion, forbidden proxy normalization, rejection, reframing, partial output, capacity exhaustion, cancellation, and zero destination bytes before full validation.
+- Test every matrix cell in both directions, including HTTP/1 absolute OPTIONS empty path/no query through intermediate versus final hops, HTTP/2 `:path: *` to/from HTTP/1 `OPTIONS *`, present-empty query and `/` nonconversion, invalid/nonzero 205 non-forwarding, absent/empty/multi-question queries, percent identity, required slash conversion, forbidden normalization, rejection, partial output, capacity, cancellation, and zero prevalidation bytes.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6346,7 +6349,7 @@ on v0.160.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be indepen
 
 #### Deliverables
 
-- Acceptance contract: Translate only the shared validated ConnectAuthority between HTTP/1 authority-form and HTTP/2 :method CONNECT plus :authority with no :scheme/:path; preserve bracketed host and explicit 1..=65535 port exactly, never derive it from Host or apply a scheme default, and require the same ConnectTargetPolicy authorization before DNS, dialing, upstream output, or tunnel publication in either direction; reject request content/framing according to source protocol, forbid Content-Length/Transfer-Encoding on generated successful HTTP/1 CONNECT responses, mark all CONNECT responses non-cacheable, map non-2xx as ordinary responses, publish a tunnel only after destination success commits, and hand optimistic/over-read bytes exactly once.
+- Acceptance contract: Translate only the shared validated ConnectAuthority between HTTP/1 authority-form and HTTP/2 :method CONNECT plus :authority with no :scheme/:path; preserve bracketed host and explicit 1..=65535 port, never use Host/default, and require the same ConnectTargetPolicy authorization before DNS, dialing, upstream output, or tunnel publication; reject HTTP/1 request content/framing, but treat HTTP/2 DATA after initial CONNECT HEADERS as tunnel bytes through the v0.130.0 PendingConnect/connected state, never as HTTP content, forwarding none before authorization and connection success and discarding/resetting it on non-2xx; forbid generated successful HTTP/1 length/transfer fields, mark responses non-cacheable, map non-2xx as ordinary HTTP, publish the tunnel only after destination success, and hand bytes exactly once.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6358,7 +6361,7 @@ on v0.160.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be indepen
 
 #### Verification
 
-- Test identical ConnectAuthority and authorization decisions in both directions, all port/bracket/Host-conflict cases, request-content rejection, successful response field stripping/prohibition, non-cacheable metadata, non-2xx mapping, exactly-once bytes, and all previously implemented relevant behavior.
+- Test identical ConnectAuthority/authorization in both directions, HTTP/1 content rejection versus HTTP/2 PendingConnect DATA, no pre-success forwarding, bounded backpressure and non-2xx cleanup, port/bracket/Host conflicts, success field prohibition, non-cacheability, failure mapping, exactly-once bytes, and all earlier behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -7326,7 +7329,7 @@ on v0.185.0 (Reverse-proxy and gateway role API) and must be independently trust
 
 #### Deliverables
 
-- Acceptance contract: Model pending, committed, bidirectional, DrainingAfterPeerClose, cancelling, and closed tunnel states with bounded buffers and one owner per direction; map TCP EOF, HTTP/2 END_STREAM, RST_STREAM, TLS close_notify, fatal TLS alert, transport failure, and local cancellation to explicit closure causes; once either side closes, accept no new bytes from that direction, attempt delivery only of already-owned bytes from it under caller-injected drain deadline plus byte/work limits, then close the opposite side after success, timeout, cancellation, or failure and discard undelivered bytes with a typed diagnostic; never remain indefinitely half-open, reopen, or return a tunnel connection to HTTP reuse.
+- Acceptance contract: Use protocol-specific tunnel closure states with bounded buffers and one owner per direction: HTTP/1 CONNECT TCP EOF enters Http1DrainingAfterClose, accepts no new closed-side bytes, attempts only already-owned delivery under injected drain deadline/byte/work limits, then closes both connections and diagnoses discarded remainder; HTTP/2 CONNECT and applicable RFC 8441 END_STREAM enter genuine local/remote half-closed states, forward preceding DATA before directional FIN, continue reverse DATA, map upstream TCP FIN to final DATA plus END_STREAM, and close normally only after both directions finish; RST_STREAM, TCP reset/error, fatal TLS alert, cancellation, or HTTP/2 connection failure abort both directions and map required TCP reset/CONNECT_ERROR actions; an injected idle/half-close timeout may abort a stuck tunnel, but END_STREAM alone never closes the opposite direction; no tunnel returns to HTTP reuse.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7338,7 +7341,7 @@ on v0.185.0 (Reverse-proxy and gateway role API) and must be independently trust
 
 #### Verification
 
-- Test every closure cause from both directions at every buffered-byte and partial-write boundary, refusal of new closed-direction bytes, drain success/deadline/byte/work exhaustion/cancellation/failure, opposite close, typed discard counts, no HTTP reuse, bounded termination, and all previously implemented relevant behavior.
+- Test HTTP/1 EOF flush-then-close separately from HTTP/2/RFC8441 directional END_STREAM; final DATA+FIN ordering, reverse traffic after one FIN, both-FIN normal close, every abort/reset/alert/cancellation/connection error mapping, idle/half-close timeout, all buffered/partial-write boundaries, discard diagnostics, no reuse, stream isolation, and bounded termination.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.

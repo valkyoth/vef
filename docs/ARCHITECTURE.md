@@ -101,6 +101,9 @@ and optimistic protocol bytes never re-enter HTTP parsing after failed handoff.
 CONNECT builders carry no content/framing fields; hardened inbound ambiguity
 rejects and closes, successful server responses omit length/transfer fields,
 clients ignore received ones, and every CONNECT response is non-cacheable.
+205 serializers emit zero content. Inbound 205 retains ordinary framing, so
+malicious nonzero content is boundedly discarded or forces close/reset before
+reuse, emits a typed semantic violation, and is not forwarded as valid 205.
 An HTTP response lifecycle has two terminal shapes: non-101 informational
 responses followed by one final response, or one validated 101 after the full
 request (and any required 100) commits. After 101, only the selected protocol
@@ -154,6 +157,11 @@ command lifecycle.
 HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
 reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
 the RFC-required contexts.
+Native CONNECT DATA is never request content. Before authorization/dial success
+it is stream-local PendingConnect data under caller capacity and flow-control
+backpressure; after success only DATA and applicable management frames remain
+legal. TCP failure produces CONNECT_ERROR and HTTP/2 failure resets upstream
+TCP without mutating unrelated streams.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -226,9 +234,14 @@ matrix validate. CONNECT/Upgrade handoff returns over-read bytes exactly once.
 TRACE/OPTIONS applies Max-Forwards without synthesis, keeps zero local, blocks
 generated TRACE content/secrets, bounds and sanitizes reflection, validates
 OPTIONS Content-Type with content, and marks both response types non-cacheable.
-Tunnel closure drains only already-owned bytes from the closed side under an
-injected deadline/work/byte budget, closes both sides, diagnoses discarded
-bytes, and can never restore HTTP reuse or remain indefinitely half-open.
+Absolute empty-path/no-query OPTIONS stays absolute through intermediate
+forward proxies and maps to `*` only at the final origin-facing hop; an empty
+query or `/` stays resource-specific across HTTP/1 and HTTP/2.
+Tunnel closure is protocol-specific. HTTP/1 EOF drains already-owned bytes then
+closes both connections; HTTP/2/RFC8441 END_STREAM forwards directional FIN and
+keeps reverse traffic legal until both directions finish. Resets/fatal errors
+abort both, injected half-close timeout bounds stalls, and HTTP reuse is never
+restored.
 
 ## Third-party boundary
 

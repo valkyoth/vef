@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check 225 minor milestones, four patch stops, and two release candidates."""
+"""Check 225 minor milestones, seven patch stops, and two release candidates."""
 
 from __future__ import annotations
 
@@ -19,7 +19,15 @@ def main() -> int:
     expected = list(range(1, 226))
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
-    patch_stops = ("0.157.1", "0.157.2", "0.157.3", "0.182.1")
+    patch_stops = (
+        "0.157.1",
+        "0.157.2",
+        "0.157.3",
+        "0.180.1",
+        "0.180.2",
+        "0.180.3",
+        "0.182.1",
+    )
     failures: list[str] = []
     if detailed_versions != expected:
         failures.append("detailed plan does not cover v0.1.0 through v0.225.0 exactly")
@@ -31,9 +39,9 @@ def main() -> int:
         if compact.count(f"| `{patch_stop}` |") != 1:
             failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 229:
-            failures.append(f"expected 229 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 231:
+        if detailed.count(f"#### {heading}") != 232:
+            failures.append(f"expected 232 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 234:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -67,6 +75,9 @@ def main() -> int:
         "Structured Fields complete bare-item dispatcher",
         "SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration",
         "Priority update flood budgeting",
+        "Dependency-free conditional semantics crate and validators",
+        "Conditional request fields and ordered precondition evaluation",
+        "Bounded byte ranges and single-range response planning",
         "Retry safety, idempotency, and body-replayability contract",
         "Exact CONNECT, Upgrade, and tunnel byte-handoff ownership",
         "HTTP/2 TLS admission prerequisites and authenticated metadata",
@@ -104,6 +115,10 @@ def main() -> int:
         ("Max-Forwards TRACE and OPTIONS intermediary semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("HTTP/1 TE request-field and trailers forwarding semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("Normative HTTP/1 and HTTP/2 translation matrix", "CONNECT translation across HTTP versions"),
+        ("Client request builder and target forms", "Dependency-free conditional semantics crate and validators"),
+        ("Dependency-free conditional semantics crate and validators", "Conditional request fields and ordered precondition evaluation"),
+        ("Conditional request fields and ordered precondition evaluation", "Bounded byte ranges and single-range response planning"),
+        ("Bounded byte ranges and single-range response planning", "Client correlation, cancellation, and retry tokens"),
         ("Retry safety, idempotency, and body-replayability contract", "Role-aware outbound response semantic validator"),
         ("Role-aware outbound response semantic validator", "Origin-server role API"),
         ("vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton", "Structured Fields integer and decimal ranges"),
@@ -153,6 +168,10 @@ def main() -> int:
         or "forbid trailer fields that affect framing, routing, request method/target, authentication" in detailed
         or "Content-Type multipart/byteranges whose bounded parts" in detailed
         or "require 401 to carry at least one valid WWW-Authenticate challenge, 405 to carry Allow, and 426 to carry Upgrade" in detailed
+        or "Authentication-Info and Proxy-Authentication-Info additionally require caller-supplied scheme-specific AuthenticationTrailerPermission" in detailed
+        or "shared v0.52.0 TrailerFieldPermission/AuthenticationTrailerPermission policy" in detailed
+        or "separate dependency-free, no_std `vef-semantics` crate depending only on `vef-core` and `vef-auth`" in detailed
+        or "require HTTP/1 401 to carry at least one valid WWW-Authenticate challenge" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -329,17 +348,20 @@ def main() -> int:
         "append exactly one caller-configured received-protocol plus pseudonym entry without replacement or combination",
         "record the inbound protocol/version rather than the outbound version",
         "self-pseudonym loop hook that never derives identity from peer bytes",
-        "apply a field-definition allowlist",
-        "scheme-specific AuthenticationTrailerPermission",
-        "received trailers remain in a separate ordered section",
-        "never retroactively change routing/framing/authentication/representation decisions",
-        "never merge into initial fields unless that field's permission explicitly defines safe merging",
+        "have `vef-core` define `TrailerFieldPermission`",
+        "keep local Authentication-Info and Proxy-Authentication-Info generation unavailable until v0.157.2",
+        "Received trailers carry no local Rust permission",
+        "classify authentication-info as RequiresSchemeAuthorization",
+        "typed semantic/policy disposition after message synchronization rather than automatically as a framing error",
+        "Outbound generation and every safe merge require explicit generation-bound permission",
         "separate dependency-free, no_std `vef-auth` crate",
         "bounded incremental scheme-neutral parser/serializer for challenge, credentials, token68, and auth-param",
         "compare authentication scheme and parameter names case-insensitively while preserving raw scheme spelling",
         "reject duplicate parameter names within one challenge",
         "require generated realm values to use quoted-string",
         "reject any token68 data after terminal `=` padding",
+        "introduce caller-supplied scheme-specific `AuthenticationTrailerPermission`",
+        "integrate the positive outbound authentication-trailer and explicitly safe-merge paths into both HTTP/1 and HTTP/2",
         "disambiguate comma-separated auth parameters from subsequent challenges without unsafe normalization",
         "support WWW-Authenticate, Authorization, Authentication-Info, Proxy-Authenticate, Proxy-Authorization, and Proxy-Authentication-Info",
         "does not promise optimizer-resistant physical zeroization—the caller must scrub its owned buffers",
@@ -355,24 +377,41 @@ def main() -> int:
         "local HTTP/2 status 426 as InvalidState",
         "HTTP/1 426 with valid Upgrade is untranslatable to HTTP/2",
         "preserve received multipart/byteranges 206 content opaquely across versions",
-        "separate dependency-free, no_std `vef-semantics` crate depending only on `vef-core` and `vef-auth`",
-        "opaque sealed protocol/role/message-generation-bound ValidatedResponse/ResponseEmissionPermit",
-        "`vef-http1` and `vef-http2` depend on this crate and consume the permit exactly once",
+        "separate dependency-free, no_std `vef-conditions` crate depending only on `vef-core`",
+        "distinct RFC strong/weak comparison",
+        "Evaluate RFC 9110 preconditions in order",
+        "Evaluate preconditions only for an origin server or authorized cache",
+        "sealed non-forgeable `PreconditionOutcome` bound to the exact request/exchange generation",
+        "parse bounded Range byte-range, open-ended range, and suffix-range members",
+        "cap raw bytes, decimal digits, member count, normalization work, and output before arithmetic",
+        "Ignore Range for every method except GET",
+        "HTTP dates require caller-certified strong-validator status and exact equality with Last-Modified",
+        "sealed `SingleRangePlan` only for one normalized satisfiable range",
+        "`vef-semantics` crate depending only on `vef-core`, `vef-auth`, and `vef-conditions`",
+        "`ValidatedResponse` owns or immutably borrows the exact ordered response head, framing plan, sensitivity/indexing metadata, body plan, and trailer permissions",
+        "internal `ResponseEmissionPermit` cannot be extracted or paired with caller-supplied data",
+        "`vef-http1` and `vef-http2` consume the complete object exactly once",
+        "no API accepts `(raw_head, permit)`",
         "raw response heads have no public serialization path",
-        "complete role/method/status/field/content semantic matrix before issuing a permit",
-        "require HTTP/1 401 to carry at least one valid WWW-Authenticate challenge, 405 to carry Allow, and HTTP/1 426 to carry valid Upgrade",
+        "complete role/method/status/field/content semantic matrix before issuing `ValidatedResponse`",
+        "require every generated 401 in HTTP/1 or HTTP/2 to carry at least one valid WWW-Authenticate challenge",
+        "normal lowercase HTTP/2 field serialization",
         "reject every locally generated HTTP/2 426 as InvalidState",
-        "permit generated 206 only for one satisfied range",
+        "permit generated 206 only from one matching `SingleRangePlan`",
         "reject generated multipart/byteranges, but preserve received multipart bodies opaquely",
-        "permit 304 only for conditional GET/HEAD with selected-representation/cache-validator context",
-        "bind 416 to rejected Range context",
+        "permit 304 only from the matching conditional GET/HEAD `PreconditionOutcome`",
+        "bind 416 to the matching unsatisfied range context",
+        "Reserve engine-only semantic-validation slots and frozen-head storage",
+        "prohibit application validation from consuming that reserve",
+        "commit exactly one deterministic close/shutdown action with no partial response output",
         "Invalid locally constructed responses return InvalidState with a typed semantic-construction cause, issue no permit, and serialize zero bytes",
         "invalid received responses—including HTTP/2 426 without Upgrade—remain framing-synchronized and produce a typed SemanticViolation",
         "forwarded responses preserve end-to-end fields—including unmodified WWW-Authenticate and Authentication-Info",
-        "response-head serializer constructors non-public",
-        "owned response builders must obtain and consume the same ResponseEmissionPermit",
-        "no facade feature can disable response/trailer validation while retaining serialization",
-        "callers cannot construct/clone/copy/reuse ResponseEmissionPermit",
+        "same-generation head substitution, mutable-buffer aliasing, field replacement/reordering",
+        "keep response-head serializer constructors",
+        "owned response builders must obtain and consume the same frozen `ValidatedResponse` object",
+        "no facade feature can disable conditional/range/response/trailer validation or the mandatory semantic reserve while retaining serialization",
+        "callers cannot construct/clone/copy/reuse/extract `ResponseEmissionPermit`",
         "Http1DrainingAfterClose",
         "HTTP/2 CONNECT and applicable RFC 8441 END_STREAM enter genuine local/remote half-closed states",
         "map upstream TCP FIN to final DATA plus END_STREAM",
@@ -389,7 +428,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 minor milestones, four patch stops, and two release candidates")
+    print("release plan: 225 minor milestones, seven patch stops, and two release candidates")
     return 0
 
 

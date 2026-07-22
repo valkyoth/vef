@@ -74,6 +74,9 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   unpublished unless an explicitly enabled extension owns their type.
 - Outbound framing is validated as strictly as inbound framing, including
   declared lengths, body-forbidden contexts, trailers, and completion.
+- Mandatory generated responses retain engine-only semantic-validation slots
+  and frozen-head storage that application work cannot consume; total reserve
+  failure commits one deterministic close/shutdown action with no partial head.
 - Peer protocol violations, configured policy excess, insufficient caller
   storage, output backpressure, and mandatory-control exhaustion are distinct.
 - Parsing and validation produce typed deltas before state is committed.
@@ -117,13 +120,23 @@ credentials, token68, auth-param, authentication field, sensitive-storage, and
 scheme-certified authentication-trailer permission behavior. It implements no
 Basic, Digest, application credential validation, or physical buffer erasure.
 
+### `vef-conditions` (planned at `0.180.1`–`0.180.3`)
+
+Depends only on `vef-core`. Owns bounded entity-tag and HTTP-date validators,
+strong/weak comparison, conditional-field parsing and RFC-ordered evaluation,
+checked Range/Content-Range arithmetic, and single-range planning. Its sealed
+outcomes bind the exact request/exchange generation and caller-supplied
+representation existence, length, validator, and modification evidence.
+
 ### `vef-semantics` (planned at `0.182.1`)
 
-Depends only on `vef-core` and `vef-auth`. Owns received/forwarded/generated
-role and protocol response semantics and is the sole issuer of sealed opaque
-`ValidatedResponse` / `ResponseEmissionPermit`. Permits bind protocol, role,
-message generation and semantic evidence, are non-Copy/non-Clone, and are
-consumed exactly once by an outbound engine.
+Depends only on `vef-core`, `vef-auth`, and `vef-conditions`. Owns
+received/forwarded/generated role and protocol response semantics and is the
+sole constructor of sealed `ValidatedResponse`. That object owns or immutably
+borrows the precise ordered head, framing, sensitivity/indexing, body, and
+trailer plan plus an unextractable internal `ResponseEmissionPermit`; it is
+non-Copy/non-Clone and consumed whole exactly once by an outbound engine. No
+API pairs a raw head with a permit, and every mutation requires revalidation.
 
 ### `vef-http1`
 
@@ -266,9 +279,12 @@ HTTP/1 205 output is provably zero content; inbound 205 still follows ordinary
 framing so nonzero content is drained-or-closed without pipeline desynchrony
 and cannot be forwarded as a valid 205.
 Trailers use a field-definition allowlist rather than a semantic-category ban:
-ETag/Accept-Ranges require field permission, authentication-info additionally
-requires scheme permission, received trailers stay separate and non-retroactive,
-and merging is opt-in per field definition.
+`vef-core` provides ETag/Accept-Ranges field permission early, while local
+authentication-info generation remains unavailable until `vef-auth` adds
+scheme permission at v0.157.2. Received trailers possess no local capability,
+stay separate/non-retroactive, receive a post-synchronization semantic/policy
+disposition, and require destination-side permission before translation or
+safe merge.
 Informational responses exclude 101: an exchange ends through either ordinary
 1xx then one final response, or one validated terminal 101 after complete
 request processing (and required 100), after which every HTTP operation fails.
@@ -348,11 +364,18 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
-Before the origin role facade, v0.182.1 validates the complete generated
-response status/method/field/content matrix using caller-supplied typed values,
-including 401/405, HTTP/1-only 426, and contextual 206/304/416. It creates
-`vef-semantics`; both engines depend on it and require its sealed one-shot
-permit, so facade, fixed/alloc APIs and features cannot expose raw serialization.
+Before the origin role facade, v0.180.1–v0.180.3 create dependency-free
+`vef-conditions`: exact entity tags/HTTP dates and comparison, RFC-ordered
+conditional evaluation, bounded overflow-safe Range/Content-Range parsing,
+and sealed request/exchange-bound precondition and single-range outcomes using
+caller representation evidence. v0.182.1 consumes those outcomes and validates
+the complete generated response status/method/field/content matrix, including
+401 over HTTP/1 and HTTP/2, 405, HTTP/1-only 426, and contextual 206/304/416.
+It creates `vef-semantics`; both engines consume its exact frozen
+`ValidatedResponse`, never a raw head beside a permit, so same-generation head
+substitution, mutable aliasing, and facade/fixed/alloc/feature bypasses are
+impossible. Engine-only validation/head reserve keeps mandatory responses
+available after ordinary exhaustion or commits one zero-partial-output close.
 Generated 206 is single-range only; received multipart remains opaque. Local
 failure is zero-output InvalidState, received violations stay synchronized
 under recipient policy, and forwarded responses preserve required fields.

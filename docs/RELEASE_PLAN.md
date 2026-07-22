@@ -1005,7 +1005,7 @@ on v0.24.0 (Deterministic fake transport and driver harness) and must be indepen
 
 #### Deliverables
 
-- Acceptance contract: Choose the outstanding-event model; define acknowledgements, command acceptance, reentrancy prohibition, input/output ownership, cancellation aftermath, publication barriers, and capacity reserved for mandatory responses.
+- Acceptance contract: Choose the outstanding-event model; define acknowledgements, command acceptance, reentrancy prohibition, input/output ownership, cancellation aftermath, publication barriers, and capacity reserved for mandatory responses; require every later semantic-validation layer to preserve independent engine-only validation slots and head storage that application response work cannot consume, with one deterministic close/shutdown action and zero partial response output if even the reserve cannot proceed.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1516,7 +1516,7 @@ on v0.37.0 (Field count, line, and section caps) and must be independently trust
 
 #### Deliverables
 
-- Acceptance contract: Map failures to mandatory typed actions such as RejectAndClose(400/414/431), BadGatewayAndCloseUpstream, DiscardResponseAndClose, ConnectionError, or StreamError without unsafe continuation.
+- Acceptance contract: Map failures to mandatory typed actions such as RejectAndClose(400/414/431), BadGatewayAndCloseUpstream, DiscardResponseAndClose, ConnectionError, or StreamError without unsafe continuation; define minimal bounded response templates and required semantic inputs so v0.182.1 can validate them from the engine-only reserve even when ordinary application response capacity is exhausted, otherwise commit one deterministic close/shutdown action with no partial response bytes.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2063,7 +2063,7 @@ on v0.51.0 (Last-chunk and trailer transition) and must be independently trustwo
 
 #### Deliverables
 
-- Acceptance contract: Parse Trailer as a case-insensitive bounded name list and apply a field-definition allowlist: unconditionally reject fields required for framing, routing, request method/target, or pre-content response control, but accept fields such as ETag or Accept-Ranges only with typed TrailerFieldPermission proving their definition permits trailer use; Authentication-Info and Proxy-Authentication-Info additionally require caller-supplied scheme-specific AuthenticationTrailerPermission; undeclared trailers follow explicit role policy; received trailers remain in a separate ordered section published only with body completion, never retroactively change routing/framing/authentication/representation decisions, and never merge into initial fields unless that field's permission explicitly defines safe merging.
+- Acceptance contract: Parse Trailer as a case-insensitive bounded name list and have `vef-core` define `TrailerFieldPermission`: unconditionally reject locally generated fields required for framing, routing, request method/target, or pre-content response control, but accept fields such as ETag or Accept-Ranges only when their field definition permits trailer use; keep local Authentication-Info and Proxy-Authentication-Info generation unavailable until v0.157.2 owns scheme authorization. Received trailers carry no local Rust permission: preserve them in a separate ordered section published only with body completion, classify authentication-info as RequiresSchemeAuthorization and other forbidden fields with a typed semantic/policy disposition after message synchronization rather than automatically as a framing error, never let them retroactively change routing/framing/authentication/representation decisions, and merge a permitted non-authentication field only after a new destination/message-generation-bound `TrailerFieldPermission` explicitly certifies safe merging. Outbound generation and every safe merge require explicit generation-bound permission.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2075,7 +2075,7 @@ on v0.51.0 (Last-chunk and trailer transition) and must be independently trustwo
 
 #### Verification
 
-- Test every unconditional prohibition and permitted ETag/Accept-Ranges case, absent/wrong/correct field permission, both authentication-info fields with and without scheme permission, declared/undeclared policy, separate ordered storage, no retroactive decision mutation, denied/allowed safe merge, and all earlier positive/negative/boundary/truncation/cancellation/capacity/no-panic behavior.
+- Test every unconditional local prohibition and permitted ETag/Accept-Ranges case, absent/wrong/correct field permission, unavailable local authentication-info generation, received authentication-info RequiresSchemeAuthorization, received forbidden-field semantic/policy classification after synchronization, declared/undeclared policy, separate ordered storage, no retroactive decision mutation, denied/allowed non-authentication safe merge with fresh destination binding, and all earlier positive/negative/boundary/truncation/cancellation/capacity/no-panic behavior; positive authentication-trailer and authentication safe-merge tests belong to v0.157.2.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2102,7 +2102,7 @@ on v0.52.0 (Trailer declarations and prohibited-trailer policy) and must be inde
 
 #### Deliverables
 
-- Acceptance contract: Emit canonical hexadecimal chunk-size CRLF, exactly the supplied data, and trailing CRLF; finish with zero CRLF, only v0.52.0 field-definition- and scheme-permitted trailers, and final CRLF; retain offsets for every partially written segment, never repeat committed bytes after backpressure, reject permission reuse across message generations, and forbid trailers or completion until all declared data commits.
+- Acceptance contract: Emit canonical hexadecimal chunk-size CRLF, exactly the supplied data, and trailing CRLF; finish with zero CRLF, only v0.52.0 `TrailerFieldPermission`-authorized non-authentication trailers, and final CRLF; retain offsets for every partially written segment, never repeat committed bytes after backpressure, reject permission reuse across message generations, keep authentication-info generation unavailable until v0.157.2, and forbid trailers or completion until all declared data commits.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2141,7 +2141,7 @@ on v0.53.0 (Chunked encoder with partial-output state) and must be independently
 
 #### Deliverables
 
-- Acceptance contract: Serialize a head followed by exactly no body, fixed-length bytes, or chunked bytes; reject length disagreement, illegal trailers, post-completion commands, and sender-side HEAD/CONNECT/1xx/204/304 violations under one-byte output fragmentation; keep raw locally generated response-head constructors and the framing-only serializer entry crate-private/unstable so they cannot become a final public bypass, while request serialization remains independently usable and v0.182.1 later replaces the internal response entry with a sealed ResponseEmissionPermit before public API stabilization.
+- Acceptance contract: Serialize a head followed by exactly no body, fixed-length bytes, or chunked bytes; reject length disagreement, illegal trailers, post-completion commands, and sender-side HEAD/CONNECT/1xx/204/304 violations under one-byte output fragmentation; keep raw locally generated response-head constructors and the framing-only serializer entry crate-private/unstable so they cannot become a final public bypass, while request serialization remains independently usable and v0.182.1 later replaces the internal response entry with a frozen `ValidatedResponse` carrying an unextractable sealed permit before public API stabilization.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5162,7 +5162,7 @@ on v0.130.0 (HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliatio
 
 #### Deliverables
 
-- Acceptance contract: Allow ordered informational responses before one final response without prematurely completing the stream; accept trailers only after the body on trailing HEADERS with END_STREAM, forbid pseudo-fields and Content-Length, and apply the shared v0.52.0 TrailerFieldPermission/AuthenticationTrailerPermission policy; publish trailers atomically into a separate ordered section that cannot retroactively alter routing, framing, authentication, or representation decisions, and never merge them into initial fields without explicit safe-merge permission.
+- Acceptance contract: Allow ordered informational responses before one final response without prematurely completing the stream; accept trailers only after the body on trailing HEADERS with END_STREAM, forbid pseudo-fields and Content-Length, and apply the shared v0.52.0 `TrailerFieldPermission` policy while keeping local authentication-info generation unavailable until v0.157.2; received trailers carry no local capability, publish atomically into a separate ordered section, classify authentication-info as RequiresSchemeAuthorization and other forbidden fields with a typed semantic/policy disposition after stream synchronization rather than automatically as a framing error, cannot retroactively alter routing, framing, authentication, or representation decisions, and never merge into initial fields at this stop.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5400,7 +5400,7 @@ on v0.136.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release)
 
 #### Deliverables
 
-- Acceptance contract: Define capacity-bounded HEADERS, DATA, trailers, and END_STREAM commands per generation-checked stream; reject illegal ordering, duplicate completion, ordinary body-forbidden data, locally generated Content-Length disagreement, local HTTP/2 status 426 as InvalidState, and trailers lacking shared field/scheme permission; for 205 require initial response HEADERS with END_STREAM and optional Content-Length: 0, reject every DATA/trailer/nonzero-length command; for an established HTTP/2 CONNECT or RFC 8441 stream expose separate tunnel DATA/finish commands where DATA is not request/response content, forbid later HEADERS/trailers, and preserve directional END_STREAM; keep raw local response HEADERS construction crate-private until v0.182.1 requires a sealed ResponseEmissionPermit; track partial HPACK/frame output by committed bytes and make cancellation discard only uncommitted work while preserving compression and mandatory reset/shutdown actions.
+- Acceptance contract: Define capacity-bounded HEADERS, DATA, trailers, and END_STREAM commands per generation-checked stream; reject illegal ordering, duplicate completion, ordinary body-forbidden data, locally generated Content-Length disagreement, local HTTP/2 status 426 as InvalidState, and trailers lacking v0.52.0 field permission, while authentication-info generation remains unavailable until v0.157.2; for 205 require initial response HEADERS with END_STREAM and optional Content-Length: 0, reject every DATA/trailer/nonzero-length command; for an established HTTP/2 CONNECT or RFC 8441 stream expose separate tunnel DATA/finish commands where DATA is not request/response content, forbid later HEADERS/trailers, and preserve directional END_STREAM; keep raw local response HEADERS construction crate-private until v0.182.1 requires the complete frozen `ValidatedResponse` rather than a raw head beside a permit; track partial HPACK/frame output by committed bytes and make cancellation discard only uncommitted work while preserving compression and mandatory reset/shutdown actions.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6271,7 +6271,7 @@ on v0.157.1 (Via grammar, append, privacy, and loop policy) and must be independ
 
 #### Deliverables
 
-- Acceptance contract: Add a separate dependency-free, no_std `vef-auth` crate with a bounded incremental scheme-neutral parser/serializer for challenge, credentials, token68, and auth-param including exact BWS, quoted-string/escape, token, and parameter-count/value/work limits; compare authentication scheme and parameter names case-insensitively while preserving raw scheme spelling, reject duplicate parameter names within one challenge, require generated realm values to use quoted-string, and reject any token68 data after terminal `=` padding; disambiguate comma-separated auth parameters from subsequent challenges without unsafe normalization, preserve multiple field-line and challenge boundaries, and support WWW-Authenticate, Authorization, Authentication-Info, Proxy-Authenticate, Proxy-Authorization, and Proxy-Authentication-Info without implementing Basic, Digest, or any authentication scheme; bind caller-supplied scheme-specific AuthenticationTrailerPermission to the exact authentication-info field/message generation before v0.52.0/v0.131.0 trailer use; sensitive values remain borrowed or in caller-owned storage, are never copied into diagnostics or HPACK indexing, and on logical invalidation VEF releases references and preserves redaction/non-indexing but does not promise optimizer-resistant physical zeroization—the caller must scrub its owned buffers when required.
+- Acceptance contract: Add a separate dependency-free, no_std `vef-auth` crate with a bounded incremental scheme-neutral parser/serializer for challenge, credentials, token68, and auth-param including exact BWS, quoted-string/escape, token, and parameter-count/value/work limits; compare authentication scheme and parameter names case-insensitively while preserving raw scheme spelling, reject duplicate parameter names within one challenge, require generated realm values to use quoted-string, and reject any token68 data after terminal `=` padding; disambiguate comma-separated auth parameters from subsequent challenges without unsafe normalization, preserve multiple field-line and challenge boundaries, and support WWW-Authenticate, Authorization, Authentication-Info, Proxy-Authenticate, Proxy-Authorization, and Proxy-Authentication-Info without implementing Basic, Digest, or any authentication scheme; introduce caller-supplied scheme-specific `AuthenticationTrailerPermission`, bind it to the exact authentication-info field/message generation, and integrate the positive outbound authentication-trailer and explicitly safe-merge paths into both HTTP/1 and HTTP/2 without changing the v0.52.0/v0.131.0 received-trailer classification; sensitive values remain borrowed or in caller-owned storage, are never copied into diagnostics or HPACK indexing, and on logical invalidation VEF releases references and preserves redaction/non-indexing but does not promise optimizer-resistant physical zeroization—the caller must scrub its owned buffers when required.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6283,7 +6283,7 @@ on v0.157.1 (Via grammar, append, privacy, and loop policy) and must be independ
 
 #### Verification
 
-- Test raw-preserving case-insensitive scheme comparison, case-insensitive parameter names, duplicate rejection, quoted generated realm, every legal/illegal token68 padding suffix, token68-versus-parameter form, comma ambiguity, repeated/empty list members, BWS, quoted escape, malformed token/value, every limit/split/round trip, all six fields, valid/stale/cross-message authentication trailer permission, borrowed lifetime/redaction/non-indexing, logical invalidation/caller scrub, and unknown schemes without Basic/Digest behavior.
+- Test raw-preserving case-insensitive scheme comparison, case-insensitive parameter names, duplicate rejection, quoted generated realm, every legal/illegal token68 padding suffix, token68-versus-parameter form, comma ambiguity, repeated/empty list members, BWS, quoted escape, malformed token/value, every limit/split/round trip, all six fields, valid/stale/cross-message authentication trailer permission, positive/denied HTTP/1 and HTTP/2 authentication-trailer generation, allowed/denied safe merge, unchanged received RequiresSchemeAuthorization classification, borrowed lifetime/redaction/non-indexing, logical invalidation/caller scrub, and unknown schemes without Basic/Digest behavior.
 - Create a stateful authentication grammar fuzz target with adversarial comma/quote/escape corpora and retain every minimized regression.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
@@ -6429,7 +6429,7 @@ on v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must
 
 #### Deliverables
 
-- Acceptance contract: Map target/Host to pseudo-fields and back while carrying raw path plus optional raw query exactly: construct :path as path followed by `?` plus query when present, preserve an empty query's trailing `?`, split inbound :path only on the first `?`, preserve percent-encoded octets byte-for-byte, and replace an empty HTTP URI path with `/` only where RFC 9112 requires; preserve absolute-form ServerWideOptionsCandidate when the next hop is another forward proxy, but at the final origin-facing hop map its empty-path/absent-query target to HTTP/1 `OPTIONS *` or HTTP/2 `:path: *`; never convert present-empty query or `OPTIONS /`; proxies never otherwise modify path/query; keep trailers separate, translate only fields carrying v0.52.0 field/safe-merge and authentication-scheme permission, and never merge them into the destination head by default; preserve received multipart/byteranges 206 content opaquely across versions without parsing boundaries or claiming part validation; HTTP/1 426 with valid Upgrade is untranslatable to HTTP/2 and yields zero-output typed failure unless the application explicitly selects and revalidates an alternative status, while HTTP/2 426 semantic violations never become a valid forwarded response; also map other status, framing, fields, informational/HEAD/body-forbidden responses including invalid 205 suppression, CONNECT/Upgrade, and close-delimited reframing before emitting bytes.
+- Acceptance contract: Map target/Host to pseudo-fields and back while carrying raw path plus optional raw query exactly: construct :path as path followed by `?` plus query when present, preserve an empty query's trailing `?`, split inbound :path only on the first `?`, preserve percent-encoded octets byte-for-byte, and replace an empty HTTP URI path with `/` only where RFC 9112 requires; preserve absolute-form ServerWideOptionsCandidate when the next hop is another forward proxy, but at the final origin-facing hop map its empty-path/absent-query target to HTTP/1 `OPTIONS *` or HTTP/2 `:path: *`; never convert present-empty query or `OPTIONS /`; proxies never otherwise modify path/query; keep received trailers separate and capability-free, translate a field only after destination-side v0.52.0 field permission and, for authentication-info, v0.157.2 scheme permission authorize the new message generation, and never merge it into the destination head without distinct safe-merge permission; preserve received multipart/byteranges 206 content opaquely across versions without parsing boundaries or claiming part validation; HTTP/1 426 with valid Upgrade is untranslatable to HTTP/2 and yields zero-output typed failure unless the application explicitly selects and revalidates an alternative status, while HTTP/2 426 semantic violations never become a valid forwarded response; also map other status, framing, fields, informational/HEAD/body-forbidden responses including invalid 205 suppression, CONNECT/Upgrade, and close-delimited reframing before emitting bytes.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7210,7 +7210,7 @@ Status: planned
 #### Goal
 
 Deliver **Client request builder and target forms** as the sole primary capability in this stop. It builds
-on v0.179.0 (Priority update flood budgeting) and must be independently trustworthy before v0.181.0 (Client correlation, cancellation, and retry tokens) begins.
+on v0.179.0 (Priority update flood budgeting) and must be independently trustworthy before v0.180.1 (Dependency-free conditional semantics crate and validators) begins.
 
 #### Deliverables
 
@@ -7236,11 +7236,95 @@ on v0.179.0 (Priority update flood budgeting) and must be independently trustwor
 #### Exit criteria
 
 The Client request builder and target forms contract and all previously implemented relevant behavior have
-reproducible evidence; v0.179.0 (Priority update flood budgeting) still passes; no behavior assigned to v0.181.0 (Client correlation, cancellation, and retry tokens) is
+reproducible evidence; v0.179.0 (Priority update flood budgeting) still passes; no behavior assigned to v0.180.1 (Dependency-free conditional semantics crate and validators) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.180.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.180.1 — Dependency-free conditional semantics crate and validators
+
+Status: planned
+
+#### Goal
+
+Deliver **Dependency-free conditional semantics crate and validators** as the sole primary capability in this stop. It builds
+on v0.180.0 (Client request builder and target forms) and must be independently trustworthy before v0.180.2 (Conditional request fields and ordered precondition evaluation) begins.
+
+#### Deliverables
+
+- Acceptance contract: Add a separate dependency-free, no_std `vef-conditions` crate depending only on `vef-core`; implement bounded incremental entity-tag parsing with exact weak-prefix/opaque-tag grammar, raw preservation, and distinct RFC strong/weak comparison; implement checked HTTP-date parsing for IMF-fixdate and the two required obsolete received forms, reject impossible calendar/time values, normalize comparisons without a wall clock, and emit only IMF-fixdate. Enforce explicit byte/digit/work/storage limits, preserve syntax versus capacity dispositions, and accept caller-supplied current ETag and last-modified evidence without inventing representation state.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable RFC 9110 conditional-request requirements, role/applicability decisions, SHOULD dispositions, deviations, verified/held errata, threat model, controls, API docs, release notes, traceability, resource measurements, and conformance corpora.
+- Define exact progress, capacity, cancellation, ownership, publication, commit/rollback, and typed error behavior for the new crate.
+
+#### Verification
+
+- Test every valid/invalid weak and strong entity tag, opaque-tag boundary, strong/weak comparison combination, all three received HTTP-date formats, canonical IMF generation, leap/calendar/weekday and numeric boundaries, every-byte splits, truncation, capacity/work exhaustion, arbitrary-input no-panic behavior, and no hidden allocation.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy, audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The dependency-free conditional validators and all previously implemented relevant behavior have reproducible evidence; v0.180.0 (Client request builder and target forms) still passes; no behavior assigned to v0.180.2 (Conditional request fields and ordered precondition evaluation) is claimed; the active resource profile passes; and no critical/high finding is open.
+
+`0.180.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.180.2 — Conditional request fields and ordered precondition evaluation
+
+Status: planned
+
+#### Goal
+
+Deliver **Conditional request fields and ordered precondition evaluation** as the sole primary capability in this stop. It builds
+on v0.180.1 (Dependency-free conditional semantics crate and validators) and must be independently trustworthy before v0.180.3 (Bounded byte ranges and single-range response planning) begins.
+
+#### Deliverables
+
+- Acceptance contract: In `vef-conditions`, parse bounded If-Match and If-None-Match as either the exclusive wildcard or an ordered entity-tag list; parse If-Modified-Since, If-Unmodified-Since, and If-Range with field-specific invalid-value dispositions. Evaluate preconditions only for an origin server or authorized cache, only when the otherwise selected response is 2xx or 412, and only for a method that selects or modifies a representation; non-evaluating intermediaries preserve them and CONNECT/OPTIONS/TRACE ignore them. Evaluate RFC 9110 preconditions in order—If-Match, If-Unmodified-Since only when If-Match is absent, If-None-Match, then If-Modified-Since only for GET/HEAD when If-None-Match is absent—before method execution or range selection. Produce a sealed non-forgeable `PreconditionOutcome` bound to the exact request/exchange generation, role, method, otherwise-selected status, representation-existence evidence, current ETag, and last-modified value; distinguish proceed, 304, and 412 outcomes, preserve If-Range evidence for v0.180.3, and require re-evaluation after any evidence change.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable RFC 9110 conditional-request requirements, role/applicability decisions, SHOULD dispositions, deviations, verified/held errata, threat model, controls, API docs, release notes, traceability, resource measurements, and conformance corpora.
+- Define exact progress, capacity, cancellation, ownership, publication, commit/rollback, and typed error behavior for evaluation and evidence lifetimes.
+
+#### Verification
+
+- Exhaust wildcard/list syntax, duplicate and malformed field disposition, method distinctions, absent representation, strong/weak comparisons, invalid/obsolete dates, every RFC precondition-order permutation, If-None-Match precedence over If-Modified-Since, If-Match precedence over If-Unmodified-Since, 304/412/proceed results, stale/cross-request/cross-exchange evidence, mutation requiring re-evaluation, all splits/limits, and model-based comparison with the requirement table.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy, audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The conditional-field and ordered-evaluation contract and all previously implemented relevant behavior have reproducible evidence; v0.180.1 (Dependency-free conditional semantics crate and validators) still passes; no behavior assigned to v0.180.3 (Bounded byte ranges and single-range response planning) is claimed; the active resource profile passes; and no critical/high finding is open.
+
+`0.180.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.180.3 — Bounded byte ranges and single-range response planning
+
+Status: planned
+
+#### Goal
+
+Deliver **Bounded byte ranges and single-range response planning** as the sole primary capability in this stop. It builds
+on v0.180.2 (Conditional request fields and ordered precondition evaluation) and must be independently trustworthy before v0.181.0 (Client correlation, cancellation, and retry tokens) begins.
+
+#### Deliverables
+
+- Acceptance contract: In `vef-conditions`, parse bounded Range byte-range, open-ended range, and suffix-range members plus satisfied and unsatisfied byte Content-Range forms with checked decimal accumulation; cap raw bytes, decimal digits, member count, normalization work, and output before arithmetic, reject overflow/reversed/impossible Content-Range, and distinguish unsupported units, malformed syntax, capacity, unsatisfied ranges, and configured many/overlapping/tiny-range policy. Ignore Range for every method except GET and apply If-Range only at the final RFC precondition step: entity tags use strong comparison, HTTP dates require caller-certified strong-validator status and exact equality with Last-Modified, and false conditions select the full response. Normalize against caller-supplied selected-representation existence and length with checked inclusive arithmetic; issue a sealed `SingleRangePlan` only for one normalized satisfiable range, a generation-bound unsatisfied context for 416, or a typed full-response/policy disposition, never multipart generation. Bind every result to the exact request/exchange generation and representation evidence so any length, validator, method, field, or policy change requires re-evaluation.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable RFC 9110 range requirements and security considerations, role/applicability decisions, SHOULD dispositions, deviations, verified/held errata, threat model, controls, API docs, release notes, traceability, resource measurements, and conformance corpora.
+- Define exact progress, capacity, cancellation, ownership, publication, commit/rollback, and typed error behavior for parsing, normalization, and range-plan lifetimes.
+
+#### Verification
+
+- Test closed/open/suffix boundaries, zero-length representations, clamping, satisfiable/unsatisfied results, all Content-Range forms, maximum and overflowing decimals, digit/member/work caps, many/overlapping/tiny-range policy, unsupported units, every If-Range validator/date outcome, stale/cross-generation representation evidence, mutation requiring re-evaluation, exact single-range Content-Range/body length agreement, multipart impossibility, every-byte splits, fuzz/model arithmetic, and no panic or hidden allocation.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy, audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The bounded range and single-range planning contract and all previously implemented relevant behavior have reproducible evidence; v0.180.2 (Conditional request fields and ordered precondition evaluation) still passes; no behavior assigned to v0.181.0 (Client correlation, cancellation, and retry tokens) is claimed; the active resource profile passes; and no critical/high finding is open.
+
+`0.180.3 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.181.0 — Client correlation, cancellation, and retry tokens
 
@@ -7249,7 +7333,7 @@ Status: planned
 #### Goal
 
 Deliver **Client correlation, cancellation, and retry tokens** as the sole primary capability in this stop. It builds
-on v0.180.0 (Client request builder and target forms) and must be independently trustworthy before v0.182.0 (Retry safety, idempotency, and body-replayability contract) begins.
+on v0.180.3 (Bounded byte ranges and single-range response planning) and must be independently trustworthy before v0.182.0 (Retry safety, idempotency, and body-replayability contract) begins.
 
 #### Deliverables
 
@@ -7275,7 +7359,7 @@ on v0.180.0 (Client request builder and target forms) and must be independently 
 #### Exit criteria
 
 The Client correlation, cancellation, and retry tokens contract and all previously implemented relevant behavior have
-reproducible evidence; v0.180.0 (Client request builder and target forms) still passes; no behavior assigned to v0.182.0 (Retry safety, idempotency, and body-replayability contract) is
+reproducible evidence; v0.180.3 (Bounded byte ranges and single-range response planning) still passes; no behavior assigned to v0.182.0 (Retry safety, idempotency, and body-replayability contract) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -7331,8 +7415,9 @@ on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and mus
 
 #### Deliverables
 
-- Acceptance contract: Add a separate dependency-free, no_std `vef-semantics` crate depending only on `vef-core` and `vef-auth`; it owns role-aware response validation and returns an opaque sealed protocol/role/message-generation-bound ValidatedResponse/ResponseEmissionPermit with private constructors and no Copy/Clone; `vef-http1` and `vef-http2` depend on this crate and consume the permit exactly once before any response head serialization, raw response heads have no public serialization path, and DATA/body/trailer commands remain bound to the permitted response generation.
-- Validate the complete role/method/status/field/content semantic matrix before issuing a permit; the caller chooses application values but supplies typed v0.157.2 challenges, allowed-method sets, upgrade protocols, request/precondition/range context, selected-representation metadata, and cache validators; require HTTP/1 401 to carry at least one valid WWW-Authenticate challenge, 405 to carry Allow, and HTTP/1 426 to carry valid Upgrade; reject every locally generated HTTP/2 426 as InvalidState because Upgrade is forbidden and no compliant field set exists; for 1.0 permit generated 206 only for one satisfied range with selected-representation evidence and one Content-Range consistent with emitted content, reject generated multipart/byteranges, but preserve received multipart bodies opaquely without parsing/validation; permit 304 only for conditional GET/HEAD with selected-representation/cache-validator context, required RFC metadata, and no content; bind 416 to rejected Range context and require an unsatisfied bytes Content-Range when complete length is known; enforce every other applicable RFC 9110 generated-response MUST through the same paragraph-traceable table without inventing application policy.
+- Acceptance contract: Add a separate dependency-free, no_std `vef-semantics` crate depending only on `vef-core`, `vef-auth`, and `vef-conditions`; it owns role-aware response validation and returns an opaque sealed protocol/role/message-generation-bound `ValidatedResponse<'a>` with private construction and no Copy/Clone. `ValidatedResponse` owns or immutably borrows the exact ordered response head, framing plan, sensitivity/indexing metadata, body plan, and trailer permissions that were validated; its internal `ResponseEmissionPermit` cannot be extracted or paired with caller-supplied data. `vef-http1` and `vef-http2` consume the complete object exactly once before response-head serialization; no API accepts `(raw_head, permit)`, raw response heads have no public serialization path, and any status, field, ordering, framing, metadata, body-plan, or trailer-permission change requires a new validation while DATA/body/trailer commands remain bound to that frozen response generation.
+- Validate the complete role/method/status/field/content semantic matrix before issuing `ValidatedResponse`; the caller chooses application values but supplies typed v0.157.2 challenges, allowed-method sets, upgrade protocols, sealed v0.180.2 precondition outcomes, sealed v0.180.3 range plans, selected-representation metadata, and cache validators; require every generated 401 in HTTP/1 or HTTP/2 to carry at least one valid WWW-Authenticate challenge, with normal lowercase HTTP/2 field serialization, require 405 to carry Allow, and require HTTP/1 426 to carry valid Upgrade; reject every locally generated HTTP/2 426 as InvalidState because Upgrade is forbidden and no compliant field set exists; for 1.0 permit generated 206 only from one matching `SingleRangePlan` with one Content-Range consistent with emitted content, reject generated multipart/byteranges, but preserve received multipart bodies opaquely without parsing/validation; permit 304 only from the matching conditional GET/HEAD `PreconditionOutcome` with required RFC metadata and no content; bind 416 to the matching unsatisfied range context and require an unsatisfied bytes Content-Range when complete length is known; enforce every other applicable RFC 9110 generated-response MUST through the same paragraph-traceable table without inventing application policy.
+- Reserve engine-only semantic-validation slots and frozen-head storage for mandatory v0.25.0/v0.38.0 responses, optionally use minimal prevalidated templates whose dynamic fields are still checked, and prohibit application validation from consuming that reserve; if reserve validation or output cannot proceed, commit exactly one deterministic close/shutdown action with no partial response output.
 - Invalid locally constructed responses return InvalidState with a typed semantic-construction cause, issue no permit, and serialize zero bytes; invalid received responses—including HTTP/2 426 without Upgrade—remain framing-synchronized and produce a typed SemanticViolation plus explicit recipient-policy action, never a framing error or automatic connection desynchronization; forwarded responses preserve end-to-end fields—including unmodified WWW-Authenticate and Authentication-Info—and apply only already-authorized intermediary transformations/cache rules; HTTP/1 426 cannot be translated to HTTP/2 by stripping Upgrade.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
@@ -7345,8 +7430,8 @@ on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and mus
 
 #### Verification
 
-- Exhaust the generated/received/forwarded × role/method/status/protocol matrix; test private/sealed non-Copy/non-Clone construction, wrong protocol/role/generation, duplicate permit consumption, and absence of any raw-head response serialization path in both engines; test HTTP/1 valid/invalid 426, local HTTP/2 426 InvalidState, received HTTP/2 Upgrade stream error versus 426-without-Upgrade semantic violation, HTTP/1→HTTP/2 nontranslation, 401/405, single-range 206 body agreement, generated multipart rejection plus opaque received preservation, 304, 416, every other response semantic, zero local bytes, received synchronization/policy, and field preservation.
-- Create a stateful response-semantic model/fuzz harness that varies typed evidence, status, method, field multiplicity, content commands, translation direction, capacity, and cancellation while asserting no invalid local serialization or framing misclassification.
+- Exhaust the generated/received/forwarded × role/method/status/protocol matrix; test private/sealed non-Copy/non-Clone construction, wrong protocol/role/generation, duplicate consumption, same-generation head substitution, mutable-buffer aliasing, field replacement/reordering, framing/indexing/body/trailer-plan mutation requiring revalidation, cancellation during partial output, and absence of any `(raw_head, permit)` or raw-head serialization path in both engines; test missing/empty/malformed/multiple 401 challenges over HTTP/1 and HTTP/2, HTTP/2 lowercase output, HTTP/1 valid/invalid 426, local HTTP/2 426 InvalidState, received HTTP/2 Upgrade stream error versus 426-without-Upgrade semantic violation, HTTP/1→HTTP/2 nontranslation, 405, sealed single-range 206 body agreement, generated multipart rejection plus opaque received preservation, sealed 304/416 contexts, every other response semantic, zero local bytes, received synchronization/policy, and field preservation.
+- Exhaust ordinary response permits/storage, then trigger malformed requests, 400/414/431, pipeline errors, cancellation, and output backpressure; prove the mandatory semantic reserve remains available, application work cannot consume it, minimal templates still validate, and total reserve failure produces one close/shutdown action with zero partial response bytes. Create a stateful response-semantic model/fuzz harness that varies frozen data, typed evidence, status, method, field multiplicity, content commands, translation direction, capacity, and cancellation while asserting no invalid local serialization, substitution, aliasing, or framing misclassification.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -7373,7 +7458,7 @@ on v0.182.1 (Role-aware outbound response semantic validator) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: Publish a request only after head/framing validation, correlate exactly one response lifecycle, expose only the v0.182.1 sealed response-validation/permit path to both outbound engines before reserving or emitting output, provide no facade/raw-head bypass, enforce 100-continue and body-rejection/drain-or-close decisions, reserve mandatory error output, and complete or cancel storage ownership before connection reuse.
+- Acceptance contract: Publish a request only after head/framing validation, correlate exactly one response lifecycle, expose only the v0.182.1 sealed frozen-`ValidatedResponse` path to both outbound engines before reserving or emitting output, provide no facade/raw-head or `(raw_head, permit)` bypass, preserve the engine-only mandatory semantic/head reserve, enforce 100-continue and body-rejection/drain-or-close decisions, reserve mandatory error output, and complete or cancel storage ownership before connection reuse.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7685,7 +7770,7 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 
 #### Deliverables
 
-- Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator; expose generated responses only through fixed-capacity `vef-semantics` validation yielding a sealed ResponseEmissionPermit consumed by the selected HTTP/1 or HTTP/2 engine, expose trailer field/scheme permissions without raw escape hatches, and keep response-head serializer constructors non-public.
+- Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator; expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` that owns or immutably borrows the exact validated data and is consumed whole by the selected HTTP/1 or HTTP/2 engine, expose trailer field/scheme permissions without raw escape hatches, preserve the mandatory engine reserve, and keep response-head serializer constructors and any separable permit/raw-head pairing non-public.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7724,7 +7809,7 @@ on v0.191.0 (Fixed-capacity caller-storage public API) and must be independently
 
 #### Deliverables
 
-- Acceptance contract: Build the owned layer only as a wrapper reducible to the stable borrowed API, with identical protocol decisions and no alloc-only correctness path; owned response builders must obtain and consume the same ResponseEmissionPermit and cannot fabricate, clone, cache, reuse, or bypass semantic/trailer permissions.
+- Acceptance contract: Build the owned layer only as a wrapper reducible to the stable borrowed API, with identical protocol decisions and no alloc-only correctness path; owned response builders must obtain and consume the same frozen `ValidatedResponse` object and cannot extract a permit, substitute another head, fabricate, clone, cache, reuse, mutate after validation, or bypass semantic/trailer permissions and the mandatory reserve.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7802,7 +7887,7 @@ on v0.193.0 (Stable diagnostics and security events) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Keep default and all feature combinations no_std, safe, and free of third-party Cargo dependencies; `http1` includes `vef-core` + `vef-auth` + `vef-semantics` + `vef-http1`, `http2` additionally includes `vef-hpack` + `vef-http2`, and no facade feature can disable response/trailer validation while retaining serialization; features only add separately owned APIs/crates, never weaken limits or validation, compile under Rust 1.90.0..=1.97.1, and fail policy checks on dependency, std, unsafe, or unintended facade-surface drift.
+- Acceptance contract: Keep default and all feature combinations no_std, safe, and free of third-party Cargo dependencies; `http1` includes `vef-core` + `vef-auth` + `vef-conditions` + `vef-semantics` + `vef-http1`, `http2` additionally includes `vef-hpack` + `vef-http2`, and no facade feature can disable conditional/range/response/trailer validation or the mandatory semantic reserve while retaining serialization; features only add separately owned APIs/crates, never weaken limits or validation, compile under Rust 1.90.0..=1.97.1, and fail policy checks on dependency, std, unsafe, or unintended facade-surface drift.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7919,7 +8004,7 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse ResponseEmissionPermit, serialize a raw response head through either engine/facade, use a permit for the wrong protocol/role/generation, issue body/trailer commands outside its response generation, or forge/rebind trailer field/authentication permissions.
+- Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse/extract `ResponseEmissionPermit`, separate it from or replace the frozen `ValidatedResponse` head, pass `(raw_head, permit)` through either engine/facade, mutably alias validated buffers, use validated data for the wrong protocol/role/generation, issue body/trailer commands outside its response generation, forge/rebind trailer field/authentication permissions, or fabricate v0.180.2/v0.180.3 conditional/range outcomes.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

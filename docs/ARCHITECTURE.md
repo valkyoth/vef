@@ -27,7 +27,8 @@ vef facade
   `-- vef-io
 
 vef-auth -----------> vef-core
-vef-semantics ------> vef-core + vef-auth
+vef-conditions -----> vef-core
+vef-semantics ------> vef-core + vef-auth + vef-conditions
 
 future runtime/TLS/Aesynx adapters -----> vef-io and protocol crates
 ```
@@ -70,11 +71,16 @@ client 5xx handling and can never enter valid server/serializer output.
 types, but raw response heads confer no serialization capability.
 
 `vef-auth` owns bounded scheme-neutral authentication grammar and sensitive
-borrowed/caller storage. `vef-semantics` owns the full role/protocol response
-matrix and is the sole issuer of opaque sealed `ValidatedResponse` /
-`ResponseEmissionPermit` capabilities. Both HTTP engines consume one matching
-permit before response-head output; no public raw-head serialization path
-exists, and body/trailer commands remain bound to that response generation.
+borrowed/caller storage. `vef-conditions` owns entity tags, HTTP dates,
+conditional-field evaluation, and checked range planning; its sealed outcomes
+bind the exact request/exchange generation and caller representation evidence.
+`vef-semantics` owns the full role/protocol response matrix. Its sealed
+`ValidatedResponse` owns or immutably borrows the exact ordered head, framing,
+sensitivity/indexing, body, and trailer plan; the internal emission capability
+cannot be separated or paired with another raw head. Both HTTP engines consume
+that complete frozen object before response-head output, every mutation needs
+revalidation, no public raw-head serialization path exists, and body/trailer
+commands remain bound to that response generation.
 
 ## HTTP/0.9 and HTTP/1 boundaries
 
@@ -113,9 +119,12 @@ and cancellation are commands with explicit connection-reuse consequences.
 Outbound request/response framing uses one state machine that checks body byte
 counts, trailers, body-forbidden contexts, and completion before reuse.
 Trailer admission uses a field-definition allowlist and generation-bound
-permission; authentication-info additionally requires caller-certified scheme
-permission. Received trailers stay separate, never retroactively affect prior
-decisions, and merge only when the field definition explicitly permits it.
+permission from `vef-core`; authentication-info generation remains unavailable
+until `vef-auth` introduces caller-certified scheme permission. Received
+trailers never possess local Rust capabilities: they stay separate, receive a
+post-synchronization semantic/policy disposition (including
+RequiresSchemeAuthorization), never retroactively affect prior decisions, and
+can be translated or merged only after destination-side authorization.
 Transfer-Encoding selection is role-specific: requests require final chunked,
 whereas responses can be delimited by close when chunked is non-final or a
 different coding is final. Repeated chunked is malformed; an unsupported valid
@@ -282,12 +291,20 @@ hop-scoped Proxy-Authorization before origin forwarding; only explicit named
 cooperative next-hop policy can relay it. Proxy challenges/info return only to
 the next client, every generated 407 has a `vef-auth`-validated challenge, and
 all proxy-auth fields are sensitive, redacted, never-indexed, and TRACE-excluded.
-Before any generated response bytes, a role-aware semantic gate validates the
-complete method/status/field/content matrix using caller-supplied typed values:
-401 challenges, 405 Allow, protocol-specific 426, and contextual 206/304/416
-are explicit. HTTP/2 cannot generate 426; HTTP/1 426 cannot translate by
-stripping Upgrade. Generated 206 is single-range only for 1.0; received
-multipart/byteranges remains opaque and forwardable, never parsed or generated.
+Before any generated response bytes, `vef-conditions` parses entity tags and
+HTTP dates, evaluates conditional fields in RFC order, and performs bounded
+checked Range/Content-Range arithmetic. A role-aware semantic gate then
+consumes those sealed generation-bound outcomes and validates the complete
+method/status/field/content matrix: 401 challenges over both protocols, 405
+Allow, protocol-specific 426, and contextual 206/304/416 are explicit. HTTP/2
+cannot generate 426; HTTP/1 426 cannot translate by stripping Upgrade.
+Generated 206 is single-range only for 1.0; received multipart/byteranges
+remains opaque and forwardable, never parsed or generated.
+The gate freezes the exact validated response; serialization never accepts a
+raw head beside a permit. Engine-only semantic slots and frozen-head storage
+are reserved for mandatory responses and cannot be consumed by application
+work; reserve failure commits one deterministic close/shutdown action without
+partial response output.
 Local invalid construction is zero-output InvalidState; received semantic
 violations remain framing-synchronized under recipient policy; intermediaries
 preserve end-to-end response fields except already-authorized transformations.

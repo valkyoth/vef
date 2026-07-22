@@ -39,7 +39,10 @@ policy, proxy discovery, content compression, WebSocket frames, HTML/forms,
 general-purpose multipart parsing/generation, routers, templates, server
 binaries, and CLIs are out of scope. VEF 1.0 generates only single-range 206;
 received multipart/byteranges bodies remain opaque bytes that can be preserved
-and forwarded without boundary or part validation.
+and forwarded without boundary or part validation. VEF parses entity tags,
+HTTP dates, conditional fields, Range, and Content-Range and evaluates them
+against explicit caller-supplied representation evidence; it does not own a
+representation store, cache, wall clock, or multipart assembler.
 
 RFC 7239 `Forwarded` transformation is also outside 1.0. Via parsing,
 preservation, and generation are covered by RFC 9110 instead.

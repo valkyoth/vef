@@ -102,15 +102,19 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   output resumes at its suffix and pins owning state through failure cleanup.
 - A live/reserved HTTP/2 slot preflights cutoff storage before release and is
   never untracked. Rejection disposition, RFC wire state, and reset-output
-  progress/reason/reservation, remote-closure cause, terminal state/stage,
-  compression workspace, immutable field-section lease, and block ownership
-  remain independent. HPACK atomically transfers a sealed non-Copy/non-Clone
-  section lease into monotonic PendingSemantics while releasing only compression
-  scratch. END_STREAM can make a reserved, unexposed policy reset dormant but no
-  intermediate stage releases it; peer reset aborts publication after required
-  HPACK drain, and connection failure transfers cleanup to shutdown ownership.
+  progress/reason/reservation, remote-closure record, immutable first-closure
+  cause, terminal state/stage, compression workspace, immutable field-section
+  lease, and block ownership remain independent. HPACK atomically transfers a
+  sealed non-Copy/non-Clone section lease into monotonic PendingSemantics while
+  releasing only compression scratch. END_STREAM can make a reserved, unexposed
+  policy reset dormant but no intermediate stage releases it; peer reset aborts
+  publication after required HPACK drain, and connection failure transfers
+  cleanup to shutdown ownership.
   A reset reason is replaceable only before exposure; a frozen 13-byte frame,
   output token/cursor, and owning tombstone remain immutable and unrecyclable.
+  Reserved/Frozen acknowledgement 0..=12 leaves wire state unchanged; byte 13
+  closes locally exactly once unless remote closure already won, in which case
+  completion cannot overwrite its cause. Partial-prefix failure never closes.
 - Assembly-enabled local correlation reserves a linear engine-only target/
   principal/partition/navigation invalidation handle before request output.
   Accepted push atomically preflights its slot, handle, independent minimal
@@ -405,8 +409,9 @@ frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
 Keep policy disposition orthogonal to the RFC stream state and reset-output
-progress/reason/reservation, remote-closure cause, terminal state/semantic
-stage, and active block. Normalize HEADERS/DATA and END_STREAM separately:
+progress/reason/reservation, remote-closure record, first-closure cause,
+terminal state/semantic stage, and active block. Normalize HEADERS/DATA,
+END_STREAM, peer reset, and fully acknowledged local reset separately:
 HEADERS+END_STREAM can close while fragmented
 CONTINUATION still owns HPACK; half-closed(local) rejected DATA+END_STREAM uses
 normal discard credit before closure; reserved(remote) DATA remains connection
@@ -418,9 +423,11 @@ re-arm the same slot as PROTOCOL_ERROR only before reset exposure. Peer reset
 aborts pending semantics, but an active block first drains HPACK; GOAWAY alone
 does not abort. First non-empty reset exposure freezes frame identity/bytes;
 acknowledge by generation token, resume only at the exact suffix, and never emit
-another reset. Malformed/abort release semantic leases once and fatal input owns
-acknowledged-prefix cleanup. Drive every ownership/stage/event/output product
-through the model/fuzz table.
+another reset. Prefixes 0..=12 do not change wire state; acknowledgement 13
+applies one local close only if the stream is not already remotely closed.
+Malformed/abort release semantic leases once and fatal input owns
+acknowledged-prefix cleanup without an incomplete close. Drive every
+ownership/stage/event/output product through the model/fuzz table.
 Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
 post-initial-HEADERS DATA into fixed-capacity PendingConnect while
 AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without
@@ -524,7 +531,9 @@ block ownership, make reserved(remote) DATA/duplicate IDs connection errors,
 credit and terminal-validate half-closed(local) DATA before END_STREAM closure,
 keep an unexposed policy reset dormant until valid release or malformed re-arm,
 freeze it at first non-empty offer, continue only its acknowledged-cursor
-suffix, and give tolerated closed-stream DATA connection credit only.
+suffix, preserve pre-completion wire legality through prefix 12, and give
+tolerated closed-stream DATA connection credit only after remote closure or
+full local-reset acknowledgement.
 Unrepresentable tracking retains the slot through typed bounded shutdown.
 Neither rotates an arena. The exact correlation holds its handle and
 provenance independently of associated-stream teardown, buffer reuse, or later

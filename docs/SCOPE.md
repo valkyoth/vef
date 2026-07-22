@@ -108,8 +108,13 @@ fatal cleanup with redaction and caller-scrub rules intact. Reset reason changes
 only before non-empty output exposure. Exposure freezes the exact 13-byte frame,
 stream/reason/generation, and a token-acknowledged cursor; zero/short writes never
 unfreeze it, positive progress resumes only at the suffix, and invalid tokens are
-state-neutral. Connection failure records only acknowledged bytes; tolerated
-post-reset DATA restores connection credit without stream WINDOW_UPDATE.
+state-neutral. Reserved or Frozen output through acknowledged byte 12 does not
+close the RFC stream: inbound frames still use its prior wire state. Only
+acknowledged byte 13 completes local reset and closes once; an earlier peer
+reset/END_STREAM remains the first closure cause, while local output completion
+is recorded without a second transition. Connection failure records only
+acknowledged bytes and no incomplete local-reset transition; tolerated DATA
+after actual closure restores connection credit without stream WINDOW_UPDATE.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

@@ -249,13 +249,14 @@ contains its rejection/cutoff representation, so an accepted promised ID is
 continuously tracked—never idle again—but policy rejection is orthogonal to its
 RFC wire state and reset serialization. A rejected promise remains
 reserved(remote) until normalized HEADERS moves it to half-closed(local), then a
-separate END_STREAM event, peer reset, or local CANCEL can close it.
+separate END_STREAM event, peer reset, or acknowledgement of the complete local
+RST_STREAM can close it.
 HEADERS+END_STREAM performs both transitions even when END_HEADERS is absent;
 the closed wire state does not release the remaining CONTINUATION/HPACK owner.
 Rejected half-closed(local) DATA+END_STREAM accounts/discards its full payload
 and padding before closure. Reserved(remote) DATA and reuse of its non-idle ID
-are connection PROTOCOL_ERROR; tolerated post-reset DATA restores only
-connection credit and never emits stream WINDOW_UPDATE. Terminal validation is
+are connection PROTOCOL_ERROR; DATA tolerated only after actual closure restores
+only connection credit and never emits stream WINDOW_UPDATE. Terminal validation is
 an independent sealed state machine: NotTerminal, PendingFieldBlock(disposition),
 PendingSemantics { stage, fields: TerminalFieldSectionLease }, Valid, Malformed(code), or
 AbortedByPeerReset. HPACK completion atomically seals and transfers the decoded
@@ -273,10 +274,19 @@ freezes all 13 RST_STREAM bytes, reason, stream token, and output generation;
 later semantic/peer events cannot replace it. Valid token acknowledgements move
 one cursor, positive progress resumes at the exact suffix, and stream/tombstone
 reuse waits for token completion or acknowledged-prefix failure cleanup.
+A reserved reset and a frozen reset acknowledged through byte 12 leave the RFC
+wire state unchanged, so every inbound frame still uses the prior
+reserved/open/half-closed legality and credit rules. Acknowledging byte 13
+records output completion and applies one local-reset transition to Closed only
+if remote END_STREAM or peer RST_STREAM did not close it first. Remote closure
+is retained independently, and immutable first-closure attribution is never
+overwritten by later local completion; the frozen suffix still completes while
+the connection is usable. Partial-prefix connection failure performs cleanup
+without claiming reset completion or a local wire transition.
 A generation-checked associated-stream tombstone
-also accepts an in-flight PUSH_PROMISE after local reset: it completes every
-CONTINUATION and validates/tracks the promised ID but publishes no request or
-reconstructed authority. Missing recycled provenance selects safe rejection,
+also accepts an in-flight PUSH_PROMISE after completed local reset: it completes
+every CONTINUATION and validates/tracks the promised ID but publishes no request
+or reconstructed authority. Missing recycled provenance selects safe rejection,
 while illegal IDs and malformed HPACK preserve connection-error scope.
 One total `RejectedPushFrameDisposition` matrix keys these decisions by policy,
 wire state, reset progress/reason/reservation, terminal state/semantic stage,

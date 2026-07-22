@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the compact and detailed plans cover exactly v0.1.0..v0.225.0."""
+"""Check 225 minor milestones, four patch stops, and two release candidates."""
 
 from __future__ import annotations
 
@@ -19,15 +19,21 @@ def main() -> int:
     expected = list(range(1, 226))
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
+    patch_stops = ("0.157.1", "0.157.2", "0.157.3", "0.182.1")
     failures: list[str] = []
     if detailed_versions != expected:
         failures.append("detailed plan does not cover v0.1.0 through v0.225.0 exactly")
     if compact_versions != expected:
         failures.append("version index does not cover v0.1.0 through v0.225.0 exactly")
+    for patch_stop in patch_stops:
+        if detailed.count(f"### v{patch_stop} — ") != 1:
+            failures.append(f"detailed plan does not contain exactly one v{patch_stop} patch stop")
+        if compact.count(f"| `{patch_stop}` |") != 1:
+            failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 225:
-            failures.append(f"expected 225 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 227:
+        if detailed.count(f"#### {heading}") != 229:
+            failures.append(f"expected 229 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 231:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -65,6 +71,10 @@ def main() -> int:
         "Exact CONNECT, Upgrade, and tunnel byte-handoff ownership",
         "HTTP/2 TLS admission prerequisites and authenticated metadata",
         "Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge",
+        "Via grammar, append, privacy, and loop policy",
+        "Dependency-free generic authentication grammar and sensitive storage",
+        "Proxy-authentication hop ownership and 407 lifecycle",
+        "Role-aware outbound response semantic validator",
     )
     for marker in required_markers:
         if marker not in detailed or marker not in compact:
@@ -87,10 +97,15 @@ def main() -> int:
         ("Bounded outbound scheduling", "SETTINGS max-frame-size outbound integration"),
         ("HTTP/2 malformed initial-field-block publication barrier", "HTTP/2 request mapping"),
         ("Protocol-neutral HTTP translation representation", "Effective URI and authority consistency"),
-        ("Connection fields, Via, proxy authentication, and cache preservation", "Normative HTTP/1 and HTTP/2 translation matrix"),
+        ("Connection-field stripping and cache-metadata preservation", "Via grammar, append, privacy, and loop policy"),
+        ("Via grammar, append, privacy, and loop policy", "Dependency-free generic authentication grammar and sensitive storage"),
+        ("Dependency-free generic authentication grammar and sensitive storage", "Proxy-authentication hop ownership and 407 lifecycle"),
+        ("Proxy-authentication hop ownership and 407 lifecycle", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("Max-Forwards TRACE and OPTIONS intermediary semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("HTTP/1 TE request-field and trailers forwarding semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("Normative HTTP/1 and HTTP/2 translation matrix", "CONNECT translation across HTTP versions"),
+        ("Retry safety, idempotency, and body-replayability contract", "Role-aware outbound response semantic validator"),
+        ("Role-aware outbound response semantic validator", "Origin-server role API"),
         ("vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton", "Structured Fields integer and decimal ranges"),
         ("Structured Fields strings, tokens, bytes, booleans, dates, and display strings", "Structured Fields complete bare-item dispatcher"),
         ("Structured Fields complete bare-item dispatcher", "Structured Fields parameters"),
@@ -133,6 +148,8 @@ def main() -> int:
         or "bounded PendingConnect while target authorization/dialing is incomplete" in detailed
         or "same ConnectTargetPolicy authorization before DNS, dialing, upstream output, or tunnel publication" in detailed
         or "Connection-field stripping, Via, and cache preservation" in detailed
+        or "Connection fields, Via, proxy authentication, and cache preservation" in detailed
+        or "promised-request validation" in detailed
     ):
         failures.append("superseded or generic acceptance wording remains in detailed plan")
     required_contract_text = (
@@ -249,9 +266,14 @@ def main() -> int:
         "generation-matched TrustedRequestContext",
         "generation-bound ConnectAttemptToken and AuthorizedConnectOutcome types",
         "bind requested authority, resolved endpoint, connected peer, attempt/request/policy generations",
-        "sensitive HopScopedProxyCredential bound to inbound hop",
+        "seal their fields/constructors, make them neither Copy nor Clone",
+        "engine-owned opaque attempt identity independent of caller endpoint values",
+        "outcome to be consumed once by only its matching request state",
+        "engine-issued exchange identity as well as inbound hop",
         "authorize every candidate endpoint before its dial",
-        "accept only an AuthorizedConnectOutcome whose authority, authorized resolved endpoint, actual connected peer",
+        "consume exactly once only an AuthorizedConnectOutcome whose opaque attempt identity",
+        "cancellation, rejection, policy-generation change, non-2xx completion, or tunnel commitment invalidates every remaining attempt/outcome",
+        "duplicate outcome/success commands are InvalidState before output",
         "VEF performs no DNS, dialing, or socket inspection",
         "rejects stale, alternate, mismatched, or policy-revoked outcomes before 2xx",
         "outbound builders reject request content, Content-Length, and Transfer-Encoding",
@@ -275,7 +297,7 @@ def main() -> int:
         "fixed caller-capacity PendingConnect while the stream is AwaitingConnectOutcome",
         "no peer-sized allocation, WINDOW_UPDATE, credit-release, DNS, dial, or socket claim at this milestone",
         "typed local-capacity disposition plus RST_STREAM(CANCEL), not a peer protocol violation",
-        "forward nothing until a generation-matched AuthorizedConnectOutcome",
+        "consume one matching opaque AuthorizedConnectOutcome and forward nothing until it passes",
         "once connected allow only DATA and applicable stream-management frames",
         "map caller-reported TCP failure/reset to RST_STREAM(CONNECT_ERROR)",
         "typed caller action to reset upstream TCP",
@@ -283,6 +305,11 @@ def main() -> int:
         "including PendingConnect/AwaitingConnectOutcome bytes",
         "route CONNECT PendingConnect/AwaitingConnectOutcome/connected ranges only to stream-local bounded tunnel ownership",
         "replace v0.130.0 capacity-reset-only handling with credit-aware backpressure",
+        "receipt of PUSH_PROMISE from a client is connection PROTOCOL_ERROR",
+        "recognized method classified both safe and cacheable",
+        "invalid promised semantics produce promised-stream PROTOCOL_ERROR without resetting or mutating the associated stream",
+        "atomically validate associated stream open/half-closed-remote legality",
+        "every non-cacheable response is marked forbidden for cache storage",
         "for 205 require initial response HEADERS with END_STREAM and optional Content-Length: 0",
         "established HTTP/2 CONNECT or RFC 8441 stream expose separate tunnel DATA/finish commands",
         "ServerWideOptionsCandidate",
@@ -291,17 +318,30 @@ def main() -> int:
         "map its empty-path/absent-query target to HTTP/1 `OPTIONS *` or HTTP/2 `:path: *`",
         "treat HTTP/2 DATA through v0.130.0 PendingConnect/AwaitingConnectOutcome",
         "reuse the completed lexical authorization → ConnectAttemptToken → caller resolution/per-endpoint authorization → generation-matched AuthorizedConnectOutcome lifecycle",
-        "full ordered Via member grammar under explicit member/comment limits",
-        "append one caller-configured received-protocol plus pseudonym entry without replacing or combining",
+        "full ordered Via member grammar under explicit member/comment/value/work limits",
+        "append exactly one caller-configured received-protocol plus pseudonym entry without replacement or combination",
         "record the inbound protocol/version rather than the outbound version",
         "self-pseudonym loop hook that never derives identity from peer bytes",
-        "consume HopScopedProxyCredential at the first expecting proxy",
+        "separate dependency-free, no_std `vef-auth` crate",
+        "bounded incremental scheme-neutral parser/serializer for challenge, credentials, token68, and auth-param",
+        "disambiguate comma-separated auth parameters from subsequent challenges without unsafe normalization",
+        "support WWW-Authenticate, Authorization, Authentication-Info, Proxy-Authenticate, Proxy-Authorization, and Proxy-Authentication-Info",
+        "does not promise optimizer-resistant physical zeroization—the caller must scrub its owned buffers",
+        "Consume one validated HopScopedProxyCredential at the first expecting proxy",
         "remove Proxy-Authorization before origin forwarding",
         "explicit generation-bound cooperative policy naming the next hop",
-        "require at least one valid Proxy-Authenticate challenge on every generated 407",
+        "require at least one v0.157.2-valid Proxy-Authenticate challenge on every generated 407",
         "Proxy-Authorization, Proxy-Authenticate, Proxy-Authentication-Info",
         "apply v0.65.0 fresh-connection closure to HTTP/1 CONNECT 407",
         "inbound received-protocol/pseudonym Via entry for every HTTP-to-HTTP gateway-forwarded request",
+        "complete role/method/status/field/content semantic matrix before any locally generated response bytes",
+        "require 401 to carry at least one valid WWW-Authenticate challenge, 405 to carry Allow, and 426 to carry Upgrade",
+        "permit 206 only for a satisfied range request with selected-representation evidence",
+        "permit 304 only for conditional GET/HEAD with selected-representation/cache-validator context",
+        "bind 416 to rejected Range context",
+        "Invalid locally constructed responses return InvalidState with a typed semantic-construction cause and serialize zero bytes",
+        "invalid received responses remain framing-synchronized and produce a typed SemanticViolation",
+        "forwarded responses preserve end-to-end fields—including unmodified WWW-Authenticate and Authentication-Info",
         "Http1DrainingAfterClose",
         "HTTP/2 CONNECT and applicable RFC 8441 END_STREAM enter genuine local/remote half-closed states",
         "map upstream TCP FIN to final DATA plus END_STREAM",
@@ -318,7 +358,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 detailed milestones plus two release candidates")
+    print("release plan: 225 minor milestones, four patch stops, and two release candidates")
     return 0
 
 

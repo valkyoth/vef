@@ -771,7 +771,7 @@ on v0.18.0 (Request and response control-data types) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Use exhaustive client, origin, intermediary, proxy, gateway, and tunnel roles plus named strict/compatibility profiles; define generation- and connection-bound TrustedRequestContext with optional fixed-listener scheme, authenticated trusted-gateway scheme, and adapter-supplied authenticated transport-security state; apply explicit precedence fixed-listener then trusted-gateway then transport-derived http/https, reject disagreement by default unless an immutable named policy authorizes the higher-priority source, reject stale/cross-connection context, and never infer security from socket or runtime types; define caller-supplied ConnectTargetPolicy with generation-bound ConnectAttemptToken and AuthorizedConnectOutcome types that bind requested authority, resolved endpoint, connected peer, attempt/request/policy generations, and no socket/resolver ownership; define a distinct sensitive HopScopedProxyCredential bound to inbound hop, next-hop policy, connection, and generation, never interchangeable with end-to-end Authorization; make every policy choice immutable for a message, reject unsupported combinations, and never infer role from input bytes.
+- Acceptance contract: Use exhaustive client, origin, intermediary, proxy, gateway, and tunnel roles plus named strict/compatibility profiles; define generation- and connection-bound TrustedRequestContext with optional fixed-listener scheme, authenticated trusted-gateway scheme, and adapter-supplied authenticated transport-security state; apply explicit precedence fixed-listener then trusted-gateway then transport-derived http/https, reject disagreement by default unless an immutable named policy authorizes the higher-priority source, reject stale/cross-connection context, and never infer security from socket or runtime types; define caller-supplied ConnectTargetPolicy with generation-bound ConnectAttemptToken and AuthorizedConnectOutcome types that bind requested authority, resolved endpoint, connected peer, attempt/request/policy generations, and no socket/resolver ownership; seal their fields/constructors, make them neither Copy nor Clone, issue an engine-owned opaque attempt identity independent of caller endpoint values, and permit an outcome to be consumed once by only its matching request state; define a distinct sensitive HopScopedProxyCredential bound to an engine-issued exchange identity as well as inbound hop, next-hop policy, connection, and generation so equal generations cannot rebind it to another exchange; make every policy choice immutable for a message, reject unsupported combinations, and never infer role from input bytes.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -783,7 +783,7 @@ on v0.18.0 (Request and response control-data types) and must be independently t
 
 #### Verification
 
-- Test every TrustedRequestContext source/absence/precedence/conflict, TLS-termination override policy, stale generation and cross-connection reuse, socket-type noninference, ConnectTargetPolicy lexical/resolved/peer generations, cross-attempt outcome rejection, HopScopedProxyCredential hop/generation separation from Authorization, every role/profile combination, and all previously implemented relevant behavior.
+- Test every TrustedRequestContext source/absence/precedence/conflict, TLS-termination override policy, stale generation and cross-connection reuse, socket-type noninference, sealed/non-Copy/non-Clone capability construction, opaque identity independence, ConnectTargetPolicy lexical/resolved/peer generations, duplicate/cross-attempt/same-generation outcome rejection, HopScopedProxyCredential hop/generation/exchange separation from Authorization, every role/profile combination, and all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2531,7 +2531,7 @@ on v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) and must b
 
 #### Deliverables
 
-- Acceptance contract: Accept CONNECT only with the v0.40.0 validated ConnectAuthority and staged Sans-I/O admission: authorize its lexical host plus explicit 1..=65535 port, issue a request/policy-generation-bound ConnectAttemptToken, let the caller resolve, authorize every candidate endpoint before its dial, and accept only an AuthorizedConnectOutcome whose authority, authorized resolved endpoint, actual connected peer, attempt/request/policy generations, and token all match; VEF performs no DNS, dialing, or socket inspection, and rejects stale, alternate, mismatched, or policy-revoked outcomes before 2xx, upstream bytes, or tunnel publication; use no Host routing or scheme default; outbound builders reject request content, Content-Length, and Transfer-Encoding; hardened inbound framing rejects either field with bounded 400 plus mandatory close and no reparse; successful server responses forbid both fields while clients ignore received ones, every response is non-cacheable, a final 2xx atomically hands over each over-read byte once, and non-2xx remains ordinary HTTP without tunnel publication.
+- Acceptance contract: Accept CONNECT only with the v0.40.0 validated ConnectAuthority and staged Sans-I/O admission: authorize its lexical host plus explicit 1..=65535 port, issue a request/policy-generation-bound ConnectAttemptToken, let the caller resolve, authorize every candidate endpoint before its dial, and consume exactly once only an AuthorizedConnectOutcome whose opaque attempt identity, authority, authorized resolved endpoint, actual connected peer, attempt/request/policy generations, and token all match; cancellation, rejection, policy-generation change, non-2xx completion, or tunnel commitment invalidates every remaining attempt/outcome, and duplicate outcome/success commands are InvalidState before output; VEF performs no DNS, dialing, or socket inspection, and rejects stale, alternate, mismatched, or policy-revoked outcomes before 2xx, upstream bytes, or tunnel publication; use no Host routing or scheme default; outbound builders reject request content, Content-Length, and Transfer-Encoding; hardened inbound framing rejects either field with bounded 400 plus mandatory close and no reparse; successful server responses forbid both fields while clients ignore received ones, every response is non-cacheable, a final 2xx atomically hands over each over-read byte once, and non-2xx remains ordinary HTTP without tunnel publication.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2543,7 +2543,7 @@ on v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) and must b
 
 #### Verification
 
-- Test lexical rejection before resolution, every resolved endpoint allow/deny, alternate-address and connected-peer mismatch, stale attempt/request/policy generations, revocation after resolution, caller-certified success without socket inspection, safe/unsafe ports, bracketed IPv6, Host disagreement, content/framing rejection with close/no-reparse, successful field prohibition/client ignore, non-cacheability, 2xx/non-2xx byte handoff, and all earlier behavior.
+- Test lexical rejection before resolution, every resolved endpoint allow/deny, alternate-address and connected-peer mismatch, stale attempt/request/policy generations, revocation after resolution, single consumption, duplicate outcome/success, replay after cancellation/non-2xx/commit and same-generation reuse, caller-certified success without socket inspection, safe/unsafe ports, bracketed IPv6, Host disagreement, content/framing rejection with close/no-reparse, successful field prohibition/client ignore, non-cacheability, 2xx/non-2xx handoff, and all earlier behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2570,7 +2570,7 @@ on v0.64.0 (CONNECT request and successful tunnel transition) and must be indepe
 
 #### Deliverables
 
-- Acceptance contract: For an untrusted downstream TCP client, a proxy client either waits for the CONNECT 2xx before forwarding payload or sends Connection: close; a proxy server rejecting CONNECT closes the transport and processes no later request regardless of Connection; specifically, HTTP/1 CONNECT 407 carries a valid Proxy-Authenticate challenge, mandates connection close, destroys all pending optimistic/tunnel bytes and attempt credentials, and permits authentication retry only on a fresh connection/generation; WebSocket sends no data before 101, CONNECT-UDP sends no optimistic HTTP/1.x payload, and failed transition bytes never return to the HTTP parser.
+- Acceptance contract: For an untrusted downstream TCP client, a proxy client either waits for the CONNECT 2xx before forwarding payload or sends Connection: close; a proxy server rejecting CONNECT closes the transport and processes no later request regardless of Connection; specifically, HTTP/1 CONNECT 407 carries a valid Proxy-Authenticate challenge, mandates connection close, discards owned optimistic/tunnel bytes, logically invalidates attempt/credential capabilities and releases their references without promising caller-buffer zeroization, and permits authentication retry only on a fresh connection/generation; WebSocket sends no data before 101, CONNECT-UDP sends no optimistic HTTP/1.x payload, and failed transition bytes never return to the HTTP parser.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2582,7 +2582,7 @@ on v0.64.0 (CONNECT request and successful tunnel transition) and must be indepe
 
 #### Verification
 
-- Test wait-or-close, every rejected CONNECT close/no-reparse path, 407 challenge plus fresh-connection retry, credential/attempt/pending-byte destruction, pre-101 WebSocket and CONNECT-UDP prohibition, and all previously implemented relevant behavior with positive, negative, boundary, truncation, cancellation, capacity, and no-panic cases.
+- Test wait-or-close, every rejected CONNECT close/no-reparse path, 407 challenge plus fresh-connection retry, owned-byte discard, capability/reference invalidation and caller-scrub boundary, pre-101 WebSocket and CONNECT-UDP prohibition, and all previously implemented relevant behavior with positive, negative, boundary, truncation, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5122,7 +5122,7 @@ on v0.129.0 (HTTP/2 response mapping) and must be independently trustworthy befo
 
 #### Deliverables
 
-- Acceptance contract: Reconcile Content-Length with DATA octets and enforce final-response, body-forbidden, trailer, DATA-after-trailer, and END_STREAM ordering for ordinary messages; classify every HTTP/2 CONNECT DATA octet after initial request HEADERS as tunnel data in fixed caller-capacity PendingConnect while the stream is AwaitingConnectOutcome, never as request content, with no peer-sized allocation, WINDOW_UPDATE, credit-release, DNS, dial, or socket claim at this milestone; if capacity is unavailable emit a typed local-capacity disposition plus RST_STREAM(CANCEL), not a peer protocol violation; forward nothing until a generation-matched AuthorizedConnectOutcome passes v0.19.0/v0.64.0 authority, endpoint, actual-peer, request, attempt, and policy checks; discard/reset pending bytes on invalid outcome or non-2xx without publication or unrelated-stream mutation; once connected allow only DATA and applicable stream-management frames, reject later HEADERS/trailers or other frames with stream PROTOCOL_ERROR, map caller-reported TCP failure/reset to RST_STREAM(CONNECT_ERROR), and expose HTTP/2 stream/connection failure as a typed caller action to reset upstream TCP; for inbound 205 use ordinary DATA/END_STREAM classification, emit a typed semantic violation and stream reset on nonzero DATA, and prevent valid-205 forwarding.
+- Acceptance contract: Reconcile Content-Length with DATA octets and enforce final-response, body-forbidden, trailer, DATA-after-trailer, and END_STREAM ordering for ordinary messages; classify every HTTP/2 CONNECT DATA octet after initial request HEADERS as tunnel data in fixed caller-capacity PendingConnect while the stream is AwaitingConnectOutcome, never as request content, with no peer-sized allocation, WINDOW_UPDATE, credit-release, DNS, dial, or socket claim at this milestone; if capacity is unavailable emit a typed local-capacity disposition plus RST_STREAM(CANCEL), not a peer protocol violation; consume one matching opaque AuthorizedConnectOutcome and forward nothing until it passes v0.19.0/v0.64.0 authority, endpoint, actual-peer, request, attempt, and policy checks; cancellation, reset, invalid outcome, policy change, non-2xx, or connection/tunnel commitment invalidates all remaining capabilities and makes duplicate/same-generation success InvalidState; discard/reset pending bytes without publication or unrelated-stream mutation; once connected allow only DATA and applicable stream-management frames, reject later HEADERS/trailers or other frames with stream PROTOCOL_ERROR, map caller-reported TCP failure/reset to RST_STREAM(CONNECT_ERROR), and expose HTTP/2 stream/connection failure as a typed caller action to reset upstream TCP; for inbound 205 use ordinary DATA/END_STREAM classification, emit a typed semantic violation and stream reset on nonzero DATA, and prevent valid-205 forwarding.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5719,7 +5719,7 @@ on v0.144.0 (GOAWAY cutoff and retry classification) and must be independently t
 
 #### Deliverables
 
-- Acceptance contract: Integrate SETTINGS_ENABLE_PUSH directionally: clients reject server use that violates the effective setting, servers never advertise it, and servers create PUSH_PROMISE/reserved streams only while peer permission and independent stream capacity both allow it; define cancellation, GOAWAY cutoff, promised-request validation, and exact slot reclamation without publishing forbidden pushes.
+- Acceptance contract: Integrate SETTINGS_ENABLE_PUSH directionally: clients reject server use that violates the effective setting, servers never advertise it, and receipt of PUSH_PROMISE from a client is connection PROTOCOL_ERROR; before publication validate the complete promised request field section, require a recognized method classified both safe and cacheable, prohibit content indication and trailers, and require :authority covered by the connection's authenticated origin authority; invalid promised semantics produce promised-stream PROTOCOL_ERROR without resetting or mutating the associated stream; atomically validate associated stream open/half-closed-remote legality, promised server-ID availability/reservation, peer permission, GOAWAY cutoff, independent concurrency capacity, and field semantics before committing the reserved stream/slot; cancellation/reset reclaims exactly once; pushed responses carry typed cacheability metadata and every non-cacheable response is marked forbidden for cache storage even though storage remains outside VEF.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5731,7 +5731,7 @@ on v0.144.0 (GOAWAY cutoff and retry classification) and must be independently t
 
 #### Verification
 
-- Test Server-push lifecycle and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test client-originated PUSH_PROMISE connection failure; every safe/cacheable/unknown/unsafe/non-cacheable method; content/trailer indication; complete/malformed field sections; authoritative/foreign :authority; promised- versus associated-stream error isolation; every associated-state, promised-ID, SETTINGS, GOAWAY, concurrency, cancellation, and atomic rollback permutation; non-cacheable response metadata; and all earlier positive/negative/boundary/truncation/capacity/no-panic behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6150,7 +6150,7 @@ Status: planned
 #### Goal
 
 Deliver **Effective URI and authority consistency** as the sole primary capability in this stop. It builds
-on v0.155.0 (Protocol-neutral HTTP translation representation) and must be independently trustworthy before v0.157.0 (Connection fields, Via, proxy authentication, and cache preservation) begins.
+on v0.155.0 (Protocol-neutral HTTP translation representation) and must be independently trustworthy before v0.157.0 (Connection-field stripping and cache-metadata preservation) begins.
 
 #### Deliverables
 
@@ -6176,24 +6176,24 @@ on v0.155.0 (Protocol-neutral HTTP translation representation) and must be indep
 #### Exit criteria
 
 The Effective URI and authority consistency contract and all previously implemented relevant behavior have
-reproducible evidence; v0.155.0 (Protocol-neutral HTTP translation representation) still passes; no behavior assigned to v0.157.0 (Connection fields, Via, proxy authentication, and cache preservation) is
+reproducible evidence; v0.155.0 (Protocol-neutral HTTP translation representation) still passes; no behavior assigned to v0.157.0 (Connection-field stripping and cache-metadata preservation) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.156.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.157.0 — Connection fields, Via, proxy authentication, and cache preservation
+### v0.157.0 — Connection-field stripping and cache-metadata preservation
 
 Status: planned
 
 #### Goal
 
-Deliver **Connection fields, Via, proxy authentication, and cache preservation** as the sole primary capability in this stop. It builds
-on v0.156.0 (Effective URI and authority consistency) and must be independently trustworthy before v0.158.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) begins.
+Deliver **Connection-field stripping and cache-metadata preservation** as the sole primary capability in this stop. It builds
+on v0.156.0 (Effective URI and authority consistency) and must be independently trustworthy before v0.157.1 (Via grammar, append, privacy, and loop policy) begins.
 
 #### Deliverables
 
-- Acceptance contract: Parse Connection option tokens, remove nominated and fixed hop-by-hop fields, preserve field order/cache metadata, and publish only after capacity preflight; parse the full ordered Via member grammar under explicit member/comment limits, append one caller-configured received-protocol plus pseudonym entry without replacing or combining, record the inbound protocol/version rather than the outbound version, require every proxy on every forwarded message and every HTTP-to-HTTP gateway on inbound forwarded requests to append, default to a pseudonym at firewall/private boundaries, preflight output, and expose a bounded caller-configured self-pseudonym loop hook that never derives identity from peer bytes; consume HopScopedProxyCredential at the first expecting proxy and remove Proxy-Authorization before origin forwarding, never treat it as Authorization, permit relay only through explicit generation-bound cooperative policy naming the next hop, scope Proxy-Authenticate and Proxy-Authentication-Info only to the next outbound client, require at least one valid Proxy-Authenticate challenge on every generated 407, and mark every proxy credential/challenge/info field sensitive, redacted, HPACK never-indexed, and TRACE-excluded.
+- Acceptance contract: Parse every Connection option token under field-count/value/work limits, reject malformed or forbidden nominations, remove every occurrence of each nominated field plus fixed hop-by-hop fields without deleting unrelated end-to-end fields, preserve remaining field order and RFC 9111 cache metadata exactly, and publish the stripped representation only after complete validation and destination-capacity preflight.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6205,7 +6205,7 @@ on v0.156.0 (Effective URI and authority consistency) and must be independently 
 
 #### Verification
 
-- Test Connection stripping plus complete Via grammar/order/comments/member limits, append/no-replace/no-combine, inbound-version recording across HTTP/1↔HTTP/2, proxy/gateway applicability, firewall pseudonym privacy, output preflight, self-loop hook, and no input-derived identity; test proxy credential consume/remove versus Authorization preservation, denied/allowed named-next-hop cooperative relay, stale hop/connection/generation, next-client response-field scoping, generated 407 challenge validity, sensitive redaction/non-indexing/TRACE exclusion, and all earlier behavior.
+- Test nominated/fixed hop-field removal, malformed/duplicate/forbidden nominations, end-to-end preservation, ordered cache metadata, zero destination output before complete validation, every capacity boundary, and all earlier positive/negative/truncation/cancellation/no-panic behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6214,12 +6214,130 @@ on v0.156.0 (Effective URI and authority consistency) and must be independently 
 
 #### Exit criteria
 
-The Connection fields, Via, proxy authentication, and cache preservation contract and all previously implemented relevant behavior have
-reproducible evidence; v0.156.0 (Effective URI and authority consistency) still passes; no behavior assigned to v0.158.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) is
+The Connection-field stripping and cache-metadata preservation contract and all previously implemented relevant behavior have
+reproducible evidence; v0.156.0 (Effective URI and authority consistency) still passes; no behavior assigned to v0.157.1 (Via grammar, append, privacy, and loop policy) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.157.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.157.1 — Via grammar, append, privacy, and loop policy
+
+Status: planned
+
+#### Goal
+
+Deliver **Via grammar, append, privacy, and loop policy** as the sole primary capability in this stop. It builds
+on v0.157.0 (Connection-field stripping and cache-metadata preservation) and must be independently trustworthy before v0.157.2 (Dependency-free generic authentication grammar and sensitive storage) begins.
+
+#### Deliverables
+
+- Acceptance contract: Parse the full ordered Via member grammar under explicit member/comment/value/work limits; preserve all existing members and append exactly one caller-configured received-protocol plus pseudonym entry without replacement or combination; record the inbound protocol/version rather than the outbound version; require every proxy on every forwarded message and every HTTP-to-HTTP gateway on inbound forwarded requests to append; default to a pseudonym at firewall/private boundaries so internal hosts/ports are not disclosed; preflight output capacity; and expose a bounded caller-configured self-pseudonym loop hook that never derives identity from peer bytes.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 3986, RFC 8441, RFC 9110 including Via, Max-Forwards, and TE, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931; RFC 7239 Forwarded transformation remains out of scope.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Test complete Via grammar/order/comments/member limits, append/no-replace/no-combine, inbound-version recording across HTTP/1↔HTTP/2, proxy/gateway applicability, firewall pseudonym privacy, capacity preflight, self-loop policy, no input-derived identity, and all earlier behavior.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The Via grammar, append, privacy, and loop policy contract and all previously implemented relevant behavior have
+reproducible evidence; v0.157.0 (Connection-field stripping and cache-metadata preservation) still passes; no behavior assigned to v0.157.2 (Dependency-free generic authentication grammar and sensitive storage) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.157.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.157.2 — Dependency-free generic authentication grammar and sensitive storage
+
+Status: planned
+
+#### Goal
+
+Deliver **Dependency-free generic authentication grammar and sensitive storage** as the sole primary capability in this stop. It builds
+on v0.157.1 (Via grammar, append, privacy, and loop policy) and must be independently trustworthy before v0.157.3 (Proxy-authentication hop ownership and 407 lifecycle) begins.
+
+#### Deliverables
+
+- Acceptance contract: Add a separate dependency-free, no_std `vef-auth` crate with a bounded incremental scheme-neutral parser/serializer for challenge, credentials, token68, and auth-param including exact BWS, quoted-string/escape, token, parameter-count/value/work, and duplicate-name dispositions; disambiguate comma-separated auth parameters from subsequent challenges without unsafe normalization, preserve multiple field-line and challenge boundaries, and support WWW-Authenticate, Authorization, Authentication-Info, Proxy-Authenticate, Proxy-Authorization, and Proxy-Authentication-Info without implementing Basic, Digest, or any authentication scheme; sensitive values remain borrowed or in caller-owned storage, are never copied into diagnostics or HPACK indexing, and on logical invalidation VEF releases references and preserves redaction/non-indexing but does not promise optimizer-resistant physical zeroization—the caller must scrub its owned buffers when required.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 3986, RFC 8441, RFC 9110 including authentication, Via, Max-Forwards, and TE, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931; RFC 7239 Forwarded transformation remains out of scope.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Test every challenge/credentials token68-versus-parameter form, comma ambiguity, repeated/empty list members, BWS boundary, quoted escape, malformed token/value, parameter/field-line/challenge/capacity limit, incremental split, parse/serialize round trip, all six origin/proxy fields, borrowed lifetime/redaction/non-indexing, logical invalidation/caller-scrub contract, and scheme-neutral unknown schemes without Basic/Digest behavior.
+- Create a stateful authentication grammar fuzz target with adversarial comma/quote/escape corpora and retain every minimized regression.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The generic authentication grammar and sensitive-storage contract and all previously implemented relevant behavior have
+reproducible evidence; v0.157.1 (Via grammar, append, privacy, and loop policy) still passes; no behavior assigned to v0.157.3 (Proxy-authentication hop ownership and 407 lifecycle) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.157.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.157.3 — Proxy-authentication hop ownership and 407 lifecycle
+
+Status: planned
+
+#### Goal
+
+Deliver **Proxy-authentication hop ownership and 407 lifecycle** as the sole primary capability in this stop. It builds
+on v0.157.2 (Dependency-free generic authentication grammar and sensitive storage) and must be independently trustworthy before v0.158.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) begins.
+
+#### Deliverables
+
+- Acceptance contract: Consume one validated HopScopedProxyCredential at the first expecting proxy and remove Proxy-Authorization before origin forwarding; never treat it as Authorization or rebind it to another exchange even when connection/policy generations match; permit relay only through explicit generation-bound cooperative policy naming the next hop; scope Proxy-Authenticate and Proxy-Authentication-Info only to the next outbound client; require at least one v0.157.2-valid Proxy-Authenticate challenge on every generated 407; mark every proxy credential/challenge/info field sensitive, redacted, HPACK never-indexed, and TRACE-excluded; apply v0.65.0 mandatory close/fresh-connection behavior to HTTP/1 CONNECT 407; and logically invalidate credentials plus pending optimistic/tunnel bytes on consume, rejection, cancellation, policy change, non-2xx, or retry without claiming caller-buffer zeroization.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 3986, RFC 8441, RFC 9110 including authentication, Via, Max-Forwards, and TE, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931; RFC 7239 Forwarded transformation remains out of scope.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Test credential consume/remove versus Authorization preservation, denied/allowed named-next-hop relay, stale and same-generation cross-exchange rebind, duplicate consume, next-client response-field scoping, malformed/empty/valid generated 407 challenges, redaction/non-indexing/TRACE exclusion, HTTP/1 CONNECT close/fresh retry, logical invalidation with no surviving pending bytes/references, caller scrub ownership, and all earlier behavior.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The proxy-authentication hop ownership and 407 lifecycle contract and all previously implemented relevant behavior have
+reproducible evidence; v0.157.2 (Dependency-free generic authentication grammar and sensitive storage) still passes; no behavior assigned to v0.158.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.157.3 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.158.0 — Max-Forwards TRACE and OPTIONS intermediary semantics
 
@@ -6228,7 +6346,7 @@ Status: planned
 #### Goal
 
 Deliver **Max-Forwards TRACE and OPTIONS intermediary semantics** as the sole primary capability in this stop. It builds
-on v0.157.0 (Connection fields, Via, proxy authentication, and cache preservation) and must be independently trustworthy before v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) begins.
+on v0.157.3 (Proxy-authentication hop ownership and 407 lifecycle) and must be independently trustworthy before v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) begins.
 
 #### Deliverables
 
@@ -6255,7 +6373,7 @@ on v0.157.0 (Connection fields, Via, proxy authentication, and cache preservatio
 #### Exit criteria
 
 The Max-Forwards TRACE and OPTIONS intermediary semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.157.0 (Connection fields, Via, proxy authentication, and cache preservation) still passes; no behavior assigned to v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) is
+reproducible evidence; v0.157.3 (Proxy-authentication hop ownership and 407 lifecycle) still passes; no behavior assigned to v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -7170,7 +7288,7 @@ Status: planned
 #### Goal
 
 Deliver **Retry safety, idempotency, and body-replayability contract** as the sole primary capability in this stop. It builds
-on v0.181.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.183.0 (Origin-server role API) begins.
+on v0.181.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.182.1 (Role-aware outbound response semantic validator) begins.
 
 #### Deliverables
 
@@ -7196,11 +7314,52 @@ on v0.181.0 (Client correlation, cancellation, and retry tokens) and must be ind
 #### Exit criteria
 
 The Retry safety, idempotency, and body-replayability contract contract and all previously implemented relevant behavior have
-reproducible evidence; v0.181.0 (Client correlation, cancellation, and retry tokens) still passes; no behavior assigned to v0.183.0 (Origin-server role API) is
+reproducible evidence; v0.181.0 (Client correlation, cancellation, and retry tokens) still passes; no behavior assigned to v0.182.1 (Role-aware outbound response semantic validator) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.182.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.182.1 — Role-aware outbound response semantic validator
+
+Status: planned
+
+#### Goal
+
+Deliver **Role-aware outbound response semantic validator** as the sole primary capability in this stop. It builds
+on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and must be independently trustworthy before v0.183.0 (Origin-server role API) begins.
+
+#### Deliverables
+
+- Acceptance contract: Validate the complete role/method/status/field/content semantic matrix before any locally generated response bytes; the caller chooses application values but supplies typed v0.157.2 challenges, allowed-method sets, upgrade protocols, request/precondition/range context, selected-representation metadata, and cache validators; require 401 to carry at least one valid WWW-Authenticate challenge, 405 to carry Allow, and 426 to carry Upgrade; permit 206 only for a satisfied range request with selected-representation evidence and either one Content-Range consistent with emitted content or Content-Type multipart/byteranges whose bounded parts each carry consistent Content-Range metadata; permit 304 only for conditional GET/HEAD with selected-representation/cache-validator context, required RFC metadata, and no content; bind 416 to rejected Range context and require an unsatisfied bytes Content-Range when complete length is known; enforce every other applicable RFC 9110 generated-response MUST through the same paragraph-traceable table without inventing application policy.
+- Invalid locally constructed responses return InvalidState with a typed semantic-construction cause and serialize zero bytes; invalid received responses remain framing-synchronized and produce a typed SemanticViolation plus explicit recipient-policy action, never a framing error or automatic connection desynchronization; forwarded responses preserve end-to-end fields—including unmodified WWW-Authenticate and Authentication-Info—and apply only the already-authorized intermediary transformations/cache rules.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 3986, RFC 8441, RFC 9110 including authentication, status, conditional, and range semantics, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931; RFC 7239 Forwarded transformation remains out of scope.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Exhaust the generated/received/forwarded × role/method/status matrix; test missing/empty/malformed and multiple valid 401 challenges, 405 Allow, 426 Upgrade, single/multipart 206 range/representation consistency, conditional 304 metadata/no-content, known/unknown-length 416, every other applicable response-semantic requirement, zero local bytes on InvalidState, received synchronization plus recipient policy, and intermediary field preservation.
+- Create a stateful response-semantic model/fuzz harness that varies typed evidence, status, method, field multiplicity, content commands, translation direction, capacity, and cancellation while asserting no invalid local serialization or framing misclassification.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The role-aware outbound response semantic validator contract and all previously implemented relevant behavior have
+reproducible evidence; v0.182.0 (Retry safety, idempotency, and body-replayability contract) still passes; no behavior assigned to v0.183.0 (Origin-server role API) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.182.1 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.183.0 — Origin-server role API
 
@@ -7209,11 +7368,11 @@ Status: planned
 #### Goal
 
 Deliver **Origin-server role API** as the sole primary capability in this stop. It builds
-on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and must be independently trustworthy before v0.184.0 (Forward-proxy role API) begins.
+on v0.182.1 (Role-aware outbound response semantic validator) and must be independently trustworthy before v0.184.0 (Forward-proxy role API) begins.
 
 #### Deliverables
 
-- Acceptance contract: Publish a request only after head/framing validation, correlate exactly one response lifecycle, enforce 100-continue and body-rejection/drain-or-close decisions, reserve mandatory error output, and complete or cancel storage ownership before connection reuse.
+- Acceptance contract: Publish a request only after head/framing validation, correlate exactly one response lifecycle, require every generated response to pass the v0.182.1 role-aware semantic validator before reserving or emitting output, enforce 100-continue and body-rejection/drain-or-close decisions, reserve mandatory error output, and complete or cancel storage ownership before connection reuse.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7235,7 +7394,7 @@ on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and mus
 #### Exit criteria
 
 The Origin-server role API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.182.0 (Retry safety, idempotency, and body-replayability contract) still passes; no behavior assigned to v0.184.0 (Forward-proxy role API) is
+reproducible evidence; v0.182.1 (Role-aware outbound response semantic validator) still passes; no behavior assigned to v0.184.0 (Forward-proxy role API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -7252,7 +7411,7 @@ on v0.183.0 (Origin-server role API) and must be independently trustworthy befor
 
 #### Deliverables
 
-- Acceptance contract: Validate absolute-form/effective URI and Host, Max-Forwards, TE, exact append-only Via, hop stripping, cache preservation, CONNECT, translation, upstream capacity/error disposition, and replayability before forwarding; expose the staged ConnectAttemptToken/AuthorizedConnectOutcome API without DNS/socket access and reject stale/alternate endpoint or peer evidence before head, 2xx, or tunnel bytes; consume HopScopedProxyCredential locally, remove it before origin forwarding, distinguish Authorization, allow only named-next-hop cooperative relay, scope proxy authentication response fields to the downstream client, generate 407 only with a valid challenge, apply v0.65.0 fresh-connection closure to HTTP/1 CONNECT 407, and erase pending tunnel bytes/credentials across retry.
+- Acceptance contract: Validate absolute-form/effective URI and Host, Max-Forwards, TE, exact append-only Via, hop stripping, cache preservation, CONNECT, translation, upstream capacity/error disposition, and replayability before forwarding; expose the one-shot staged ConnectAttemptToken/AuthorizedConnectOutcome API without DNS/socket access and reject duplicate/stale/alternate endpoint or peer evidence before head, 2xx, or tunnel bytes; consume one exchange-bound HopScopedProxyCredential locally, remove it before origin forwarding, distinguish Authorization, allow only named-next-hop cooperative relay, scope proxy authentication response fields to the downstream client, generate 407 only with a v0.157.2-valid challenge, apply v0.65.0 fresh-connection closure to HTTP/1 CONNECT 407, and logically invalidate/release pending tunnel bytes and credential references across retry while requiring caller-owned buffer scrubbing.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7264,7 +7423,7 @@ on v0.183.0 (Origin-server role API) and must be independently trustworthy befor
 
 #### Verification
 
-- Test forward-proxy endpoint-outcome bindings, no resolver/socket authority, Via append/privacy/loop behavior, local proxy-credential consumption, origin non-forwarding, cooperative next-hop allow/deny, Authorization separation, response-field hop scope, challenged 407, HTTP/1 CONNECT close/fresh retry with no surviving bytes or credentials, and all prior positive/negative/boundary/cancellation/capacity/no-panic cases.
+- Test forward-proxy endpoint-outcome bindings, no resolver/socket authority, Via append/privacy/loop behavior, local proxy-credential consumption, origin non-forwarding, cooperative next-hop allow/deny, Authorization separation, response-field hop scope, challenged 407, HTTP/1 CONNECT close/fresh retry with no surviving owned bytes or live credential references plus explicit caller scrub, and all prior positive/negative/boundary/cancellation/capacity/no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.

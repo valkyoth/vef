@@ -91,8 +91,10 @@ lexical ConnectAuthority authorization issues a ConnectAttemptToken; the caller
 resolves and obtains per-endpoint policy; AuthorizedConnectOutcome then binds
 the selected endpoint, actual peer, and attempt/request/policy generations
 before output, 2xx, or tunnel publication. Core performs no DNS, dial, or socket
-inspection. Proxy credentials use a separate sensitive hop/connection/generation
-type and can never become end-to-end Authorization.
+inspection. These capabilities have sealed fields, engine-issued identities,
+are non-Copy/non-Clone and consumed once; every terminal/policy transition
+invalidates outstanding values. Proxy credentials use a separate sensitive
+hop/connection/generation/exchange type and can never become Authorization.
 
 Inbound body chunks remain borrowed until acknowledged. Drain, discard/close,
 and cancellation are commands with explicit connection-reuse consequences.
@@ -102,9 +104,10 @@ Transfer-Encoding selection is role-specific: requests require final chunked,
 whereas responses can be delimited by close when chunked is non-final or a
 different coding is final. Repeated chunked is malformed; an unsupported valid
 coding is a separate policy outcome. RFC 9931 CONNECT rejection always closes;
-a CONNECT 407 requires a valid proxy challenge, destroys pending bytes and
-credentials, and retries only on a fresh HTTP/1 connection. Optimistic bytes
-never re-enter HTTP parsing after failure.
+a CONNECT 407 requires a valid proxy challenge, discards VEF-owned pending
+bytes, logically invalidates/releases credential references, and retries only
+on a fresh HTTP/1 connection; caller-owned buffer scrubbing remains external.
+Optimistic bytes never re-enter HTTP parsing after failure.
 CONNECT builders carry no content/framing fields; hardened inbound ambiguity
 rejects and closes, successful server responses omit length/transfer fields,
 clients ignore received ones, and every CONNECT response is non-cacheable.
@@ -172,6 +175,11 @@ and only a generation-matched authorized endpoint/peer outcome permits tunnel
 publication. Connected streams allow DATA/applicable management frames; caller
 TCP failure produces CONNECT_ERROR and HTTP/2 failure requests upstream TCP
 reset without unrelated-stream mutation.
+Server push publishes only a complete known-safe/cacheable content-free and
+trailer-free request for an authoritative :authority. Client push is connection
+PROTOCOL_ERROR; promised semantic failures reset only the promised stream; and
+associated legality, promised ID, GOAWAY cutoff and concurrency commit
+atomically. Pushed response metadata forbids cache storage when non-cacheable.
 
 Frame codecs validate their complete wire envelope before exposing fragments:
 payload length, stream-zero rules, known/unknown flags, reserved bits, padding,
@@ -241,14 +249,26 @@ never derives TLS state from an adapter, handle, or socket type.
 Translation first builds a protocol-neutral representation and emits no
 destination bytes until effective URI, hop stripping, and the full framing
 matrix validate. CONNECT/Upgrade handoff returns over-read bytes exactly once.
+The dependency-free `vef-auth` crate parses/serializes bounded scheme-neutral
+challenge, credentials, token68 and auth-param grammar for all origin/proxy
+authentication fields, preserving field/challenge boundaries and resolving
+comma/parameter ambiguity without Basic/Digest logic. Values remain borrowed
+or caller-owned; invalidation releases references and guarantees no diagnostic
+or HPACK disclosure, while physical buffer scrubbing remains the caller's duty.
 Via is a bounded ordered grammar and always appends—never replaces or combines—
 the inbound protocol/version plus caller-configured privacy pseudonym after
 capacity preflight; every forwarded proxy message and gateway inbound request
 uses caller-owned self-pseudonym loop policy. The expecting proxy consumes
 hop-scoped Proxy-Authorization before origin forwarding; only explicit named
 cooperative next-hop policy can relay it. Proxy challenges/info return only to
-the next client, every generated 407 has a valid challenge, and all proxy-auth
-fields are sensitive, redacted, never-indexed, and TRACE-excluded.
+the next client, every generated 407 has a `vef-auth`-validated challenge, and
+all proxy-auth fields are sensitive, redacted, never-indexed, and TRACE-excluded.
+Before any generated response bytes, a role-aware semantic gate validates the
+complete method/status/field/content matrix using caller-supplied typed values:
+401 challenges, 405 Allow, 426 Upgrade, and contextual 206/304/416 are explicit.
+Local invalid construction is zero-output InvalidState; received semantic
+violations remain framing-synchronized under recipient policy; intermediaries
+preserve end-to-end response fields except already-authorized transformations.
 TRACE/OPTIONS applies Max-Forwards without synthesis, keeps zero local, blocks
 generated TRACE content/secrets, bounds and sanitizes reflection, validates
 OPTIONS Content-Type with content, and marks both response types non-cacheable.
@@ -268,4 +288,5 @@ Rustls, OpenSSL, and s2n integration names describe future boundaries, not
 current dependencies. Admission requires explicit maintainer approval and a
 release-plan update. Such crates remain optional, separately published, and
 outward-facing so `vef`, `vef-core`, `vef-http09`, `vef-http1`, `vef-hpack`,
-`vef-http2`, `vef-structured-fields`, and the base `vef-io` remain independent.
+`vef-http2`, `vef-auth`, `vef-structured-fields`, and the base `vef-io` remain
+independent.

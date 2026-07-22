@@ -209,9 +209,11 @@ Role policy defines generation-bound TrustedRequestContext scheme evidence and
 precedence/conflict handling, staged CONNECT authorization types that bind a
 lexical authority, attempt token, caller-resolved endpoint, actual peer, and
 request/policy generations without resolver/socket authority, plus a distinct
-hop/connection/generation-bound sensitive proxy-credential type; socket/runtime
-types never imply transport security and proxy credentials are not end-to-end
-Authorization.
+hop/connection/generation/exchange-bound sensitive proxy-credential type.
+Capability constructors/fields are sealed, identities are engine-issued,
+tokens are non-Copy/non-Clone and one-shot, and terminal/policy transitions
+invalidate them even within the same generation; socket/runtime types never
+imply transport security and proxy credentials are not Authorization.
 
 ### Phase 2 — HTTP/1 and isolated HTTP/0.9 (`0.28.0`–`0.81.0`)
 
@@ -230,9 +232,10 @@ Later translation reuses those typed decisions.
 Request transfer codings require final chunked; responses may instead become
 close-delimited, with repeated chunked and unsupported coding kept distinct.
 RFC 9931 binds CONNECT wait-or-close forwarding and mandatory reject-close;
-HTTP/1 CONNECT 407 includes a valid challenge, destroys credentials/pending
-bytes, closes, and retries only on a fresh connection. No failed optimistic
-transition bytes are reparsed as HTTP.
+HTTP/1 CONNECT 407 includes a validated challenge, discards owned pending
+bytes, logically invalidates/releases credential capabilities, closes, and
+retries only on a fresh connection; caller buffers remain caller-scrubbed. No
+failed optimistic transition bytes are reparsed as HTTP.
 CONNECT first authorizes lexical authority, then each caller-resolved endpoint
 before dial, then validates the caller-certified actual peer and all attempt,
 request, and policy generations before output/success/tunnel publication.
@@ -282,23 +285,35 @@ caller transport failures map to typed CONNECT_ERROR/TCP-reset actions.
 HTTP/2 205 rejects outbound DATA and drains/resets malicious inbound DATA under
 ordinary stream framing without disturbing other streams.
 Integrate ENABLE_PUSH in push ownership and apply MAX_FRAME_SIZE atomically
-before emitting its SETTINGS ACK. Retain independent budgets, mandatory ACK
-tracking, reserved output, and flood defenses.
+before emitting its SETTINGS ACK. Push admission requires a complete known-safe
+and cacheable content/trailer-free request plus authoritative :authority;
+client-originated push is a connection error, promised semantic failure is
+isolated to the promised stream, and associated-state/ID/GOAWAY/concurrency
+commit is atomic. Non-cacheable pushed responses are explicitly unstorable.
+Retain independent budgets, mandatory ACK tracking, reserved output, and flood
+defenses.
 
 ### Phase 4 — Proxy, client, server, and public APIs (`0.155.0`–`0.199.0`)
 
-Build a representation-only translation IR, then effective URI, hop stripping,
-exact append-only Via and hop-scoped proxy authentication, and a normative
-HTTP/1↔HTTP/2 matrix before emitting destination bytes. Via parses bounded
+Build a representation-only translation IR, then effective URI and cache-safe
+hop stripping as v0.157.0. v0.157.1 adds exact append-only Via; it parses bounded
 ordered members/comments, records the inbound protocol/version, appends a
 caller pseudonym after capacity preflight, never replaces/combines, applies to
 every proxy-forwarded message and gateway inbound forwarded request, and uses
-caller-owned privacy/loop policy without input-derived identity. Proxy
-credentials are consumed by the expecting hop, removed before origins,
-relayed only by named-next-hop cooperative policy, never confused with
-Authorization, scoped back only to the next client, challenged on every 407,
-redacted/never-indexed/TRACE-excluded, and erased across authentication retry.
-Add Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
+caller-owned privacy/loop policy without input-derived identity. v0.157.2 adds
+the separate dependency-free, no_std `vef-auth` crate for scheme-neutral
+challenge, credentials, token68, auth-param and six origin/proxy fields,
+including comma ambiguity, BWS, quoted escapes and strict limits without
+Basic/Digest implementations. Secrets remain borrowed/caller-owned; VEF
+guarantees logical invalidation/reference release/redaction/non-indexing, while
+the caller scrubs physical buffers. v0.157.3 consumes proxy credentials at the
+expecting hop, removes them before origins, and relays them only by named-next-hop
+cooperative policy. They are never confused with Authorization; proxy
+challenges/info are scoped back only to the next client and every 407 is
+challenged. All proxy-auth fields are redacted/never-indexed/TRACE-excluded,
+and credentials are logically invalidated across retry.
+Then build the normative HTTP/1↔HTTP/2 matrix before destination bytes and add
+Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
 bare-item dispatch in the optional `vef-structured-fields` crate,
 ENABLE_CONNECT_PROTOCOL and NO_RFC7540_PRIORITIES owner integration, complete
 priority/intermediary/flood behavior, replayability-aware retry tokens,
@@ -306,6 +321,11 @@ RFC 9651 duplicate-overwrite and mandatory-minimum profiles, exact HTTP/2
 PRIORITY_UPDATE rules, compression-principal-aware coalescing,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
+Before the origin role facade, v0.182.1 validates the complete generated
+response status/method/field/content matrix using caller-supplied typed values,
+including 401/405/426 and contextual 206/304/416; local construction failure is
+zero-output InvalidState, received violations remain framing-synchronized under
+recipient policy, and forwarded responses preserve required fields.
 The matrix carries raw path plus optional query into/out of `:path`, preserves
 empty-query and percent-encoded identity, and only inserts `/` for an empty path
 where the RFC requires it.

@@ -7,7 +7,6 @@ import re
 import sys
 from pathlib import Path
 
-
 def versions(pattern: str, text: str) -> list[int]:
     return [int(value) for value in re.findall(pattern, text, flags=re.MULTILINE)]
 
@@ -483,6 +482,7 @@ def main() -> int:
         "END_STREAM alone never closes the opposite direction",
         "an injected idle/half-close timeout may abort a stuck tunnel",
     )
+    required_contract_text = tuple(text for text in required_contract_text if text not in ("make the ACK eligible only after every participant reports Effective", "`PendingEncoderTableSizeTransition::{None, Pending { smallest_seen, final_value, owners: SettingsTransactionSet }}`", "No later field block may encode while either a provisional transaction or pending encoder-size transition is unresolved", "ACK eligibility requires every participant effective", "Maintain transactions and ACK eligibility in received-frame FIFO order", "cancels that transaction's ACK", "Local post-effect work such as re-encoding a rolled-back Private field block is not a participant")) + ("`SettingsDisposition::{WaitingParticipants, AckEligible, AckFrozen { acknowledged: 0..=8 }, AckCommitted, AbortedConnection}`", "Every-participant Effective moves WaitingParticipants to AckEligible", "`PendingEncoderTableSizeTransition::{None, AwaitingSafeApply { owners: SettingsTransactionSet, smallest_seen, final_value }, AppliedAwaitingAckCommit { owners: SettingsTransactionSet, smallest_seen, final_value }, WireEnabled { smallest_seen, final_value }}`", "acknowledged offsets 0..=8 remain uncommitted", "only acknowledgement of all nine bytes moves to AckCommitted", "Retain each transaction and every dependent HPACK owner reference until AckCommitted", "only then promote WireEnabled", "No later HEADERS/PUSH_PROMISE block may encode or expose", "partial ACK output, stale acknowledgement tokens, or transport failure abandons the connection", "delay replacement encoding rather than retaining provisional output across the ACK barrier")
     for contract_text in required_contract_text:
         if contract_text not in detailed:
             failures.append(f"missing concrete security contract: {contract_text}")

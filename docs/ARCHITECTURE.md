@@ -197,18 +197,28 @@ mutation as HpackCommitted. No later block encodes against provisional entries,
 and partial output, retry, or cancellation cannot advance state ahead of the peer.
 Every validated non-ACK SETTINGS frame owns one connection-wide
 `InboundSettingsTransaction`: ordered entries, a generation, one reserved ACK,
-participant obligations, and a disposition. The whole frame validates before
-ACK reservation or mutation; entries apply in wire order without intervening
-dispatch. HPACK, windows, frame size, admission, push, and extensions report
-generation-bound Effective/fatal results to this shared owner. ACKs become
-eligible only when every participant is effective and serialize in receive
-order; fatal failure cancels the ACK and connection, so no component can race an
-ACK. Peer HEADER_TABLE_SIZE uses a `PendingEncoderTableSizeTransition` carrying
-smallest/final maxima and owning SETTINGS-transaction references, never ACK
-authority. No-active applies it directly; Private rolls back then completes its
-participant before independently backpressured re-encode; FramingCommitted
-drains/publishes before transition. The next block emits one or smallest-then-
-final updates, and no later block encodes while either owner remains unresolved.
+participant obligations, and
+`SettingsDisposition::{WaitingParticipants, AckEligible, AckFrozen {
+acknowledged: 0..=8 }, AckCommitted, AbortedConnection}`. The whole frame
+validates before ACK reservation or mutation; entries apply in wire order
+without intervening dispatch. HPACK, windows, frame size, admission, push, and
+extensions report generation-bound Effective/fatal results to this shared
+owner. All-effective transactions become AckEligible, ACK output freezes the
+exact nine-byte frame, and only final-byte commitment produces AckCommitted.
+Transactions and dependent owner references remain live through that boundary,
+with FIFO serialization and commitment across received frames. Fatal or
+transport failure before byte nine abandons the connection without exposing
+dependent output, so no component can race or overstate an ACK.
+Peer HEADER_TABLE_SIZE uses
+`PendingEncoderTableSizeTransition::{None, AwaitingSafeApply { .. },
+AppliedAwaitingAckCommit { owners, smallest_seen, final_value }, WireEnabled {
+smallest_seen, final_value }}` and never owns ACK authority. No-active applies
+the transition; Private rolls back; FramingCommitted drains/publishes first.
+Applying it makes HPACK participants effective, but the next Private re-encode
+and every HEADERS/PUSH_PROMISE exposure wait until every owning transaction is
+AckCommitted. WireEnabled then emits one or smallest-then-final updates at the
+next block start. Partial ACK output, stale tokens, or transport failure cannot
+publish WireEnabled or a dependent field block.
 Sensitive indexing uses typed directives and conservative defaults; received
 never-indexed fields cannot be downgraded, secret values do not participate in
 attacker-controlled indexing comparisons, and diagnostics remain redacted.

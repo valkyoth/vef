@@ -90,12 +90,18 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   commits stream+connection debit, and forces suffix completion.
 - Fully validate each non-ACK SETTINGS frame, then reserve one connection-owned
   `InboundSettingsTransaction` with ordered entries, one ACK slot, participant
-  set, generation, and disposition before mutation. HPACK, windows, frame size,
-  admission, push, and extensions complete shared generation-bound obligations;
-  only all-effective transactions enter FIFO ACK output, while fatal failure
-  cancels ACK and connection. HEADER_TABLE_SIZE's pending transition owns only
-  smallest/final values and transaction references. Private rollback completes
-  HPACK before independent re-encode; FramingCommitted drains/publishes first.
+  set, generation, and an explicit WaitingParticipants/AckEligible/AckFrozen
+  0..=8/AckCommitted/AbortedConnection disposition before mutation. HPACK,
+  windows, frame size, admission, push, and extensions complete shared
+  generation-bound obligations; only all-effective transactions enter FIFO ACK
+  output, and transaction/owner lifetime continues until the ninth ACK byte
+  commits. Fatal or partial-output transport failure abandons the connection
+  without dependent field exposure. HEADER_TABLE_SIZE uses
+  AwaitingSafeApply/AppliedAwaitingAckCommit/WireEnabled states with
+  smallest/final values and transaction references but no ACK authority.
+  Private rolls back and waits to re-encode; FramingCommitted drains/publishes;
+  only every-owner AckCommitted promotes WireEnabled and permits the next
+  HEADERS/PUSH_PROMISE block and its required size-update prefix.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.

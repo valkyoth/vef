@@ -158,10 +158,14 @@ cannot cross a slot boundary, release several records, or batch hooks.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be
-effective before FIFO ACK eligibility, while fatal failure cancels ACK and the
-connection. HEADER_TABLE_SIZE tracks smallest/final values plus owner references,
-never ACKs: no-active applies directly, Private rolls back then completes HPACK
-before independent re-encode, and FramingCommitted drains/publishes first.
+effective before FIFO ACK eligibility. The frozen nine-byte ACK retains its
+transaction and owner references through offsets 0..=8, and only final-byte
+commitment produces AckCommitted; fatal or partial-output failure abandons the
+connection without dependent output. HEADER_TABLE_SIZE tracks smallest/final
+values plus owner references, never ACKs: no-active applies directly, Private
+rolls back, and FramingCommitted drains/publishes first, but both remain
+AppliedAwaitingAckCommit until every owner commits. Only WireEnabled permits the
+next HEADERS/PUSH_PROMISE block and its required size-update prefix.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

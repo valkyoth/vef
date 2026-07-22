@@ -97,10 +97,12 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   waits for every body/identity/output lease despite semantic invalidation.
 - A live/reserved HTTP/2 slot preflights cutoff storage before release and is
   never untracked. Rejection disposition, RFC wire state, and reset-output
-  progress/reason/reservation, remote-closure cause, terminal validation, and
-  field-block ownership remain independent. END_STREAM can make a zero-byte
-  policy reset dormant but cannot release its slot before valid/malformed
-  terminal resolution; tracking failure retains the record through shutdown.
+  progress/reason/reservation, remote-closure cause, terminal state/stage, and
+  field-block ownership remain independent. Sealed transitions move terminal
+  work from PendingFieldBlock through monotonic PendingSemantics stages to one
+  final result. END_STREAM can make a zero-byte policy reset dormant but no
+  intermediate stage releases it; peer reset aborts publication after required
+  HPACK drain, and connection failure transfers cleanup to shutdown ownership.
 - Assembly-enabled local correlation reserves a linear engine-only target/
   principal/partition/navigation invalidation handle before request output.
   Accepted push atomically preflights its slot, handle, independent minimal
@@ -109,8 +111,8 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   returns zero-byte/no-correlation AssemblyInvalidationCapacity backpressure;
   push capacity failure marks the provisional slot rejecting without changing
   its wire state, publishes nothing, and reserves exact policy/error reset
-  arbitration through terminal validation or tracked shutdown if state is
-  unavailable. Hold the handle/provenance through terminal
+  arbitration through every terminal semantic stage or tracked shutdown if
+  state is unavailable. Hold the handle/provenance through terminal
   backpressure, release it once at a terminal disposition, and reserve
   independently for retries. A completed valid 200 invalidates by exact key or
   within that namespace; absent coding/domain refinement widens only its
@@ -389,17 +391,18 @@ frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
 Keep policy disposition orthogonal to the RFC stream state and reset-output
-progress/reason/reservation, remote-closure cause, terminal validation, and
-active block. Normalize HEADERS/DATA and their END_STREAM event separately:
+progress/reason/reservation, remote-closure cause, terminal state/semantic
+stage, and active block. Normalize HEADERS/DATA and END_STREAM separately:
 HEADERS+END_STREAM can close while fragmented
 CONTINUATION still owns HPACK; half-closed(local) rejected DATA+END_STREAM uses
 normal discard credit before closure; reserved(remote) DATA remains connection
-PROTOCOL_ERROR. Peer reset can suppress an unsent action; END_STREAM makes an
-unsent policy CANCEL dormant until field/DATA terminal validation releases it or
-re-arms the same slot as PROTOCOL_ERROR. Finish one partially serialized reset
-if the connection survives and never emit another; HPACK-fatal input chooses
-bounded connection shutdown. Drive every validation and output-offset product
-through a total no-default table shared with model/fuzz oracles.
+PROTOCOL_ERROR. HPACK completion transfers PendingFieldBlock to the first sealed
+semantic stage, never Valid; v0.125.0–v0.131.0 advance monotonically, and only
+the final applicable owner releases a dormant policy CANCEL. Any stage can
+re-arm the same slot as PROTOCOL_ERROR. Peer reset aborts pending semantics, but
+an active block first drains HPACK; GOAWAY alone does not abort. Finish one begun
+reset and never emit another; fatal input transfers cleanup to bounded shutdown.
+Drive every stage/event/output-offset product through the model/fuzz table.
 Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
 post-initial-HEADERS DATA into fixed-capacity PendingConnect while
 AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without

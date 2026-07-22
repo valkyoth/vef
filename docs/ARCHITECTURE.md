@@ -237,22 +237,31 @@ the closed wire state does not release the remaining CONTINUATION/HPACK owner.
 Rejected half-closed(local) DATA+END_STREAM accounts/discards its full payload
 and padding before closure. Reserved(remote) DATA and reuse of its non-idle ID
 are connection PROTOCOL_ERROR; tolerated post-reset DATA restores only
-connection credit and never emits stream WINDOW_UPDATE. Peer reset can supersede
-a zero-byte action. END_STREAM instead makes an unsent policy CANCEL dormant
-while retaining its reset slot until terminal validation: valid completion
-releases it, malformed message re-arms it as PROTOCOL_ERROR, and fatal HPACK
-chooses bounded connection shutdown. A partially serialized reset is immutable,
-finishes once when the connection survives, and prevents a second stream reset.
+connection credit and never emits stream WINDOW_UPDATE. Terminal validation is
+an independent sealed state machine: NotTerminal, PendingFieldBlock(disposition),
+PendingSemantics(stage), Valid, Malformed(code), or AbortedByPeerReset. HPACK
+completion transfers PendingFieldBlock to the first semantic stage, never
+directly to Valid; monotonic stages cover pseudo/connection fields, field and
+context checks, request/response mapping, content/phase, and trailer/role rules.
+Peer reset supersedes a zero-byte action, aborting pending semantics immediately
+or after an active block finishes HPACK, with no later publication. END_STREAM
+instead makes an unsent policy CANCEL dormant through every stage; only the
+final semantic owner releases it, while any malformed stage re-arms it and a
+fatal connection decision owns cleanup. A partially serialized reset is
+immutable, finishes once when the connection survives, and prevents a second
+stream reset.
 A generation-checked associated-stream tombstone
 also accepts an in-flight PUSH_PROMISE after local reset: it completes every
 CONTINUATION and validates/tracks the promised ID but publishes no request or
 reconstructed authority. Missing recycled provenance selects safe rejection,
 while illegal IDs and malformed HPACK preserve connection-error scope.
 One total `RejectedPushFrameDisposition` matrix keys these decisions by policy,
-wire state, reset progress/reason/reservation, terminal validation, closure
-cause, normalized event/END flags, header-section phase, and field-block
-ownership; every cell fixes ordered transitions, HPACK/validation, flow-credit,
-error precedence, publication, and reset dormancy/re-arm/release/serialization.
+wire state, reset progress/reason/reservation, terminal state/semantic stage,
+closure cause, normalized event/END flags, header-section phase, and field-block
+ownership; every cell fixes ordered transitions, HPACK/stage/abort action,
+flow-credit, cleanup ownership, publication, and reset dormancy/re-arm/release/
+serialization. Private constructors forbid terminal results with active blocks,
+NotTerminal with dormant reset state, and caller-forged stage movement.
 
 Once partial assembly exists at v0.181.0, a receiving client completes
 PUSH_PROMISE/CONTINUATION and HPACK/semantic/authority/cacheability validation,

@@ -195,6 +195,15 @@ Private rollback discards it; first frame exposure commits only framing; full
 acknowledgement of the END_HEADERS frame atomically publishes encoder table
 mutation as HpackCommitted. No later block encodes against provisional entries,
 and partial output, retry, or cancellation cannot advance state ahead of the peer.
+Peer HEADER_TABLE_SIZE changes serialize through a reserved
+`PendingEncoderTableSizeTransition` carrying the smallest observed and final
+maximum plus one ACK obligation per SETTINGS frame. With no active transaction,
+apply it and start the next block with the required one update or smallest-then-
+final pair. A Private block rolls back before transition/ACK and re-encodes under
+the new limit; local re-encode pressure cannot delay the ACK. FramingCommitted
+drains first, publishes its old transaction, then applies the transition and
+releases every ACK before ordinary output. No later block encodes while either
+owner remains unresolved.
 Sensitive indexing uses typed directives and conservative defaults; received
 never-indexed fields cannot be downgraded, secret values do not participate in
 attacker-controlled indexing comparisons, and diagnostics remain redacted.
@@ -238,8 +247,11 @@ SupersededBeforeExposure disposition. Peer or completed local reset can discard
 only AcceptedPrivate bytes that do not belong to a framing-committed field block and
 release their unexposed credit. Before any initial HEADERS/PUSH_PROMISE byte is
 exposed, the engine fully encodes the bounded field block and atomically
-materializes/reserves every HEADERS/CONTINUATION slot and queue entry using
-fragments no larger than the RFC-minimum peer limit of 16,384. Any shortage
+materializes/reserves every HEADERS/CONTINUATION slot and queue entry using the
+checked minimum of 16,384, local `max_outbound_frame_payload`, and slot payload
+capacity. The cap must fit each enabled initial-frame mandatory prefix;
+`max_outbound_field_block_bytes`, checked ceiling division, and
+`max_outbound_continuations_per_block` bound encoded bytes and entries. Any shortage
 leaves the whole Private block supersedable with zero exposure. First non-empty
 initial-frame exposure creates a connection-scoped FramingCommitted obligation
 through END_HEADERS: every remaining CONTINUATION is already owned and
@@ -247,6 +259,8 @@ non-supersedable even while individually AcceptedPrivate, and RST_STREAM,
 GOAWAY, required control replies, and other streams wait. Its provisional HPACK
 encoder transaction remains unpublished and blocks later field-block encoding;
 only full acknowledgement of the END_HEADERS frame publishes HpackCommitted.
+Oversized locally generated fields fail as typed local capacity/validation,
+never partial output or peer error.
 Transport failure abandons that transaction/block only with the whole
 connection and emits no interleaved GOAWAY. The initial HEADERS END_STREAM hook
 still runs at that frame's full acknowledgement, independently of final HPACK

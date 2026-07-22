@@ -128,8 +128,11 @@ Ordinary output is AcceptedPrivate, Frozen, Complete, or
 SupersededBeforeExposure. Peer/completed local reset suppresses only unexposed
 private output outside a framing-committed outbound field block. Before initial
 exposure, fully encode the bounded HEADERS/PUSH_PROMISE block and atomically
-reserve every slot/entry required to drain it with fragments no larger than
-16,384 plus its provisional HPACK transaction. A whole Private block may roll
+reserve every slot/entry required to drain it using the checked minimum of
+16,384, local payload cap, and slot payload capacity plus its provisional HPACK
+transaction. Mandatory initial prefixes, maximum encoded field-block bytes,
+checked continuation division/count, and total arena/entry arithmetic are
+bounded; oversized local fields fail before exposure. A whole Private block may roll
 back with zero exposure; first exposure selects FramingCommitted, making every
 CONTINUATION non-supersedable through END_HEADERS despite later local exhaustion.
 Reset, GOAWAY, required controls, and other streams wait. Full final-frame
@@ -152,6 +155,11 @@ acknowledgement, negative stream windows block new DATA, and zero-length
 END_STREAM DATA charges zero.
 Each scalar or vectored output token owns one frame-slot suffix; acknowledgement
 cannot cross a slot boundary, release several records, or batch hooks.
+Peer HEADER_TABLE_SIZE changes use one connection-owned pending transition:
+track smallest/final maxima and every SETTINGS ACK. No-active applies it before
+the next block; Private rolls back then ACKs before re-encode; FramingCommitted
+drains/publishes first, then transitions and ACKs. No later field block encodes
+until resolution, and re-encode capacity cannot strand a mandatory ACK.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

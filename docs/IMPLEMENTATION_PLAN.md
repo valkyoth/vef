@@ -77,14 +77,23 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   AcceptedPrivate ordinary output may be superseded by reset only when it is
   outside a framing-committed outbound field block. Before initial exposure,
   fully encode a bounded HEADERS/PUSH_PROMISE block and atomically reserve every
-  exact slot/queue entry required by 16,384-byte worst-case fragmentation plus
-  one provisional HPACK transaction. A whole Private block may roll back; first
+  exact slot/queue entry required by the minimum of 16,384, local payload cap,
+  and slot payload capacity plus one provisional HPACK transaction. Validate
+  enabled mandatory prefixes, `max_outbound_field_block_bytes`, checked
+  continuation ceiling division, and `max_outbound_continuations_per_block`.
+  A whole Private block may roll back; first
   exposure selects FramingCommitted through END_HEADERS, so later exhaustion,
   reset, control, GOAWAY, or another stream cannot strand/interleave it. Full
   final-frame acknowledgement alone publishes HpackCommitted; transport failure
   abandons both transaction and connection, while the initial HEADERS completion
   hook remains frame-scoped. First ordinary exposure freezes its exact slot,
   commits stream+connection debit, and forces suffix completion.
+- Serialize peer HEADER_TABLE_SIZE through a bounded pending transition with
+  smallest/final values and one reserved ACK per SETTINGS frame. No active
+  transaction applies it before the next block; Private rolls back and releases
+  ACK before possibly failing re-encode; FramingCommitted drains and publishes
+  first, then applies the transition and ACKs. No later field block encodes
+  until both transaction and transition resolve.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.

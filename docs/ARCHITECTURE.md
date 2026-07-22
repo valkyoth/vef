@@ -52,6 +52,16 @@ fragmentation-cost, and fairness profiles. Components must fit an active
 profile when introduced; final release campaigns replay whole-system limits.
 Capacity exhaustion remains distinct from malformed peer input.
 
+Sans-I/O output has one irrevocable boundary: first non-empty exposure to the
+caller. Private encoding before exposure may be replaced; exposure first freezes
+the exact bytes and semantic identity in bounded engine storage. A sealed
+generation-bound token owns one offered range, and consuming it acknowledges an
+exact zero/short/full prefix. A zero write advances nothing but consumes that
+token; invalid or replayed tokens are state-neutral. Acknowledgement governs
+only suffix progress and reclamation—never byte mutation. Outstanding tokens
+pin their record and owning protocol generation; connection failure records only
+the acknowledged prefix.
+
 ## Shared model
 
 `vef-core` will own byte-oriented methods, status codes, versions, schemes,
@@ -252,13 +262,17 @@ AbortedByPeerReset. HPACK completion atomically seals and transfers the decoded
 section while releasing only compression workspace, never directly marking
 Valid; monotonic stages cover pseudo/connection fields, field and
 context checks, request/response mapping, content/phase, and trailer/role rules.
-Peer reset supersedes a zero-byte action, aborting pending semantics immediately
+Peer reset supersedes an unexposed reserved action, aborting pending semantics immediately
 or after an active block finishes HPACK, with no later publication. END_STREAM
-instead makes an unsent policy CANCEL dormant through every stage; only the
+instead makes a reserved, unexposed policy CANCEL dormant through every stage;
+only the
 final semantic owner transfers the immutable section to the unpublished event,
-while malformed/abort release it once and fatal shutdown owns cleanup. A partially serialized reset is
-immutable, finishes once when the connection survives, and prevents a second
-stream reset.
+while malformed/abort release it once and fatal shutdown owns cleanup. Reset
+output is mutable only while reserved and unexposed. First non-empty exposure
+freezes all 13 RST_STREAM bytes, reason, stream token, and output generation;
+later semantic/peer events cannot replace it. Valid token acknowledgements move
+one cursor, positive progress resumes at the exact suffix, and stream/tombstone
+reuse waits for token completion or acknowledged-prefix failure cleanup.
 A generation-checked associated-stream tombstone
 also accepts an in-flight PUSH_PROMISE after local reset: it completes every
 CONTINUATION and validates/tracks the promised ID but publishes no request or

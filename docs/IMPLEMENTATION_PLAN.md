@@ -95,15 +95,22 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   normalization runs once under profile caps, retains canonical bytes without a
   redundant sensitive raw copy, and comparisons never reparse. Physical reuse
   waits for every body/identity/output lease despite semantic invalidation.
+- First non-empty Sans-I/O output exposure freezes exact bytes and semantic
+  identity in engine storage. One non-Copy/non-Clone generation token owns each
+  offered range; zero/short/full acknowledgement consumes it once, invalid
+  tokens do nothing, and only acknowledged prefixes count as written. Frozen
+  output resumes at its suffix and pins owning state through failure cleanup.
 - A live/reserved HTTP/2 slot preflights cutoff storage before release and is
   never untracked. Rejection disposition, RFC wire state, and reset-output
   progress/reason/reservation, remote-closure cause, terminal state/stage,
   compression workspace, immutable field-section lease, and block ownership
   remain independent. HPACK atomically transfers a sealed non-Copy/non-Clone
   section lease into monotonic PendingSemantics while releasing only compression
-  scratch. END_STREAM can make a zero-byte policy reset dormant but no
+  scratch. END_STREAM can make a reserved, unexposed policy reset dormant but no
   intermediate stage releases it; peer reset aborts publication after required
   HPACK drain, and connection failure transfers cleanup to shutdown ownership.
+  A reset reason is replaceable only before exposure; a frozen 13-byte frame,
+  output token/cursor, and owning tombstone remain immutable and unrecyclable.
 - Assembly-enabled local correlation reserves a linear engine-only target/
   principal/partition/navigation invalidation handle before request output.
   Accepted push atomically preflights its slot, handle, independent minimal
@@ -407,11 +414,13 @@ PROTOCOL_ERROR. HPACK completion transfers PendingFieldBlock plus one sealed
 `TerminalFieldSectionLease` to the first semantic stage, never Valid, and frees
 only `CompressionWorkspace`; v0.125.0–v0.131.0 carry the exact lease without
 reparse. Only the final owner transfers it to unpublished message state. Any stage can
-re-arm the same slot as PROTOCOL_ERROR. Peer reset aborts pending semantics, but
-an active block first drains HPACK; GOAWAY alone does not abort. Finish one begun
-reset and never emit another; malformed/abort release the lease once and fatal
-input transfers it to bounded shutdown. Drive every ownership/stage/event/output
-product through the model/fuzz table.
+re-arm the same slot as PROTOCOL_ERROR only before reset exposure. Peer reset
+aborts pending semantics, but an active block first drains HPACK; GOAWAY alone
+does not abort. First non-empty reset exposure freezes frame identity/bytes;
+acknowledge by generation token, resume only at the exact suffix, and never emit
+another reset. Malformed/abort release semantic leases once and fatal input owns
+acknowledged-prefix cleanup. Drive every ownership/stage/event/output product
+through the model/fuzz table.
 Native HTTP/2 CONNECT staging respects milestone ownership: v0.130 classifies
 post-initial-HEADERS DATA into fixed-capacity PendingConnect while
 AwaitingConnectOutcome and emits a local-capacity CANCEL when full, without
@@ -513,9 +522,9 @@ changing its wire state. Apply the Phase 3 frame matrix: synchronize legal
 HEADERS and apply END_STREAM as a second transition while retaining fragmented
 block ownership, make reserved(remote) DATA/duplicate IDs connection errors,
 credit and terminal-validate half-closed(local) DATA before END_STREAM closure,
-keep a zero-byte policy reset dormant until valid release or malformed re-arm,
-finish one partially serialized reset without duplication, and give tolerated
-closed-stream DATA connection credit only.
+keep an unexposed policy reset dormant until valid release or malformed re-arm,
+freeze it at first non-empty offer, continue only its acknowledged-cursor
+suffix, and give tolerated closed-stream DATA connection credit only.
 Unrepresentable tracking retains the slot through typed bounded shutdown.
 Neither rotates an arena. The exact correlation holds its handle and
 provenance independently of associated-stream teardown, buffer reuse, or later

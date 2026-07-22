@@ -64,6 +64,10 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   complete and validated.
 - Borrowed body events require acknowledgement. Connection reuse is impossible
   until the body/trailer lifecycle completes or a mandatory-close action wins.
+- HTTP/2 receive credit is released only for application-acknowledged or
+  explicitly discarded DATA octets, never merely because a frame was parsed.
+- HTTP/2 outbound HEADERS, DATA, trailers, END_STREAM, partial output, and
+  cancellation follow one generation-checked per-stream command lifecycle.
 - Outbound framing is validated as strictly as inbound framing, including
   declared lengths, body-forbidden contexts, trailers, and completion.
 - Peer protocol violations, configured policy excess, insufficient caller
@@ -118,7 +122,15 @@ representations, indexing policy, and compression budgets.
 ### `vef-http2`
 
 Owns frame codecs, exhaustive connection/stream state, message mapping, flow
-control, push, errors, priority signals, and hostile-control budgets.
+control, borrowed inbound DATA acknowledgement, outbound per-stream message
+commands, push, errors, priority signals, and hostile-control budgets.
+
+### `vef-structured-fields` (planned at `0.163.0`)
+
+Owns the optional dependency-free RFC 9651 lexical cursor, item grammars,
+complete bare-item dispatcher, parameters, lists, dictionaries, canonical
+serialization, and caller-owned incremental storage. HTTP/2 and priority code
+consume its typed results; this crate owns no connection or scheduling state.
 
 ### `vef-io`
 
@@ -126,7 +138,7 @@ Owns minimal synchronous and poll-based byte progress, injected time,
 deadlines, cancellation, and backpressure contracts. Protocol crates do not
 depend on it; drivers compose from outside.
 
-### `vef-brynja` (planned at `0.198.0`)
+### `vef-brynja` (planned at `0.202.0`)
 
 Owns the optional first-party Brynja TLS integration after its separate
 admission review. It points inward to `vef-io` and protocol crates, returns
@@ -183,25 +195,31 @@ pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
 isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
 
-### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.151.0`)
+### Phase 3 — HPACK and HTTP/2 (`0.82.0`–`0.153.0`)
 
 Implement bounded HPACK with encoder-output atomicity, every HTTP/2 frame,
 activation and graceful shutdown, malformed publication barriers before
 mapping, generation-checked streams, and explicit cancellation/flow credit.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
-frame-size effects only after their owning components exist. Retain independent
-budgets, mandatory ACK tracking, reserved output, and flood defenses.
+frame-size effects only after their owning components exist. Add borrowed DATA
+events with partial acknowledgement and credit release, then the outbound
+HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
+Integrate ENABLE_PUSH in push ownership and apply MAX_FRAME_SIZE atomically
+before emitting its SETTINGS ACK. Retain independent budgets, mandatory ACK
+tracking, reserved output, and flood defenses.
 
-### Phase 4 — Proxy, client, server, and public APIs (`0.152.0`–`0.194.0`)
+### Phase 4 — Proxy, client, server, and public APIs (`0.154.0`–`0.198.0`)
 
 Build a representation-only translation IR, then effective URI, hop stripping,
 and a normative HTTP/1↔HTTP/2 matrix before emitting destination bytes. Add
 Max-Forwards, TE: trailers, bounded Structured Fields micro-stops, complete
+bare-item dispatch in the optional `vef-structured-fields` crate,
+ENABLE_CONNECT_PROTOCOL and NO_RFC7540_PRIORITIES owner integration, complete
 priority/intermediary/flood behavior, replayability-aware retry tokens,
 authenticated coalescing inputs, exact transition byte handoff, role facades,
 fixed storage before `alloc`, diagnostics, interop, fuzzing, and soak.
 
-### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.195.0`–`0.220.0`)
+### Phase 5 — OS, Aesynx readiness, and 1.0 evidence (`0.199.0`–`0.224.0`)
 
 Add standard blocking/nonblocking adapters, admit Brynja only through a
 separate first-party adapter, enforce concrete RFC 9113 TLS admission and

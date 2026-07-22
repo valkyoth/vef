@@ -20,6 +20,7 @@ and diagnostics while retaining protocol-appropriate state machines.
 vef facade
   |-- vef-http09 ----> vef-core  (planned isolated compatibility package)
   |-- vef-websocket-handshake --> vef-core  (planned optional extension)
+  |-- vef-structured-fields ---> vef-core  (planned optional RFC 9651 package)
   |-- vef-http1 -----> vef-core
   |-- vef-http2 -----> vef-core
   |       `----------> vef-hpack -----> vef-core
@@ -93,6 +94,24 @@ control-frame rates, compression work, stream churn, and outbound responses.
 SETTINGS wire values are validated early, but mutations are integrated only
 after the HPACK encoder, stream/window, admission, or scheduler owner exists.
 Initial HTTP semantics validate before request/response mapping is published.
+That initial barrier includes checked Content-Length and duplicates,
+Host/:authority agreement, request-form pseudo-field matrices, three-digit
+status validation, status 101 rejection, and trailer pseudo-field rejection.
+Inbound DATA remains borrowed and releases stream and connection credit only
+when acknowledged or explicitly discarded. Outbound HEADERS, DATA, trailers,
+END_STREAM, partial HPACK/frame output, and cancellation share one per-stream
+command lifecycle.
+
+The planned dependency-free `vef-structured-fields` crate owns RFC 9651
+lexing, item/container grammars, canonical serialization, and bounded
+caller-owned incremental storage. Its lexical dispatcher skeleton precedes
+the item grammars; complete bare-item dispatch is claimed only after every
+item type exists. HTTP/2 priority code consumes its typed output.
+
+SETTINGS mutations occur atomically before the corresponding ACK is emitted.
+ENABLE_PUSH is integrated by push ownership, ENABLE_CONNECT_PROTOCOL by the
+extended CONNECT boundary, and NO_RFC7540_PRIORITIES by the priority-mode
+state machine with its initial-SETTINGS-only rule.
 
 ## Roles and transitions
 
@@ -114,4 +133,4 @@ Rustls, OpenSSL, and s2n integration names describe future boundaries, not
 current dependencies. Admission requires explicit maintainer approval and a
 release-plan update. Such crates remain optional, separately published, and
 outward-facing so `vef`, `vef-core`, `vef-http09`, `vef-http1`, `vef-hpack`,
-`vef-http2`, and the base `vef-io` remain independent.
+`vef-http2`, `vef-structured-fields`, and the base `vef-io` remain independent.

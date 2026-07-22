@@ -73,6 +73,10 @@ described in the roadmap are separate future trust boundaries; they cannot be
 admitted without an explicit policy decision and never become dependencies of
 the protocol crates.
 
+The optional dependency-free `vef-structured-fields` package is planned at
+milestone `0.163.0`; it owns bounded RFC 9651 parsing and serialization without
+adding connection state or a third-party dependency to the facade.
+
 ## Rust version support
 
 VEF uses Rust edition 2024 and resolver 3. The MSRV is Rust `1.90.0`.

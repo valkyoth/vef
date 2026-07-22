@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the compact and detailed plans cover exactly v0.1.0..v0.220.0."""
+"""Check that the compact and detailed plans cover exactly v0.1.0..v0.224.0."""
 
 from __future__ import annotations
 
@@ -16,18 +16,18 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     detailed = (root / "docs/RELEASE_PLAN.md").read_text(encoding="utf-8")
     compact = (root / "docs/VERSION_PLAN.md").read_text(encoding="utf-8")
-    expected = list(range(1, 221))
+    expected = list(range(1, 225))
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
     failures: list[str] = []
     if detailed_versions != expected:
-        failures.append("detailed plan does not cover v0.1.0 through v0.220.0 exactly")
+        failures.append("detailed plan does not cover v0.1.0 through v0.224.0 exactly")
     if compact_versions != expected:
-        failures.append("version index does not cover v0.1.0 through v0.220.0 exactly")
+        failures.append("version index does not cover v0.1.0 through v0.224.0 exactly")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 220:
-            failures.append(f"expected 220 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 222:
+        if detailed.count(f"#### {heading}") != 224:
+            failures.append(f"expected 224 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 226:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -37,6 +37,8 @@ def main() -> int:
         "Inbound body acknowledgement, drain, discard, cancellation, and reuse",
         "HPACK synchronization, publication barrier, and error scope",
         "HTTP/2 malformed initial-field-block publication barrier",
+        "HTTP/2 inbound DATA ownership, acknowledgement, and credit release",
+        "HTTP/2 outbound per-stream message command lifecycle",
         "HTTP/2 body cancellation, reset, and flow-credit lifecycle",
         "Authenticated origin authorization and HTTP/2 coalescing metadata",
         "Deterministic CPU, stack, code-size, and amplification budgets",
@@ -54,7 +56,9 @@ def main() -> int:
         "Normative HTTP/1 and HTTP/2 translation matrix",
         "Max-Forwards TRACE and OPTIONS intermediary semantics",
         "HTTP/1 TE request-field and trailers forwarding semantics",
-        "Structured Fields bounded bare-item parser",
+        "vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton",
+        "Structured Fields complete bare-item dispatcher",
+        "SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration",
         "Priority update flood budgeting",
         "Retry safety, idempotency, and body-replayability contract",
         "Exact CONNECT, Upgrade, and tunnel byte-handoff ownership",
@@ -71,6 +75,9 @@ def main() -> int:
         ("SETTINGS syntax, role, directional values, and ACK rules", "Generation-checked stream table and tombstones"),
         ("Atomic HPACK header-block integration", "SETTINGS header-table encoder and header-list policy coupling"),
         ("Connection flow control", "SETTINGS initial-window active-stream integration and atomic rollback"),
+        ("SETTINGS initial-window active-stream integration and atomic rollback", "HTTP/2 inbound DATA ownership, acknowledgement, and credit release"),
+        ("HTTP/2 inbound DATA ownership, acknowledgement, and credit release", "HTTP/2 outbound per-stream message command lifecycle"),
+        ("HTTP/2 outbound per-stream message command lifecycle", "HTTP/2 body cancellation, reset, and flow-credit lifecycle"),
         ("Bounded stream admission", "SETTINGS max-concurrent-streams admission integration"),
         ("Bounded outbound scheduling", "SETTINGS max-frame-size outbound integration"),
         ("HTTP/2 malformed initial-field-block publication barrier", "HTTP/2 request mapping"),
@@ -78,6 +85,12 @@ def main() -> int:
         ("Connection-field stripping, Via, and cache preservation", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("Max-Forwards TRACE and OPTIONS intermediary semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
         ("HTTP/1 TE request-field and trailers forwarding semantics", "Normative HTTP/1 and HTTP/2 translation matrix"),
+        ("Normative HTTP/1 and HTTP/2 translation matrix", "CONNECT translation across HTTP versions"),
+        ("vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton", "Structured Fields integer and decimal ranges"),
+        ("Structured Fields strings, tokens, bytes, booleans, dates, and display strings", "Structured Fields complete bare-item dispatcher"),
+        ("Structured Fields complete bare-item dispatcher", "Structured Fields parameters"),
+        ("Priority field semantics", "SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration"),
+        ("SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration", "Priority scheduling hints and fairness"),
         ("HTTP/2 TLS admission prerequisites and authenticated metadata", "TLS transport termination, resumption, alert, and EOF mapping"),
     )
     for first, second in ordering:
@@ -85,11 +98,29 @@ def main() -> int:
             failures.append(f"unsafe milestone ordering: {first} must precede {second}")
     if "Transactional HPACK context" in detailed or "RFC 7239 where Via" in detailed or "Acceptance contract: Expose " in detailed:
         failures.append("superseded or generic acceptance wording remains in detailed plan")
+    required_contract_text = (
+        "borrowed BodyChunk whose acknowledged prefix alone may be released",
+        "encoded header-block bytes, decoded bytes, field count",
+        "Host/:authority disagreement",
+        "never merely parsed octets",
+        "before emitting its ACK",
+        "SETTINGS_ENABLE_PUSH directionally",
+        "SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective",
+        "initial SETTINGS frame",
+        "never automatically retry an unsafe request",
+        "protocol processing status separately from application replay permission",
+        "authenticated SNI, certificate identity, scheme, port, remote endpoint",
+    )
+    for contract_text in required_contract_text:
+        if contract_text not in detailed:
+            failures.append(f"missing concrete security contract: {contract_text}")
+    if "after acknowledgement while retaining independent inbound hard limits" in detailed:
+        failures.append("MAX_FRAME_SIZE is still applied after acknowledgement")
     if failures:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 220 detailed milestones plus two release candidates")
+    print("release plan: 224 detailed milestones plus two release candidates")
     return 0
 
 

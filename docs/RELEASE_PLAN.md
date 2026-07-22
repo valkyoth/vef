@@ -2175,7 +2175,7 @@ on v0.54.0 (Unified HTTP/1 outbound message state machine) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Define the Inbound body acknowledgement, drain, discard, cancellation, and reuse state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Publish a borrowed BodyChunk whose acknowledged prefix alone may be released; retain over-read bytes and every unacknowledged suffix; drain or discard only under byte, work, and injected-deadline caps; preserve exact chunked/trailer framing while draining; and mandate connection close on cap exhaustion, malformed remainder, cancellation ambiguity, or incomplete framing before storage reuse.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3897,7 +3897,7 @@ on v0.98.0 (HPACK encoder output commit and indexing policy) and must be indepen
 
 #### Deliverables
 
-- Acceptance contract: Define the Independent HPACK decode limits state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Enforce independent ceilings for encoded header-block bytes, decoded bytes, field count, individual name/value length, Huffman decode work, dynamic-table memory, compression ratio, and unpublished output; classify peer compression violations separately from caller-capacity exhaustion and publish no partial field section when any limit wins.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4952,7 +4952,7 @@ on v0.125.0 (Connection-specific field and TE validation) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: Reject uppercase names, NUL/CR/LF, forbidden whitespace, invalid or missing context-specific pseudo-fields, and pseudo-fields in trailers before application publication.
+- Acceptance contract: Before any initial request or response becomes observable, reject uppercase names, NUL/CR/LF, forbidden whitespace, invalid checked Content-Length grammar or unequal duplicates, Host/:authority disagreement, missing or forbidden :scheme/:path/:authority for the exact request form, ordinary-versus-extended CONNECT pseudo-field matrix violations, non-three-digit :status, HTTP/2 status 101, and every pseudo-field in trailers; DATA-octet reconciliation remains later but an invalid initial declared length never reaches the application.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5260,7 +5260,7 @@ Status: planned
 #### Goal
 
 Deliver **SETTINGS initial-window active-stream integration and atomic rollback** as the sole primary capability in this stop. It builds
-on v0.133.0 (Connection flow control) and must be independently trustworthy before v0.135.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) begins.
+on v0.133.0 (Connection flow control) and must be independently trustworthy before v0.135.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release) begins.
 
 #### Deliverables
 
@@ -5286,20 +5286,102 @@ on v0.133.0 (Connection flow control) and must be independently trustworthy befo
 #### Exit criteria
 
 The SETTINGS initial-window active-stream integration and atomic rollback contract and all previously implemented relevant behavior have
-reproducible evidence; v0.133.0 (Connection flow control) still passes; no behavior assigned to v0.135.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) is
+reproducible evidence; v0.133.0 (Connection flow control) still passes; no behavior assigned to v0.135.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.134.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.135.0 — HTTP/2 body cancellation, reset, and flow-credit lifecycle
+### v0.135.0 — HTTP/2 inbound DATA ownership, acknowledgement, and credit release
+
+Status: planned
+
+#### Goal
+
+Deliver **HTTP/2 inbound DATA ownership, acknowledgement, and credit release** as the sole primary capability in this stop. It builds
+on v0.134.0 (SETTINGS initial-window active-stream integration and atomic rollback) and must be independently trustworthy before v0.136.0 (HTTP/2 outbound per-stream message command lifecycle) begins.
+
+#### Deliverables
+
+- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked byte range; permit partial acknowledgement while retaining the unconsumed suffix; release both stream and connection receive-window credit only for explicitly acknowledged or policy-discarded octets, never merely parsed octets; stop publication and WINDOW_UPDATE generation under application-storage backpressure; and define one ordered terminal sequence across DATA, trailers, END_STREAM, RST_STREAM, application cancellation, and connection shutdown without duplicate events or recycled storage.
+- Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 7541, RFC 9110, RFC 9113 including verified and held errata dispositions, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Extend the HTTP/2 frame/state harness with every DATA split, partial
+  acknowledgement, backpressure, trailers/END_STREAM, reset, cancellation,
+  shutdown, and stream-slot reuse ordering permutation.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The HTTP/2 inbound DATA ownership, acknowledgement, and credit release contract and all previously implemented relevant behavior have
+reproducible evidence; v0.134.0 (SETTINGS initial-window active-stream integration and atomic rollback) still passes; no behavior assigned to v0.136.0 (HTTP/2 outbound per-stream message command lifecycle) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.135.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.136.0 — HTTP/2 outbound per-stream message command lifecycle
+
+Status: planned
+
+#### Goal
+
+Deliver **HTTP/2 outbound per-stream message command lifecycle** as the sole primary capability in this stop. It builds
+on v0.135.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release) and must be independently trustworthy before v0.137.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) begins.
+
+#### Deliverables
+
+- Acceptance contract: Define capacity-bounded HEADERS, DATA, trailers, and END_STREAM commands per generation-checked stream; reject illegal ordering, duplicate completion, body-forbidden data, and locally generated Content-Length disagreement; track partial HPACK and frame output by committed wire bytes; and make cancellation discard only uncommitted work while preserving the shared compression context and all mandatory reset or shutdown actions.
+- Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 7541, RFC 9110, RFC 9113 including verified and held errata dispositions, RFC 9218 where introduced, and the HTTP/2 security considerations.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Extend the HTTP/2 frame/state harness with every command ordering, partial
+  HPACK/frame write, declared-length boundary, cancellation point, mandatory
+  reset path, and retry-after-NeedOutput permutation.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The HTTP/2 outbound per-stream message command lifecycle contract and all previously implemented relevant behavior have
+reproducible evidence; v0.135.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release) still passes; no behavior assigned to v0.137.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.136.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.137.0 — HTTP/2 body cancellation, reset, and flow-credit lifecycle
 
 Status: planned
 
 #### Goal
 
 Deliver **HTTP/2 body cancellation, reset, and flow-credit lifecycle** as the sole primary capability in this stop. It builds
-on v0.134.0 (SETTINGS initial-window active-stream integration and atomic rollback) and must be independently trustworthy before v0.136.0 (SETTINGS outstanding-ACK accounting) begins.
+on v0.136.0 (HTTP/2 outbound per-stream message command lifecycle) and must be independently trustworthy before v0.138.0 (SETTINGS outstanding-ACK accounting) begins.
 
 #### Deliverables
 
@@ -5325,20 +5407,20 @@ on v0.134.0 (SETTINGS initial-window active-stream integration and atomic rollba
 #### Exit criteria
 
 The HTTP/2 body cancellation, reset, and flow-credit lifecycle contract and all previously implemented relevant behavior have
-reproducible evidence; v0.134.0 (SETTINGS initial-window active-stream integration and atomic rollback) still passes; no behavior assigned to v0.136.0 (SETTINGS outstanding-ACK accounting) is
+reproducible evidence; v0.136.0 (HTTP/2 outbound per-stream message command lifecycle) still passes; no behavior assigned to v0.138.0 (SETTINGS outstanding-ACK accounting) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.135.0 implementation stop reached. Run pentest for this exact commit.`
+`0.137.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.136.0 — SETTINGS outstanding-ACK accounting
+### v0.138.0 — SETTINGS outstanding-ACK accounting
 
 Status: planned
 
 #### Goal
 
 Deliver **SETTINGS outstanding-ACK accounting** as the sole primary capability in this stop. It builds
-on v0.135.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and must be independently trustworthy before v0.137.0 (Bounded stream admission) begins.
+on v0.137.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and must be independently trustworthy before v0.139.0 (Bounded stream admission) begins.
 
 #### Deliverables
 
@@ -5364,20 +5446,20 @@ on v0.135.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and mus
 #### Exit criteria
 
 The SETTINGS outstanding-ACK accounting contract and all previously implemented relevant behavior have
-reproducible evidence; v0.135.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) still passes; no behavior assigned to v0.137.0 (Bounded stream admission) is
+reproducible evidence; v0.137.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) still passes; no behavior assigned to v0.139.0 (Bounded stream admission) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.136.0 implementation stop reached. Run pentest for this exact commit.`
+`0.138.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.137.0 — Bounded stream admission
+### v0.139.0 — Bounded stream admission
 
 Status: planned
 
 #### Goal
 
 Deliver **Bounded stream admission** as the sole primary capability in this stop. It builds
-on v0.136.0 (SETTINGS outstanding-ACK accounting) and must be independently trustworthy before v0.138.0 (SETTINGS max-concurrent-streams admission integration) begins.
+on v0.138.0 (SETTINGS outstanding-ACK accounting) and must be independently trustworthy before v0.140.0 (SETTINGS max-concurrent-streams admission integration) begins.
 
 #### Deliverables
 
@@ -5403,20 +5485,20 @@ on v0.136.0 (SETTINGS outstanding-ACK accounting) and must be independently trus
 #### Exit criteria
 
 The Bounded stream admission contract and all previously implemented relevant behavior have
-reproducible evidence; v0.136.0 (SETTINGS outstanding-ACK accounting) still passes; no behavior assigned to v0.138.0 (SETTINGS max-concurrent-streams admission integration) is
+reproducible evidence; v0.138.0 (SETTINGS outstanding-ACK accounting) still passes; no behavior assigned to v0.140.0 (SETTINGS max-concurrent-streams admission integration) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.137.0 implementation stop reached. Run pentest for this exact commit.`
+`0.139.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.138.0 — SETTINGS max-concurrent-streams admission integration
+### v0.140.0 — SETTINGS max-concurrent-streams admission integration
 
 Status: planned
 
 #### Goal
 
 Deliver **SETTINGS max-concurrent-streams admission integration** as the sole primary capability in this stop. It builds
-on v0.137.0 (Bounded stream admission) and must be independently trustworthy before v0.139.0 (Bounded outbound scheduling) begins.
+on v0.139.0 (Bounded stream admission) and must be independently trustworthy before v0.141.0 (Bounded outbound scheduling) begins.
 
 #### Deliverables
 
@@ -5442,20 +5524,20 @@ on v0.137.0 (Bounded stream admission) and must be independently trustworthy bef
 #### Exit criteria
 
 The SETTINGS max-concurrent-streams admission integration contract and all previously implemented relevant behavior have
-reproducible evidence; v0.137.0 (Bounded stream admission) still passes; no behavior assigned to v0.139.0 (Bounded outbound scheduling) is
+reproducible evidence; v0.139.0 (Bounded stream admission) still passes; no behavior assigned to v0.141.0 (Bounded outbound scheduling) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.138.0 implementation stop reached. Run pentest for this exact commit.`
+`0.140.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.139.0 — Bounded outbound scheduling
+### v0.141.0 — Bounded outbound scheduling
 
 Status: planned
 
 #### Goal
 
 Deliver **Bounded outbound scheduling** as the sole primary capability in this stop. It builds
-on v0.138.0 (SETTINGS max-concurrent-streams admission integration) and must be independently trustworthy before v0.140.0 (SETTINGS max-frame-size outbound integration) begins.
+on v0.140.0 (SETTINGS max-concurrent-streams admission integration) and must be independently trustworthy before v0.142.0 (SETTINGS max-frame-size outbound integration) begins.
 
 #### Deliverables
 
@@ -5481,24 +5563,24 @@ on v0.138.0 (SETTINGS max-concurrent-streams admission integration) and must be 
 #### Exit criteria
 
 The Bounded outbound scheduling contract and all previously implemented relevant behavior have
-reproducible evidence; v0.138.0 (SETTINGS max-concurrent-streams admission integration) still passes; no behavior assigned to v0.140.0 (SETTINGS max-frame-size outbound integration) is
+reproducible evidence; v0.140.0 (SETTINGS max-concurrent-streams admission integration) still passes; no behavior assigned to v0.142.0 (SETTINGS max-frame-size outbound integration) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.139.0 implementation stop reached. Run pentest for this exact commit.`
+`0.141.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.140.0 — SETTINGS max-frame-size outbound integration
+### v0.142.0 — SETTINGS max-frame-size outbound integration
 
 Status: planned
 
 #### Goal
 
 Deliver **SETTINGS max-frame-size outbound integration** as the sole primary capability in this stop. It builds
-on v0.139.0 (Bounded outbound scheduling) and must be independently trustworthy before v0.141.0 (GOAWAY cutoff and retry classification) begins.
+on v0.141.0 (Bounded outbound scheduling) and must be independently trustworthy before v0.143.0 (GOAWAY cutoff and retry classification) begins.
 
 #### Deliverables
 
-- Acceptance contract: Apply peer MAX_FRAME_SIZE only to outbound frame segmentation after acknowledgement while retaining independent inbound hard limits and bounded scheduler/output behavior.
+- Acceptance contract: During atomic SETTINGS processing, validate and apply peer MAX_FRAME_SIZE to outbound scheduling and fragmentation before emitting its ACK; roll back the entire settings transaction on failure, retain the fixed inbound protocol maximum, and never allocate directly from the advertised value.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5520,20 +5602,20 @@ on v0.139.0 (Bounded outbound scheduling) and must be independently trustworthy 
 #### Exit criteria
 
 The SETTINGS max-frame-size outbound integration contract and all previously implemented relevant behavior have
-reproducible evidence; v0.139.0 (Bounded outbound scheduling) still passes; no behavior assigned to v0.141.0 (GOAWAY cutoff and retry classification) is
+reproducible evidence; v0.141.0 (Bounded outbound scheduling) still passes; no behavior assigned to v0.143.0 (GOAWAY cutoff and retry classification) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.140.0 implementation stop reached. Run pentest for this exact commit.`
+`0.142.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.141.0 — GOAWAY cutoff and retry classification
+### v0.143.0 — GOAWAY cutoff and retry classification
 
 Status: planned
 
 #### Goal
 
 Deliver **GOAWAY cutoff and retry classification** as the sole primary capability in this stop. It builds
-on v0.140.0 (SETTINGS max-frame-size outbound integration) and must be independently trustworthy before v0.142.0 (Server-push lifecycle) begins.
+on v0.142.0 (SETTINGS max-frame-size outbound integration) and must be independently trustworthy before v0.144.0 (Server-push lifecycle) begins.
 
 #### Deliverables
 
@@ -5559,24 +5641,24 @@ on v0.140.0 (SETTINGS max-frame-size outbound integration) and must be independe
 #### Exit criteria
 
 The GOAWAY cutoff and retry classification contract and all previously implemented relevant behavior have
-reproducible evidence; v0.140.0 (SETTINGS max-frame-size outbound integration) still passes; no behavior assigned to v0.142.0 (Server-push lifecycle) is
+reproducible evidence; v0.142.0 (SETTINGS max-frame-size outbound integration) still passes; no behavior assigned to v0.144.0 (Server-push lifecycle) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.141.0 implementation stop reached. Run pentest for this exact commit.`
+`0.143.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.142.0 — Server-push lifecycle
+### v0.144.0 — Server-push lifecycle
 
 Status: planned
 
 #### Goal
 
 Deliver **Server-push lifecycle** as the sole primary capability in this stop. It builds
-on v0.141.0 (GOAWAY cutoff and retry classification) and must be independently trustworthy before v0.143.0 (ALPN and cleartext prior-knowledge selection) begins.
+on v0.143.0 (GOAWAY cutoff and retry classification) and must be independently trustworthy before v0.145.0 (ALPN and cleartext prior-knowledge selection) begins.
 
 #### Deliverables
 
-- Acceptance contract: Define the Server-push lifecycle state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Integrate SETTINGS_ENABLE_PUSH directionally: clients reject server use that violates the effective setting, servers never advertise it, and servers create PUSH_PROMISE/reserved streams only while peer permission and independent stream capacity both allow it; define cancellation, GOAWAY cutoff, promised-request validation, and exact slot reclamation without publishing forbidden pushes.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5598,20 +5680,20 @@ on v0.141.0 (GOAWAY cutoff and retry classification) and must be independently t
 #### Exit criteria
 
 The Server-push lifecycle contract and all previously implemented relevant behavior have
-reproducible evidence; v0.141.0 (GOAWAY cutoff and retry classification) still passes; no behavior assigned to v0.143.0 (ALPN and cleartext prior-knowledge selection) is
+reproducible evidence; v0.143.0 (GOAWAY cutoff and retry classification) still passes; no behavior assigned to v0.145.0 (ALPN and cleartext prior-knowledge selection) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.142.0 implementation stop reached. Run pentest for this exact commit.`
+`0.144.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.143.0 — ALPN and cleartext prior-knowledge selection
+### v0.145.0 — ALPN and cleartext prior-knowledge selection
 
 Status: planned
 
 #### Goal
 
 Deliver **ALPN and cleartext prior-knowledge selection** as the sole primary capability in this stop. It builds
-on v0.142.0 (Server-push lifecycle) and must be independently trustworthy before v0.144.0 (Independent HTTP/2 rate and work budgets) begins.
+on v0.144.0 (Server-push lifecycle) and must be independently trustworthy before v0.146.0 (Independent HTTP/2 rate and work budgets) begins.
 
 #### Deliverables
 
@@ -5637,20 +5719,20 @@ on v0.142.0 (Server-push lifecycle) and must be independently trustworthy before
 #### Exit criteria
 
 The ALPN and cleartext prior-knowledge selection contract and all previously implemented relevant behavior have
-reproducible evidence; v0.142.0 (Server-push lifecycle) still passes; no behavior assigned to v0.144.0 (Independent HTTP/2 rate and work budgets) is
+reproducible evidence; v0.144.0 (Server-push lifecycle) still passes; no behavior assigned to v0.146.0 (Independent HTTP/2 rate and work budgets) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.143.0 implementation stop reached. Run pentest for this exact commit.`
+`0.145.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.144.0 — Independent HTTP/2 rate and work budgets
+### v0.146.0 — Independent HTTP/2 rate and work budgets
 
 Status: planned
 
 #### Goal
 
 Deliver **Independent HTTP/2 rate and work budgets** as the sole primary capability in this stop. It builds
-on v0.143.0 (ALPN and cleartext prior-knowledge selection) and must be independently trustworthy before v0.145.0 (Rapid-reset defenses) begins.
+on v0.145.0 (ALPN and cleartext prior-knowledge selection) and must be independently trustworthy before v0.147.0 (Rapid-reset defenses) begins.
 
 #### Deliverables
 
@@ -5676,20 +5758,20 @@ on v0.143.0 (ALPN and cleartext prior-knowledge selection) and must be independe
 #### Exit criteria
 
 The Independent HTTP/2 rate and work budgets contract and all previously implemented relevant behavior have
-reproducible evidence; v0.143.0 (ALPN and cleartext prior-knowledge selection) still passes; no behavior assigned to v0.145.0 (Rapid-reset defenses) is
+reproducible evidence; v0.145.0 (ALPN and cleartext prior-knowledge selection) still passes; no behavior assigned to v0.147.0 (Rapid-reset defenses) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.144.0 implementation stop reached. Run pentest for this exact commit.`
+`0.146.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.145.0 — Rapid-reset defenses
+### v0.147.0 — Rapid-reset defenses
 
 Status: planned
 
 #### Goal
 
 Deliver **Rapid-reset defenses** as the sole primary capability in this stop. It builds
-on v0.144.0 (Independent HTTP/2 rate and work budgets) and must be independently trustworthy before v0.146.0 (SETTINGS amplification defenses) begins.
+on v0.146.0 (Independent HTTP/2 rate and work budgets) and must be independently trustworthy before v0.148.0 (SETTINGS amplification defenses) begins.
 
 #### Deliverables
 
@@ -5715,20 +5797,20 @@ on v0.144.0 (Independent HTTP/2 rate and work budgets) and must be independently
 #### Exit criteria
 
 The Rapid-reset defenses contract and all previously implemented relevant behavior have
-reproducible evidence; v0.144.0 (Independent HTTP/2 rate and work budgets) still passes; no behavior assigned to v0.146.0 (SETTINGS amplification defenses) is
+reproducible evidence; v0.146.0 (Independent HTTP/2 rate and work budgets) still passes; no behavior assigned to v0.148.0 (SETTINGS amplification defenses) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.145.0 implementation stop reached. Run pentest for this exact commit.`
+`0.147.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.146.0 — SETTINGS amplification defenses
+### v0.148.0 — SETTINGS amplification defenses
 
 Status: planned
 
 #### Goal
 
 Deliver **SETTINGS amplification defenses** as the sole primary capability in this stop. It builds
-on v0.145.0 (Rapid-reset defenses) and must be independently trustworthy before v0.147.0 (PING flood defenses) begins.
+on v0.147.0 (Rapid-reset defenses) and must be independently trustworthy before v0.149.0 (PING flood defenses) begins.
 
 #### Deliverables
 
@@ -5754,20 +5836,20 @@ on v0.145.0 (Rapid-reset defenses) and must be independently trustworthy before 
 #### Exit criteria
 
 The SETTINGS amplification defenses contract and all previously implemented relevant behavior have
-reproducible evidence; v0.145.0 (Rapid-reset defenses) still passes; no behavior assigned to v0.147.0 (PING flood defenses) is
+reproducible evidence; v0.147.0 (Rapid-reset defenses) still passes; no behavior assigned to v0.149.0 (PING flood defenses) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.146.0 implementation stop reached. Run pentest for this exact commit.`
+`0.148.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.147.0 — PING flood defenses
+### v0.149.0 — PING flood defenses
 
 Status: planned
 
 #### Goal
 
 Deliver **PING flood defenses** as the sole primary capability in this stop. It builds
-on v0.146.0 (SETTINGS amplification defenses) and must be independently trustworthy before v0.148.0 (CONTINUATION bomb defenses) begins.
+on v0.148.0 (SETTINGS amplification defenses) and must be independently trustworthy before v0.150.0 (CONTINUATION bomb defenses) begins.
 
 #### Deliverables
 
@@ -5793,20 +5875,20 @@ on v0.146.0 (SETTINGS amplification defenses) and must be independently trustwor
 #### Exit criteria
 
 The PING flood defenses contract and all previously implemented relevant behavior have
-reproducible evidence; v0.146.0 (SETTINGS amplification defenses) still passes; no behavior assigned to v0.148.0 (CONTINUATION bomb defenses) is
+reproducible evidence; v0.148.0 (SETTINGS amplification defenses) still passes; no behavior assigned to v0.150.0 (CONTINUATION bomb defenses) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.147.0 implementation stop reached. Run pentest for this exact commit.`
+`0.149.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.148.0 — CONTINUATION bomb defenses
+### v0.150.0 — CONTINUATION bomb defenses
 
 Status: planned
 
 #### Goal
 
 Deliver **CONTINUATION bomb defenses** as the sole primary capability in this stop. It builds
-on v0.147.0 (PING flood defenses) and must be independently trustworthy before v0.149.0 (WINDOW_UPDATE churn defenses) begins.
+on v0.149.0 (PING flood defenses) and must be independently trustworthy before v0.151.0 (WINDOW_UPDATE churn defenses) begins.
 
 #### Deliverables
 
@@ -5832,20 +5914,20 @@ on v0.147.0 (PING flood defenses) and must be independently trustworthy before v
 #### Exit criteria
 
 The CONTINUATION bomb defenses contract and all previously implemented relevant behavior have
-reproducible evidence; v0.147.0 (PING flood defenses) still passes; no behavior assigned to v0.149.0 (WINDOW_UPDATE churn defenses) is
+reproducible evidence; v0.149.0 (PING flood defenses) still passes; no behavior assigned to v0.151.0 (WINDOW_UPDATE churn defenses) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.148.0 implementation stop reached. Run pentest for this exact commit.`
+`0.150.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.149.0 — WINDOW_UPDATE churn defenses
+### v0.151.0 — WINDOW_UPDATE churn defenses
 
 Status: planned
 
 #### Goal
 
 Deliver **WINDOW_UPDATE churn defenses** as the sole primary capability in this stop. It builds
-on v0.148.0 (CONTINUATION bomb defenses) and must be independently trustworthy before v0.150.0 (Reserved control-output queues) begins.
+on v0.150.0 (CONTINUATION bomb defenses) and must be independently trustworthy before v0.152.0 (Reserved control-output queues) begins.
 
 #### Deliverables
 
@@ -5871,20 +5953,20 @@ on v0.148.0 (CONTINUATION bomb defenses) and must be independently trustworthy b
 #### Exit criteria
 
 The WINDOW_UPDATE churn defenses contract and all previously implemented relevant behavior have
-reproducible evidence; v0.148.0 (CONTINUATION bomb defenses) still passes; no behavior assigned to v0.150.0 (Reserved control-output queues) is
+reproducible evidence; v0.150.0 (CONTINUATION bomb defenses) still passes; no behavior assigned to v0.152.0 (Reserved control-output queues) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.149.0 implementation stop reached. Run pentest for this exact commit.`
+`0.151.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.150.0 — Reserved control-output queues
+### v0.152.0 — Reserved control-output queues
 
 Status: planned
 
 #### Goal
 
 Deliver **Reserved control-output queues** as the sole primary capability in this stop. It builds
-on v0.149.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy before v0.151.0 (HTTP/2 conformance audit and pentest) begins.
+on v0.151.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy before v0.153.0 (HTTP/2 conformance audit and pentest) begins.
 
 #### Deliverables
 
@@ -5910,20 +5992,20 @@ on v0.149.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 #### Exit criteria
 
 The Reserved control-output queues contract and all previously implemented relevant behavior have
-reproducible evidence; v0.149.0 (WINDOW_UPDATE churn defenses) still passes; no behavior assigned to v0.151.0 (HTTP/2 conformance audit and pentest) is
+reproducible evidence; v0.151.0 (WINDOW_UPDATE churn defenses) still passes; no behavior assigned to v0.153.0 (HTTP/2 conformance audit and pentest) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.150.0 implementation stop reached. Run pentest for this exact commit.`
+`0.152.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.151.0 — HTTP/2 conformance audit and pentest
+### v0.153.0 — HTTP/2 conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
 Deliver **HTTP/2 conformance audit and pentest** as the sole primary capability in this stop. It builds
-on v0.150.0 (Reserved control-output queues) and must be independently trustworthy before v0.152.0 (Protocol-neutral HTTP translation representation) begins.
+on v0.152.0 (Reserved control-output queues) and must be independently trustworthy before v0.154.0 (Protocol-neutral HTTP translation representation) begins.
 
 #### Deliverables
 
@@ -5949,24 +6031,24 @@ on v0.150.0 (Reserved control-output queues) and must be independently trustwort
 #### Exit criteria
 
 The HTTP/2 conformance audit and pentest contract and all previously implemented relevant behavior have
-reproducible evidence; v0.150.0 (Reserved control-output queues) still passes; no behavior assigned to v0.152.0 (Protocol-neutral HTTP translation representation) is
+reproducible evidence; v0.152.0 (Reserved control-output queues) still passes; no behavior assigned to v0.154.0 (Protocol-neutral HTTP translation representation) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.151.0 implementation stop reached. Run pentest for this exact commit.`
+`0.153.0 implementation stop reached. Run pentest for this exact commit.`
 
 ## Phase 4 — Proxy, client, server, and public APIs
 
 Phase contract: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 
-### v0.152.0 — Protocol-neutral HTTP translation representation
+### v0.154.0 — Protocol-neutral HTTP translation representation
 
 Status: planned
 
 #### Goal
 
 Deliver **Protocol-neutral HTTP translation representation** as the sole primary capability in this stop. It builds
-on v0.151.0 (HTTP/2 conformance audit and pentest) and must be independently trustworthy before v0.153.0 (Effective URI and authority consistency) begins.
+on v0.153.0 (HTTP/2 conformance audit and pentest) and must be independently trustworthy before v0.155.0 (Effective URI and authority consistency) begins.
 
 #### Deliverables
 
@@ -5992,20 +6074,20 @@ on v0.151.0 (HTTP/2 conformance audit and pentest) and must be independently tru
 #### Exit criteria
 
 The Protocol-neutral HTTP translation representation contract and all previously implemented relevant behavior have
-reproducible evidence; v0.151.0 (HTTP/2 conformance audit and pentest) still passes; no behavior assigned to v0.153.0 (Effective URI and authority consistency) is
+reproducible evidence; v0.153.0 (HTTP/2 conformance audit and pentest) still passes; no behavior assigned to v0.155.0 (Effective URI and authority consistency) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.152.0 implementation stop reached. Run pentest for this exact commit.`
+`0.154.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.153.0 — Effective URI and authority consistency
+### v0.155.0 — Effective URI and authority consistency
 
 Status: planned
 
 #### Goal
 
 Deliver **Effective URI and authority consistency** as the sole primary capability in this stop. It builds
-on v0.152.0 (Protocol-neutral HTTP translation representation) and must be independently trustworthy before v0.154.0 (Connection-field stripping, Via, and cache preservation) begins.
+on v0.154.0 (Protocol-neutral HTTP translation representation) and must be independently trustworthy before v0.156.0 (Connection-field stripping, Via, and cache preservation) begins.
 
 #### Deliverables
 
@@ -6031,20 +6113,20 @@ on v0.152.0 (Protocol-neutral HTTP translation representation) and must be indep
 #### Exit criteria
 
 The Effective URI and authority consistency contract and all previously implemented relevant behavior have
-reproducible evidence; v0.152.0 (Protocol-neutral HTTP translation representation) still passes; no behavior assigned to v0.154.0 (Connection-field stripping, Via, and cache preservation) is
+reproducible evidence; v0.154.0 (Protocol-neutral HTTP translation representation) still passes; no behavior assigned to v0.156.0 (Connection-field stripping, Via, and cache preservation) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.153.0 implementation stop reached. Run pentest for this exact commit.`
+`0.155.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.154.0 — Connection-field stripping, Via, and cache preservation
+### v0.156.0 — Connection-field stripping, Via, and cache preservation
 
 Status: planned
 
 #### Goal
 
 Deliver **Connection-field stripping, Via, and cache preservation** as the sole primary capability in this stop. It builds
-on v0.153.0 (Effective URI and authority consistency) and must be independently trustworthy before v0.155.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) begins.
+on v0.155.0 (Effective URI and authority consistency) and must be independently trustworthy before v0.157.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) begins.
 
 #### Deliverables
 
@@ -6070,20 +6152,20 @@ on v0.153.0 (Effective URI and authority consistency) and must be independently 
 #### Exit criteria
 
 The Connection-field stripping, Via, and cache preservation contract and all previously implemented relevant behavior have
-reproducible evidence; v0.153.0 (Effective URI and authority consistency) still passes; no behavior assigned to v0.155.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) is
+reproducible evidence; v0.155.0 (Effective URI and authority consistency) still passes; no behavior assigned to v0.157.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.154.0 implementation stop reached. Run pentest for this exact commit.`
+`0.156.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.155.0 — Max-Forwards TRACE and OPTIONS intermediary semantics
+### v0.157.0 — Max-Forwards TRACE and OPTIONS intermediary semantics
 
 Status: planned
 
 #### Goal
 
 Deliver **Max-Forwards TRACE and OPTIONS intermediary semantics** as the sole primary capability in this stop. It builds
-on v0.154.0 (Connection-field stripping, Via, and cache preservation) and must be independently trustworthy before v0.156.0 (HTTP/1 TE request-field and trailers forwarding semantics) begins.
+on v0.156.0 (Connection-field stripping, Via, and cache preservation) and must be independently trustworthy before v0.158.0 (HTTP/1 TE request-field and trailers forwarding semantics) begins.
 
 #### Deliverables
 
@@ -6109,20 +6191,20 @@ on v0.154.0 (Connection-field stripping, Via, and cache preservation) and must b
 #### Exit criteria
 
 The Max-Forwards TRACE and OPTIONS intermediary semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.154.0 (Connection-field stripping, Via, and cache preservation) still passes; no behavior assigned to v0.156.0 (HTTP/1 TE request-field and trailers forwarding semantics) is
+reproducible evidence; v0.156.0 (Connection-field stripping, Via, and cache preservation) still passes; no behavior assigned to v0.158.0 (HTTP/1 TE request-field and trailers forwarding semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.155.0 implementation stop reached. Run pentest for this exact commit.`
+`0.157.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.156.0 — HTTP/1 TE request-field and trailers forwarding semantics
+### v0.158.0 — HTTP/1 TE request-field and trailers forwarding semantics
 
 Status: planned
 
 #### Goal
 
 Deliver **HTTP/1 TE request-field and trailers forwarding semantics** as the sole primary capability in this stop. It builds
-on v0.155.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) and must be independently trustworthy before v0.157.0 (Normative HTTP/1 and HTTP/2 translation matrix) begins.
+on v0.157.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) and must be independently trustworthy before v0.159.0 (Normative HTTP/1 and HTTP/2 translation matrix) begins.
 
 #### Deliverables
 
@@ -6148,20 +6230,20 @@ on v0.155.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) and must be 
 #### Exit criteria
 
 The HTTP/1 TE request-field and trailers forwarding semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.155.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) still passes; no behavior assigned to v0.157.0 (Normative HTTP/1 and HTTP/2 translation matrix) is
+reproducible evidence; v0.157.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) still passes; no behavior assigned to v0.159.0 (Normative HTTP/1 and HTTP/2 translation matrix) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.156.0 implementation stop reached. Run pentest for this exact commit.`
+`0.158.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.157.0 — Normative HTTP/1 and HTTP/2 translation matrix
+### v0.159.0 — Normative HTTP/1 and HTTP/2 translation matrix
 
 Status: planned
 
 #### Goal
 
 Deliver **Normative HTTP/1 and HTTP/2 translation matrix** as the sole primary capability in this stop. It builds
-on v0.156.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must be independently trustworthy before v0.158.0 (CONNECT translation across HTTP versions) begins.
+on v0.158.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must be independently trustworthy before v0.160.0 (CONNECT translation across HTTP versions) begins.
 
 #### Deliverables
 
@@ -6187,20 +6269,20 @@ on v0.156.0 (HTTP/1 TE request-field and trailers forwarding semantics) and must
 #### Exit criteria
 
 The Normative HTTP/1 and HTTP/2 translation matrix contract and all previously implemented relevant behavior have
-reproducible evidence; v0.156.0 (HTTP/1 TE request-field and trailers forwarding semantics) still passes; no behavior assigned to v0.158.0 (CONNECT translation across HTTP versions) is
+reproducible evidence; v0.158.0 (HTTP/1 TE request-field and trailers forwarding semantics) still passes; no behavior assigned to v0.160.0 (CONNECT translation across HTTP versions) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.157.0 implementation stop reached. Run pentest for this exact commit.`
+`0.159.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.158.0 — CONNECT translation across HTTP versions
+### v0.160.0 — CONNECT translation across HTTP versions
 
 Status: planned
 
 #### Goal
 
 Deliver **CONNECT translation across HTTP versions** as the sole primary capability in this stop. It builds
-on v0.157.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be independently trustworthy before v0.159.0 (RFC 8441 extended CONNECT) begins.
+on v0.159.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be independently trustworthy before v0.161.0 (RFC 8441 extended CONNECT) begins.
 
 #### Deliverables
 
@@ -6226,24 +6308,24 @@ on v0.157.0 (Normative HTTP/1 and HTTP/2 translation matrix) and must be indepen
 #### Exit criteria
 
 The CONNECT translation across HTTP versions contract and all previously implemented relevant behavior have
-reproducible evidence; v0.157.0 (Normative HTTP/1 and HTTP/2 translation matrix) still passes; no behavior assigned to v0.159.0 (RFC 8441 extended CONNECT) is
+reproducible evidence; v0.159.0 (Normative HTTP/1 and HTTP/2 translation matrix) still passes; no behavior assigned to v0.161.0 (RFC 8441 extended CONNECT) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.158.0 implementation stop reached. Run pentest for this exact commit.`
+`0.160.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.159.0 — RFC 8441 extended CONNECT
+### v0.161.0 — RFC 8441 extended CONNECT
 
 Status: planned
 
 #### Goal
 
 Deliver **RFC 8441 extended CONNECT** as the sole primary capability in this stop. It builds
-on v0.158.0 (CONNECT translation across HTTP versions) and must be independently trustworthy before v0.160.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) begins.
+on v0.160.0 (CONNECT translation across HTTP versions) and must be independently trustworthy before v0.162.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) begins.
 
 #### Deliverables
 
-- Acceptance contract: Define the RFC 8441 extended CONNECT state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Permit extended CONNECT only after the peer's SETTINGS_ENABLE_CONNECT_PROTOCOL value is atomically effective and the completed translation matrix authorizes the request; enforce :protocol plus the extended :scheme/:path/:authority matrix, distinguish ordinary CONNECT, reject 101 semantics, and publish no tunnel or WebSocket transition before the final response and byte-handoff contract succeeds.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6265,20 +6347,20 @@ on v0.158.0 (CONNECT translation across HTTP versions) and must be independently
 #### Exit criteria
 
 The RFC 8441 extended CONNECT contract and all previously implemented relevant behavior have
-reproducible evidence; v0.158.0 (CONNECT translation across HTTP versions) still passes; no behavior assigned to v0.160.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) is
+reproducible evidence; v0.160.0 (CONNECT translation across HTTP versions) still passes; no behavior assigned to v0.162.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.159.0 implementation stop reached. Run pentest for this exact commit.`
+`0.161.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.160.0 — WebSocket HTTP/1 to HTTP/2 handshake bridge
+### v0.162.0 — WebSocket HTTP/1 to HTTP/2 handshake bridge
 
 Status: planned
 
 #### Goal
 
 Deliver **WebSocket HTTP/1 to HTTP/2 handshake bridge** as the sole primary capability in this stop. It builds
-on v0.159.0 (RFC 8441 extended CONNECT) and must be independently trustworthy before v0.161.0 (Structured Fields bounded bare-item parser) begins.
+on v0.161.0 (RFC 8441 extended CONNECT) and must be independently trustworthy before v0.163.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) begins.
 
 #### Deliverables
 
@@ -6305,24 +6387,24 @@ on v0.159.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 #### Exit criteria
 
 The WebSocket HTTP/1 to HTTP/2 handshake bridge contract and all previously implemented relevant behavior have
-reproducible evidence; v0.159.0 (RFC 8441 extended CONNECT) still passes; no behavior assigned to v0.161.0 (Structured Fields bounded bare-item parser) is
+reproducible evidence; v0.161.0 (RFC 8441 extended CONNECT) still passes; no behavior assigned to v0.163.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.160.0 implementation stop reached. Run pentest for this exact commit.`
+`0.162.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.161.0 — Structured Fields bounded bare-item parser
+### v0.163.0 — vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton
 
 Status: planned
 
 #### Goal
 
-Deliver **Structured Fields bounded bare-item parser** as the sole primary capability in this stop. It builds
-on v0.160.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) and must be independently trustworthy before v0.162.0 (Structured Fields integer and decimal ranges) begins.
+Deliver **vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton** as the sole primary capability in this stop. It builds
+on v0.162.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) and must be independently trustworthy before v0.164.0 (Structured Fields integer and decimal ranges) begins.
 
 #### Deliverables
 
-- Acceptance contract: Incrementally parse one bounded RFC 9651 bare item from bytes with explicit type, consumed length, NeedInput, capacity, and syntax errors and no locale or UTF-8 assumptions beyond each item grammar.
+- Acceptance contract: Introduce optional dependency-free no_std vef-structured-fields ownership, a checked incremental lexical cursor, and a non-publishing bare-item tag dispatcher skeleton; define consumed/blocked/error progress and caller-owned capacity now, but do not claim complete item parsing until every item grammar and the later complete dispatcher milestone exist.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6343,21 +6425,21 @@ on v0.160.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) and must be independen
 
 #### Exit criteria
 
-The Structured Fields bounded bare-item parser contract and all previously implemented relevant behavior have
-reproducible evidence; v0.160.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) still passes; no behavior assigned to v0.162.0 (Structured Fields integer and decimal ranges) is
+The vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton contract and all previously implemented relevant behavior have
+reproducible evidence; v0.162.0 (WebSocket HTTP/1 to HTTP/2 handshake bridge) still passes; no behavior assigned to v0.164.0 (Structured Fields integer and decimal ranges) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.161.0 implementation stop reached. Run pentest for this exact commit.`
+`0.163.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.162.0 — Structured Fields integer and decimal ranges
+### v0.164.0 — Structured Fields integer and decimal ranges
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields integer and decimal ranges** as the sole primary capability in this stop. It builds
-on v0.161.0 (Structured Fields bounded bare-item parser) and must be independently trustworthy before v0.163.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) begins.
+on v0.163.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) and must be independently trustworthy before v0.165.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) begins.
 
 #### Deliverables
 
@@ -6383,20 +6465,20 @@ on v0.161.0 (Structured Fields bounded bare-item parser) and must be independent
 #### Exit criteria
 
 The Structured Fields integer and decimal ranges contract and all previously implemented relevant behavior have
-reproducible evidence; v0.161.0 (Structured Fields bounded bare-item parser) still passes; no behavior assigned to v0.163.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) is
+reproducible evidence; v0.163.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) still passes; no behavior assigned to v0.165.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.162.0 implementation stop reached. Run pentest for this exact commit.`
+`0.164.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.163.0 — Structured Fields strings, tokens, bytes, booleans, dates, and display strings
+### v0.165.0 — Structured Fields strings, tokens, bytes, booleans, dates, and display strings
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields strings, tokens, bytes, booleans, dates, and display strings** as the sole primary capability in this stop. It builds
-on v0.162.0 (Structured Fields integer and decimal ranges) and must be independently trustworthy before v0.164.0 (Structured Fields parameters) begins.
+on v0.164.0 (Structured Fields integer and decimal ranges) and must be independently trustworthy before v0.166.0 (Structured Fields complete bare-item dispatcher) begins.
 
 #### Deliverables
 
@@ -6422,20 +6504,60 @@ on v0.162.0 (Structured Fields integer and decimal ranges) and must be independe
 #### Exit criteria
 
 The Structured Fields strings, tokens, bytes, booleans, dates, and display strings contract and all previously implemented relevant behavior have
-reproducible evidence; v0.162.0 (Structured Fields integer and decimal ranges) still passes; no behavior assigned to v0.164.0 (Structured Fields parameters) is
+reproducible evidence; v0.164.0 (Structured Fields integer and decimal ranges) still passes; no behavior assigned to v0.166.0 (Structured Fields complete bare-item dispatcher) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.163.0 implementation stop reached. Run pentest for this exact commit.`
+`0.165.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.164.0 — Structured Fields parameters
+### v0.166.0 — Structured Fields complete bare-item dispatcher
+
+Status: planned
+
+#### Goal
+
+Deliver **Structured Fields complete bare-item dispatcher** as the sole primary capability in this stop. It builds
+on v0.165.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) and must be independently trustworthy before v0.167.0 (Structured Fields parameters) begins.
+
+#### Deliverables
+
+- Acceptance contract: Complete the dependency-free vef-structured-fields bare-item dispatcher only after every RFC 9651 item grammar exists; dispatch without speculative publication, preserve exact consumed/blocked/error progress, enforce per-type ranges and caller-owned output capacity, and prove identical results for contiguous input and every fragmentation boundary.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 3986, RFC 8441, RFC 9110 including Via, Max-Forwards, and TE, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931; RFC 7239 Forwarded transformation remains out of scope.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Add RFC 9651 vectors, all-byte splits, malformed/capacity corpora,
+  cross-type dispatcher cases, canonical round trips, and work-limit assertions.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The Structured Fields complete bare-item dispatcher contract and all previously implemented relevant behavior have
+reproducible evidence; v0.165.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) still passes; no behavior assigned to v0.167.0 (Structured Fields parameters) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.166.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.167.0 — Structured Fields parameters
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields parameters** as the sole primary capability in this stop. It builds
-on v0.163.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) and must be independently trustworthy before v0.165.0 (Structured Fields inner lists and lists) begins.
+on v0.166.0 (Structured Fields complete bare-item dispatcher) and must be independently trustworthy before v0.168.0 (Structured Fields inner lists and lists) begins.
 
 #### Deliverables
 
@@ -6461,20 +6583,20 @@ on v0.163.0 (Structured Fields strings, tokens, bytes, booleans, dates, and disp
 #### Exit criteria
 
 The Structured Fields parameters contract and all previously implemented relevant behavior have
-reproducible evidence; v0.163.0 (Structured Fields strings, tokens, bytes, booleans, dates, and display strings) still passes; no behavior assigned to v0.165.0 (Structured Fields inner lists and lists) is
+reproducible evidence; v0.166.0 (Structured Fields complete bare-item dispatcher) still passes; no behavior assigned to v0.168.0 (Structured Fields inner lists and lists) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.164.0 implementation stop reached. Run pentest for this exact commit.`
+`0.167.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.165.0 — Structured Fields inner lists and lists
+### v0.168.0 — Structured Fields inner lists and lists
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields inner lists and lists** as the sole primary capability in this stop. It builds
-on v0.164.0 (Structured Fields parameters) and must be independently trustworthy before v0.166.0 (Structured Fields dictionaries) begins.
+on v0.167.0 (Structured Fields parameters) and must be independently trustworthy before v0.169.0 (Structured Fields dictionaries) begins.
 
 #### Deliverables
 
@@ -6500,20 +6622,20 @@ on v0.164.0 (Structured Fields parameters) and must be independently trustworthy
 #### Exit criteria
 
 The Structured Fields inner lists and lists contract and all previously implemented relevant behavior have
-reproducible evidence; v0.164.0 (Structured Fields parameters) still passes; no behavior assigned to v0.166.0 (Structured Fields dictionaries) is
+reproducible evidence; v0.167.0 (Structured Fields parameters) still passes; no behavior assigned to v0.169.0 (Structured Fields dictionaries) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.165.0 implementation stop reached. Run pentest for this exact commit.`
+`0.168.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.166.0 — Structured Fields dictionaries
+### v0.169.0 — Structured Fields dictionaries
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields dictionaries** as the sole primary capability in this stop. It builds
-on v0.165.0 (Structured Fields inner lists and lists) and must be independently trustworthy before v0.167.0 (Structured Fields canonical serialization) begins.
+on v0.168.0 (Structured Fields inner lists and lists) and must be independently trustworthy before v0.170.0 (Structured Fields canonical serialization) begins.
 
 #### Deliverables
 
@@ -6539,20 +6661,20 @@ on v0.165.0 (Structured Fields inner lists and lists) and must be independently 
 #### Exit criteria
 
 The Structured Fields dictionaries contract and all previously implemented relevant behavior have
-reproducible evidence; v0.165.0 (Structured Fields inner lists and lists) still passes; no behavior assigned to v0.167.0 (Structured Fields canonical serialization) is
+reproducible evidence; v0.168.0 (Structured Fields inner lists and lists) still passes; no behavior assigned to v0.170.0 (Structured Fields canonical serialization) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.166.0 implementation stop reached. Run pentest for this exact commit.`
+`0.169.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.167.0 — Structured Fields canonical serialization
+### v0.170.0 — Structured Fields canonical serialization
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields canonical serialization** as the sole primary capability in this stop. It builds
-on v0.166.0 (Structured Fields dictionaries) and must be independently trustworthy before v0.168.0 (Structured Fields incremental parsing and caller-owned storage) begins.
+on v0.169.0 (Structured Fields dictionaries) and must be independently trustworthy before v0.171.0 (Structured Fields incremental parsing and caller-owned storage) begins.
 
 #### Deliverables
 
@@ -6578,20 +6700,20 @@ on v0.166.0 (Structured Fields dictionaries) and must be independently trustwort
 #### Exit criteria
 
 The Structured Fields canonical serialization contract and all previously implemented relevant behavior have
-reproducible evidence; v0.166.0 (Structured Fields dictionaries) still passes; no behavior assigned to v0.168.0 (Structured Fields incremental parsing and caller-owned storage) is
+reproducible evidence; v0.169.0 (Structured Fields dictionaries) still passes; no behavior assigned to v0.171.0 (Structured Fields incremental parsing and caller-owned storage) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.167.0 implementation stop reached. Run pentest for this exact commit.`
+`0.170.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.168.0 — Structured Fields incremental parsing and caller-owned storage
+### v0.171.0 — Structured Fields incremental parsing and caller-owned storage
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields incremental parsing and caller-owned storage** as the sole primary capability in this stop. It builds
-on v0.167.0 (Structured Fields canonical serialization) and must be independently trustworthy before v0.169.0 (Structured Fields malformed-input and complexity limits) begins.
+on v0.170.0 (Structured Fields canonical serialization) and must be independently trustworthy before v0.172.0 (Structured Fields malformed-input and complexity limits) begins.
 
 #### Deliverables
 
@@ -6617,20 +6739,20 @@ on v0.167.0 (Structured Fields canonical serialization) and must be independentl
 #### Exit criteria
 
 The Structured Fields incremental parsing and caller-owned storage contract and all previously implemented relevant behavior have
-reproducible evidence; v0.167.0 (Structured Fields canonical serialization) still passes; no behavior assigned to v0.169.0 (Structured Fields malformed-input and complexity limits) is
+reproducible evidence; v0.170.0 (Structured Fields canonical serialization) still passes; no behavior assigned to v0.172.0 (Structured Fields malformed-input and complexity limits) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.168.0 implementation stop reached. Run pentest for this exact commit.`
+`0.171.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.169.0 — Structured Fields malformed-input and complexity limits
+### v0.172.0 — Structured Fields malformed-input and complexity limits
 
 Status: planned
 
 #### Goal
 
 Deliver **Structured Fields malformed-input and complexity limits** as the sole primary capability in this stop. It builds
-on v0.168.0 (Structured Fields incremental parsing and caller-owned storage) and must be independently trustworthy before v0.170.0 (Priority field semantics) begins.
+on v0.171.0 (Structured Fields incremental parsing and caller-owned storage) and must be independently trustworthy before v0.173.0 (Priority field semantics) begins.
 
 #### Deliverables
 
@@ -6656,20 +6778,20 @@ on v0.168.0 (Structured Fields incremental parsing and caller-owned storage) and
 #### Exit criteria
 
 The Structured Fields malformed-input and complexity limits contract and all previously implemented relevant behavior have
-reproducible evidence; v0.168.0 (Structured Fields incremental parsing and caller-owned storage) still passes; no behavior assigned to v0.170.0 (Priority field semantics) is
+reproducible evidence; v0.171.0 (Structured Fields incremental parsing and caller-owned storage) still passes; no behavior assigned to v0.173.0 (Priority field semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.169.0 implementation stop reached. Run pentest for this exact commit.`
+`0.172.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.170.0 — Priority field semantics
+### v0.173.0 — Priority field semantics
 
 Status: planned
 
 #### Goal
 
 Deliver **Priority field semantics** as the sole primary capability in this stop. It builds
-on v0.169.0 (Structured Fields malformed-input and complexity limits) and must be independently trustworthy before v0.171.0 (Priority scheduling hints and fairness) begins.
+on v0.172.0 (Structured Fields malformed-input and complexity limits) and must be independently trustworthy before v0.174.0 (SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration) begins.
 
 #### Deliverables
 
@@ -6695,20 +6817,61 @@ on v0.169.0 (Structured Fields malformed-input and complexity limits) and must b
 #### Exit criteria
 
 The Priority field semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.169.0 (Structured Fields malformed-input and complexity limits) still passes; no behavior assigned to v0.171.0 (Priority scheduling hints and fairness) is
+reproducible evidence; v0.172.0 (Structured Fields malformed-input and complexity limits) still passes; no behavior assigned to v0.174.0 (SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.170.0 implementation stop reached. Run pentest for this exact commit.`
+`0.173.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.171.0 — Priority scheduling hints and fairness
+### v0.174.0 — SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration
+
+Status: planned
+
+#### Goal
+
+Deliver **SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration** as the sole primary capability in this stop. It builds
+on v0.173.0 (Priority field semantics) and must be independently trustworthy before v0.175.0 (Priority scheduling hints and fairness) begins.
+
+#### Deliverables
+
+- Acceptance contract: Apply SETTINGS_NO_RFC7540_PRIORITIES only when it appears in the peer's initial SETTINGS frame, reject later or contradictory occurrences with the RFC-defined connection error, and bind the negotiated mode to generation-stable connection state; in legacy mode retain RFC 7540 dependency signals, while in no-legacy mode ignore prohibited legacy priority signals and use RFC 9218 Priority inputs without treating advisory priority as protocol correctness; define the admission rule for later PRIORITY_UPDATE support without claiming that frame capability here.
+- Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
+- Update paragraph-addressable requirements, role/applicability decisions,
+  SHOULD dispositions, deviations, and verified/held errata for
+  RFC 3986, RFC 8441, RFC 9110 including Via, Max-Forwards, and TE, RFC 9111, RFC 9112, RFC 9113, RFC 9218, RFC 9651, and RFC 9931; RFC 7239 Forwarded transformation remains out of scope.
+- Define exact progress, capacity, cancellation, ownership, publication,
+  commit/rollback, and typed error behavior wherever this outcome changes them.
+- Update threat model, controls, API docs, release notes, traceability, resource
+  measurements, and relevant conformance corpora.
+
+#### Verification
+
+- Add initial-versus-later SETTINGS vectors, duplicate/contradictory values,
+  legacy/no-legacy mode transitions, ignored legacy signals, and bounded
+  priority-input stateful traces.
+- No test may require a later-version capability; previously established resource ceilings remain release-blocking.
+- Prove failures do not publish partial state, mutate unrelated state, exceed
+  active work/output limits, or require hidden allocation.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration contract and all previously implemented relevant behavior have
+reproducible evidence; v0.173.0 (Priority field semantics) still passes; no behavior assigned to v0.175.0 (Priority scheduling hints and fairness) is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.174.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.175.0 — Priority scheduling hints and fairness
 
 Status: planned
 
 #### Goal
 
 Deliver **Priority scheduling hints and fairness** as the sole primary capability in this stop. It builds
-on v0.170.0 (Priority field semantics) and must be independently trustworthy before v0.172.0 (Priority intermediary behavior) begins.
+on v0.174.0 (SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration) and must be independently trustworthy before v0.176.0 (Priority intermediary behavior) begins.
 
 #### Deliverables
 
@@ -6734,20 +6897,20 @@ on v0.170.0 (Priority field semantics) and must be independently trustworthy bef
 #### Exit criteria
 
 The Priority scheduling hints and fairness contract and all previously implemented relevant behavior have
-reproducible evidence; v0.170.0 (Priority field semantics) still passes; no behavior assigned to v0.172.0 (Priority intermediary behavior) is
+reproducible evidence; v0.174.0 (SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration) still passes; no behavior assigned to v0.176.0 (Priority intermediary behavior) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.171.0 implementation stop reached. Run pentest for this exact commit.`
+`0.175.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.172.0 — Priority intermediary behavior
+### v0.176.0 — Priority intermediary behavior
 
 Status: planned
 
 #### Goal
 
 Deliver **Priority intermediary behavior** as the sole primary capability in this stop. It builds
-on v0.171.0 (Priority scheduling hints and fairness) and must be independently trustworthy before v0.173.0 (PRIORITY_UPDATE frame support) begins.
+on v0.175.0 (Priority scheduling hints and fairness) and must be independently trustworthy before v0.177.0 (PRIORITY_UPDATE frame support) begins.
 
 #### Deliverables
 
@@ -6773,20 +6936,20 @@ on v0.171.0 (Priority scheduling hints and fairness) and must be independently t
 #### Exit criteria
 
 The Priority intermediary behavior contract and all previously implemented relevant behavior have
-reproducible evidence; v0.171.0 (Priority scheduling hints and fairness) still passes; no behavior assigned to v0.173.0 (PRIORITY_UPDATE frame support) is
+reproducible evidence; v0.175.0 (Priority scheduling hints and fairness) still passes; no behavior assigned to v0.177.0 (PRIORITY_UPDATE frame support) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.172.0 implementation stop reached. Run pentest for this exact commit.`
+`0.176.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.173.0 — PRIORITY_UPDATE frame support
+### v0.177.0 — PRIORITY_UPDATE frame support
 
 Status: planned
 
 #### Goal
 
 Deliver **PRIORITY_UPDATE frame support** as the sole primary capability in this stop. It builds
-on v0.172.0 (Priority intermediary behavior) and must be independently trustworthy before v0.174.0 (Priority update flood budgeting) begins.
+on v0.176.0 (Priority intermediary behavior) and must be independently trustworthy before v0.178.0 (Priority update flood budgeting) begins.
 
 #### Deliverables
 
@@ -6812,20 +6975,20 @@ on v0.172.0 (Priority intermediary behavior) and must be independently trustwort
 #### Exit criteria
 
 The PRIORITY_UPDATE frame support contract and all previously implemented relevant behavior have
-reproducible evidence; v0.172.0 (Priority intermediary behavior) still passes; no behavior assigned to v0.174.0 (Priority update flood budgeting) is
+reproducible evidence; v0.176.0 (Priority intermediary behavior) still passes; no behavior assigned to v0.178.0 (Priority update flood budgeting) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.173.0 implementation stop reached. Run pentest for this exact commit.`
+`0.177.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.174.0 — Priority update flood budgeting
+### v0.178.0 — Priority update flood budgeting
 
 Status: planned
 
 #### Goal
 
 Deliver **Priority update flood budgeting** as the sole primary capability in this stop. It builds
-on v0.173.0 (PRIORITY_UPDATE frame support) and must be independently trustworthy before v0.175.0 (Client request builder and target forms) begins.
+on v0.177.0 (PRIORITY_UPDATE frame support) and must be independently trustworthy before v0.179.0 (Client request builder and target forms) begins.
 
 #### Deliverables
 
@@ -6851,20 +7014,20 @@ on v0.173.0 (PRIORITY_UPDATE frame support) and must be independently trustworth
 #### Exit criteria
 
 The Priority update flood budgeting contract and all previously implemented relevant behavior have
-reproducible evidence; v0.173.0 (PRIORITY_UPDATE frame support) still passes; no behavior assigned to v0.175.0 (Client request builder and target forms) is
+reproducible evidence; v0.177.0 (PRIORITY_UPDATE frame support) still passes; no behavior assigned to v0.179.0 (Client request builder and target forms) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.174.0 implementation stop reached. Run pentest for this exact commit.`
+`0.178.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.175.0 — Client request builder and target forms
+### v0.179.0 — Client request builder and target forms
 
 Status: planned
 
 #### Goal
 
 Deliver **Client request builder and target forms** as the sole primary capability in this stop. It builds
-on v0.174.0 (Priority update flood budgeting) and must be independently trustworthy before v0.176.0 (Client correlation, cancellation, and retry tokens) begins.
+on v0.178.0 (Priority update flood budgeting) and must be independently trustworthy before v0.180.0 (Client correlation, cancellation, and retry tokens) begins.
 
 #### Deliverables
 
@@ -6890,20 +7053,20 @@ on v0.174.0 (Priority update flood budgeting) and must be independently trustwor
 #### Exit criteria
 
 The Client request builder and target forms contract and all previously implemented relevant behavior have
-reproducible evidence; v0.174.0 (Priority update flood budgeting) still passes; no behavior assigned to v0.176.0 (Client correlation, cancellation, and retry tokens) is
+reproducible evidence; v0.178.0 (Priority update flood budgeting) still passes; no behavior assigned to v0.180.0 (Client correlation, cancellation, and retry tokens) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.175.0 implementation stop reached. Run pentest for this exact commit.`
+`0.179.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.176.0 — Client correlation, cancellation, and retry tokens
+### v0.180.0 — Client correlation, cancellation, and retry tokens
 
 Status: planned
 
 #### Goal
 
 Deliver **Client correlation, cancellation, and retry tokens** as the sole primary capability in this stop. It builds
-on v0.175.0 (Client request builder and target forms) and must be independently trustworthy before v0.177.0 (Retry safety, idempotency, and body-replayability contract) begins.
+on v0.179.0 (Client request builder and target forms) and must be independently trustworthy before v0.181.0 (Retry safety, idempotency, and body-replayability contract) begins.
 
 #### Deliverables
 
@@ -6929,24 +7092,24 @@ on v0.175.0 (Client request builder and target forms) and must be independently 
 #### Exit criteria
 
 The Client correlation, cancellation, and retry tokens contract and all previously implemented relevant behavior have
-reproducible evidence; v0.175.0 (Client request builder and target forms) still passes; no behavior assigned to v0.177.0 (Retry safety, idempotency, and body-replayability contract) is
+reproducible evidence; v0.179.0 (Client request builder and target forms) still passes; no behavior assigned to v0.181.0 (Retry safety, idempotency, and body-replayability contract) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.176.0 implementation stop reached. Run pentest for this exact commit.`
+`0.180.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.177.0 — Retry safety, idempotency, and body-replayability contract
+### v0.181.0 — Retry safety, idempotency, and body-replayability contract
 
 Status: planned
 
 #### Goal
 
 Deliver **Retry safety, idempotency, and body-replayability contract** as the sole primary capability in this stop. It builds
-on v0.176.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.178.0 (Origin-server role API) begins.
+on v0.180.0 (Client correlation, cancellation, and retry tokens) and must be independently trustworthy before v0.182.0 (Origin-server role API) begins.
 
 #### Deliverables
 
-- Acceptance contract: Define the Retry safety, idempotency, and body-replayability contract state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Classify method safety and idempotency independently from explicit caller retry authorization; require a generation-checked replayable-body handle and distinguish zero transmission, partial transmission, and possibly-unprocessed outcomes; never infer permission from GOAWAY, 421, reset, or connection loss and never automatically retry an unsafe request without explicit authorization and reproducible body bytes.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6968,20 +7131,20 @@ on v0.176.0 (Client correlation, cancellation, and retry tokens) and must be ind
 #### Exit criteria
 
 The Retry safety, idempotency, and body-replayability contract contract and all previously implemented relevant behavior have
-reproducible evidence; v0.176.0 (Client correlation, cancellation, and retry tokens) still passes; no behavior assigned to v0.178.0 (Origin-server role API) is
+reproducible evidence; v0.180.0 (Client correlation, cancellation, and retry tokens) still passes; no behavior assigned to v0.182.0 (Origin-server role API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.177.0 implementation stop reached. Run pentest for this exact commit.`
+`0.181.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.178.0 — Origin-server role API
+### v0.182.0 — Origin-server role API
 
 Status: planned
 
 #### Goal
 
 Deliver **Origin-server role API** as the sole primary capability in this stop. It builds
-on v0.177.0 (Retry safety, idempotency, and body-replayability contract) and must be independently trustworthy before v0.179.0 (Forward-proxy role API) begins.
+on v0.181.0 (Retry safety, idempotency, and body-replayability contract) and must be independently trustworthy before v0.183.0 (Forward-proxy role API) begins.
 
 #### Deliverables
 
@@ -7007,20 +7170,20 @@ on v0.177.0 (Retry safety, idempotency, and body-replayability contract) and mus
 #### Exit criteria
 
 The Origin-server role API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.177.0 (Retry safety, idempotency, and body-replayability contract) still passes; no behavior assigned to v0.179.0 (Forward-proxy role API) is
+reproducible evidence; v0.181.0 (Retry safety, idempotency, and body-replayability contract) still passes; no behavior assigned to v0.183.0 (Forward-proxy role API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.178.0 implementation stop reached. Run pentest for this exact commit.`
+`0.182.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.179.0 — Forward-proxy role API
+### v0.183.0 — Forward-proxy role API
 
 Status: planned
 
 #### Goal
 
 Deliver **Forward-proxy role API** as the sole primary capability in this stop. It builds
-on v0.178.0 (Origin-server role API) and must be independently trustworthy before v0.180.0 (Reverse-proxy and gateway role API) begins.
+on v0.182.0 (Origin-server role API) and must be independently trustworthy before v0.184.0 (Reverse-proxy and gateway role API) begins.
 
 #### Deliverables
 
@@ -7046,20 +7209,20 @@ on v0.178.0 (Origin-server role API) and must be independently trustworthy befor
 #### Exit criteria
 
 The Forward-proxy role API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.178.0 (Origin-server role API) still passes; no behavior assigned to v0.180.0 (Reverse-proxy and gateway role API) is
+reproducible evidence; v0.182.0 (Origin-server role API) still passes; no behavior assigned to v0.184.0 (Reverse-proxy and gateway role API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.179.0 implementation stop reached. Run pentest for this exact commit.`
+`0.183.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.180.0 — Reverse-proxy and gateway role API
+### v0.184.0 — Reverse-proxy and gateway role API
 
 Status: planned
 
 #### Goal
 
 Deliver **Reverse-proxy and gateway role API** as the sole primary capability in this stop. It builds
-on v0.179.0 (Forward-proxy role API) and must be independently trustworthy before v0.181.0 (Tunnel lifecycle and half-close semantics) begins.
+on v0.183.0 (Forward-proxy role API) and must be independently trustworthy before v0.185.0 (Tunnel lifecycle and half-close semantics) begins.
 
 #### Deliverables
 
@@ -7085,20 +7248,20 @@ on v0.179.0 (Forward-proxy role API) and must be independently trustworthy befor
 #### Exit criteria
 
 The Reverse-proxy and gateway role API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.179.0 (Forward-proxy role API) still passes; no behavior assigned to v0.181.0 (Tunnel lifecycle and half-close semantics) is
+reproducible evidence; v0.183.0 (Forward-proxy role API) still passes; no behavior assigned to v0.185.0 (Tunnel lifecycle and half-close semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.180.0 implementation stop reached. Run pentest for this exact commit.`
+`0.184.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.181.0 — Tunnel lifecycle and half-close semantics
+### v0.185.0 — Tunnel lifecycle and half-close semantics
 
 Status: planned
 
 #### Goal
 
 Deliver **Tunnel lifecycle and half-close semantics** as the sole primary capability in this stop. It builds
-on v0.180.0 (Reverse-proxy and gateway role API) and must be independently trustworthy before v0.182.0 (Upgrade transformation boundary) begins.
+on v0.184.0 (Reverse-proxy and gateway role API) and must be independently trustworthy before v0.186.0 (Upgrade transformation boundary) begins.
 
 #### Deliverables
 
@@ -7124,20 +7287,20 @@ on v0.180.0 (Reverse-proxy and gateway role API) and must be independently trust
 #### Exit criteria
 
 The Tunnel lifecycle and half-close semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.180.0 (Reverse-proxy and gateway role API) still passes; no behavior assigned to v0.182.0 (Upgrade transformation boundary) is
+reproducible evidence; v0.184.0 (Reverse-proxy and gateway role API) still passes; no behavior assigned to v0.186.0 (Upgrade transformation boundary) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.181.0 implementation stop reached. Run pentest for this exact commit.`
+`0.185.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.182.0 — Upgrade transformation boundary
+### v0.186.0 — Upgrade transformation boundary
 
 Status: planned
 
 #### Goal
 
 Deliver **Upgrade transformation boundary** as the sole primary capability in this stop. It builds
-on v0.181.0 (Tunnel lifecycle and half-close semantics) and must be independently trustworthy before v0.183.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) begins.
+on v0.185.0 (Tunnel lifecycle and half-close semantics) and must be independently trustworthy before v0.187.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) begins.
 
 #### Deliverables
 
@@ -7163,20 +7326,20 @@ on v0.181.0 (Tunnel lifecycle and half-close semantics) and must be independentl
 #### Exit criteria
 
 The Upgrade transformation boundary contract and all previously implemented relevant behavior have
-reproducible evidence; v0.181.0 (Tunnel lifecycle and half-close semantics) still passes; no behavior assigned to v0.183.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) is
+reproducible evidence; v0.185.0 (Tunnel lifecycle and half-close semantics) still passes; no behavior assigned to v0.187.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.182.0 implementation stop reached. Run pentest for this exact commit.`
+`0.186.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.183.0 — Exact CONNECT, Upgrade, and tunnel byte-handoff ownership
+### v0.187.0 — Exact CONNECT, Upgrade, and tunnel byte-handoff ownership
 
 Status: planned
 
 #### Goal
 
 Deliver **Exact CONNECT, Upgrade, and tunnel byte-handoff ownership** as the sole primary capability in this stop. It builds
-on v0.182.0 (Upgrade transformation boundary) and must be independently trustworthy before v0.184.0 (GOAWAY, 421, and retry coordination) begins.
+on v0.186.0 (Upgrade transformation boundary) and must be independently trustworthy before v0.188.0 (GOAWAY, 421, and retry coordination) begins.
 
 #### Deliverables
 
@@ -7202,24 +7365,24 @@ on v0.182.0 (Upgrade transformation boundary) and must be independently trustwor
 #### Exit criteria
 
 The Exact CONNECT, Upgrade, and tunnel byte-handoff ownership contract and all previously implemented relevant behavior have
-reproducible evidence; v0.182.0 (Upgrade transformation boundary) still passes; no behavior assigned to v0.184.0 (GOAWAY, 421, and retry coordination) is
+reproducible evidence; v0.186.0 (Upgrade transformation boundary) still passes; no behavior assigned to v0.188.0 (GOAWAY, 421, and retry coordination) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.183.0 implementation stop reached. Run pentest for this exact commit.`
+`0.187.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.184.0 — GOAWAY, 421, and retry coordination
+### v0.188.0 — GOAWAY, 421, and retry coordination
 
 Status: planned
 
 #### Goal
 
 Deliver **GOAWAY, 421, and retry coordination** as the sole primary capability in this stop. It builds
-on v0.183.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) and must be independently trustworthy before v0.185.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) begins.
+on v0.187.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) and must be independently trustworthy before v0.189.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) begins.
 
 #### Deliverables
 
-- Acceptance contract: Define the GOAWAY, 421, and retry coordination state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Track GOAWAY last-stream protocol processing status separately from application replay permission; correlate each affected request exactly once; treat 421 as an origin-authorization failure and permit its retry only when the retry contract authorizes it and a new non-coalesced connection is authenticated for that origin.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7241,24 +7404,24 @@ on v0.183.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) and must
 #### Exit criteria
 
 The GOAWAY, 421, and retry coordination contract and all previously implemented relevant behavior have
-reproducible evidence; v0.183.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) still passes; no behavior assigned to v0.185.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) is
+reproducible evidence; v0.187.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) still passes; no behavior assigned to v0.189.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.184.0 implementation stop reached. Run pentest for this exact commit.`
+`0.188.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.185.0 — Authenticated origin authorization and HTTP/2 coalescing metadata
+### v0.189.0 — Authenticated origin authorization and HTTP/2 coalescing metadata
 
 Status: planned
 
 #### Goal
 
 Deliver **Authenticated origin authorization and HTTP/2 coalescing metadata** as the sole primary capability in this stop. It builds
-on v0.184.0 (GOAWAY, 421, and retry coordination) and must be independently trustworthy before v0.186.0 (Fixed-capacity caller-storage public API) begins.
+on v0.188.0 (GOAWAY, 421, and retry coordination) and must be independently trustworthy before v0.190.0 (Fixed-capacity caller-storage public API) begins.
 
 #### Deliverables
 
-- Acceptance contract: Define the Authenticated origin authorization and HTTP/2 coalescing metadata state graph, invariants, exact typed errors, publication/commit point, caller-capacity failure, cancellation aftermath, and bounded work; test every transition without requiring later behavior.
+- Acceptance contract: Bind coalescing authorization to authenticated SNI, certificate identity, scheme, port, remote endpoint, tunnel authority, end origin, validation generation, and connection-specific policy inputs; invalidate authorization when any generation or authenticated input changes and expose a typed non-coalesced route requirement after 421.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7280,20 +7443,20 @@ on v0.184.0 (GOAWAY, 421, and retry coordination) and must be independently trus
 #### Exit criteria
 
 The Authenticated origin authorization and HTTP/2 coalescing metadata contract and all previously implemented relevant behavior have
-reproducible evidence; v0.184.0 (GOAWAY, 421, and retry coordination) still passes; no behavior assigned to v0.186.0 (Fixed-capacity caller-storage public API) is
+reproducible evidence; v0.188.0 (GOAWAY, 421, and retry coordination) still passes; no behavior assigned to v0.190.0 (Fixed-capacity caller-storage public API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.185.0 implementation stop reached. Run pentest for this exact commit.`
+`0.189.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.186.0 — Fixed-capacity caller-storage public API
+### v0.190.0 — Fixed-capacity caller-storage public API
 
 Status: planned
 
 #### Goal
 
 Deliver **Fixed-capacity caller-storage public API** as the sole primary capability in this stop. It builds
-on v0.185.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) and must be independently trustworthy before v0.187.0 (Optional alloc-backed convenience API) begins.
+on v0.189.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) and must be independently trustworthy before v0.191.0 (Optional alloc-backed convenience API) begins.
 
 #### Deliverables
 
@@ -7319,20 +7482,20 @@ on v0.185.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 #### Exit criteria
 
 The Fixed-capacity caller-storage public API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.185.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) still passes; no behavior assigned to v0.187.0 (Optional alloc-backed convenience API) is
+reproducible evidence; v0.189.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) still passes; no behavior assigned to v0.191.0 (Optional alloc-backed convenience API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.186.0 implementation stop reached. Run pentest for this exact commit.`
+`0.190.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.187.0 — Optional alloc-backed convenience API
+### v0.191.0 — Optional alloc-backed convenience API
 
 Status: planned
 
 #### Goal
 
 Deliver **Optional alloc-backed convenience API** as the sole primary capability in this stop. It builds
-on v0.186.0 (Fixed-capacity caller-storage public API) and must be independently trustworthy before v0.188.0 (Stable diagnostics and security events) begins.
+on v0.190.0 (Fixed-capacity caller-storage public API) and must be independently trustworthy before v0.192.0 (Stable diagnostics and security events) begins.
 
 #### Deliverables
 
@@ -7358,20 +7521,20 @@ on v0.186.0 (Fixed-capacity caller-storage public API) and must be independently
 #### Exit criteria
 
 The Optional alloc-backed convenience API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.186.0 (Fixed-capacity caller-storage public API) still passes; no behavior assigned to v0.188.0 (Stable diagnostics and security events) is
+reproducible evidence; v0.190.0 (Fixed-capacity caller-storage public API) still passes; no behavior assigned to v0.192.0 (Stable diagnostics and security events) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.187.0 implementation stop reached. Run pentest for this exact commit.`
+`0.191.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.188.0 — Stable diagnostics and security events
+### v0.192.0 — Stable diagnostics and security events
 
 Status: planned
 
 #### Goal
 
 Deliver **Stable diagnostics and security events** as the sole primary capability in this stop. It builds
-on v0.187.0 (Optional alloc-backed convenience API) and must be independently trustworthy before v0.189.0 (Feature and dependency-policy surface) begins.
+on v0.191.0 (Optional alloc-backed convenience API) and must be independently trustworthy before v0.193.0 (Feature and dependency-policy surface) begins.
 
 #### Deliverables
 
@@ -7397,20 +7560,20 @@ on v0.187.0 (Optional alloc-backed convenience API) and must be independently tr
 #### Exit criteria
 
 The Stable diagnostics and security events contract and all previously implemented relevant behavior have
-reproducible evidence; v0.187.0 (Optional alloc-backed convenience API) still passes; no behavior assigned to v0.189.0 (Feature and dependency-policy surface) is
+reproducible evidence; v0.191.0 (Optional alloc-backed convenience API) still passes; no behavior assigned to v0.193.0 (Feature and dependency-policy surface) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.188.0 implementation stop reached. Run pentest for this exact commit.`
+`0.192.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.189.0 — Feature and dependency-policy surface
+### v0.193.0 — Feature and dependency-policy surface
 
 Status: planned
 
 #### Goal
 
 Deliver **Feature and dependency-policy surface** as the sole primary capability in this stop. It builds
-on v0.188.0 (Stable diagnostics and security events) and must be independently trustworthy before v0.190.0 (Multi-implementation interoperability) begins.
+on v0.192.0 (Stable diagnostics and security events) and must be independently trustworthy before v0.194.0 (Multi-implementation interoperability) begins.
 
 #### Deliverables
 
@@ -7436,20 +7599,20 @@ on v0.188.0 (Stable diagnostics and security events) and must be independently t
 #### Exit criteria
 
 The Feature and dependency-policy surface contract and all previously implemented relevant behavior have
-reproducible evidence; v0.188.0 (Stable diagnostics and security events) still passes; no behavior assigned to v0.190.0 (Multi-implementation interoperability) is
+reproducible evidence; v0.192.0 (Stable diagnostics and security events) still passes; no behavior assigned to v0.194.0 (Multi-implementation interoperability) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.189.0 implementation stop reached. Run pentest for this exact commit.`
+`0.193.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.190.0 — Multi-implementation interoperability
+### v0.194.0 — Multi-implementation interoperability
 
 Status: planned
 
 #### Goal
 
 Deliver **Multi-implementation interoperability** as the sole primary capability in this stop. It builds
-on v0.189.0 (Feature and dependency-policy surface) and must be independently trustworthy before v0.191.0 (Adversarial and stateful fuzz campaign) begins.
+on v0.193.0 (Feature and dependency-policy surface) and must be independently trustworthy before v0.195.0 (Adversarial and stateful fuzz campaign) begins.
 
 #### Deliverables
 
@@ -7475,20 +7638,20 @@ on v0.189.0 (Feature and dependency-policy surface) and must be independently tr
 #### Exit criteria
 
 The Multi-implementation interoperability contract and all previously implemented relevant behavior have
-reproducible evidence; v0.189.0 (Feature and dependency-policy surface) still passes; no behavior assigned to v0.191.0 (Adversarial and stateful fuzz campaign) is
+reproducible evidence; v0.193.0 (Feature and dependency-policy surface) still passes; no behavior assigned to v0.195.0 (Adversarial and stateful fuzz campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.190.0 implementation stop reached. Run pentest for this exact commit.`
+`0.194.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.191.0 — Adversarial and stateful fuzz campaign
+### v0.195.0 — Adversarial and stateful fuzz campaign
 
 Status: planned
 
 #### Goal
 
 Deliver **Adversarial and stateful fuzz campaign** as the sole primary capability in this stop. It builds
-on v0.190.0 (Multi-implementation interoperability) and must be independently trustworthy before v0.192.0 (Compile-fail state and lifetime tests) begins.
+on v0.194.0 (Multi-implementation interoperability) and must be independently trustworthy before v0.196.0 (Compile-fail state and lifetime tests) begins.
 
 #### Deliverables
 
@@ -7514,20 +7677,20 @@ on v0.190.0 (Multi-implementation interoperability) and must be independently tr
 #### Exit criteria
 
 The Adversarial and stateful fuzz campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.190.0 (Multi-implementation interoperability) still passes; no behavior assigned to v0.192.0 (Compile-fail state and lifetime tests) is
+reproducible evidence; v0.194.0 (Multi-implementation interoperability) still passes; no behavior assigned to v0.196.0 (Compile-fail state and lifetime tests) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.191.0 implementation stop reached. Run pentest for this exact commit.`
+`0.195.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.192.0 — Compile-fail state and lifetime tests
+### v0.196.0 — Compile-fail state and lifetime tests
 
 Status: planned
 
 #### Goal
 
 Deliver **Compile-fail state and lifetime tests** as the sole primary capability in this stop. It builds
-on v0.191.0 (Adversarial and stateful fuzz campaign) and must be independently trustworthy before v0.193.0 (Long-running soak and exhaustion campaign) begins.
+on v0.195.0 (Adversarial and stateful fuzz campaign) and must be independently trustworthy before v0.197.0 (Long-running soak and exhaustion campaign) begins.
 
 #### Deliverables
 
@@ -7553,20 +7716,20 @@ on v0.191.0 (Adversarial and stateful fuzz campaign) and must be independently t
 #### Exit criteria
 
 The Compile-fail state and lifetime tests contract and all previously implemented relevant behavior have
-reproducible evidence; v0.191.0 (Adversarial and stateful fuzz campaign) still passes; no behavior assigned to v0.193.0 (Long-running soak and exhaustion campaign) is
+reproducible evidence; v0.195.0 (Adversarial and stateful fuzz campaign) still passes; no behavior assigned to v0.197.0 (Long-running soak and exhaustion campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.192.0 implementation stop reached. Run pentest for this exact commit.`
+`0.196.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.193.0 — Long-running soak and exhaustion campaign
+### v0.197.0 — Long-running soak and exhaustion campaign
 
 Status: planned
 
 #### Goal
 
 Deliver **Long-running soak and exhaustion campaign** as the sole primary capability in this stop. It builds
-on v0.192.0 (Compile-fail state and lifetime tests) and must be independently trustworthy before v0.194.0 (Role and API conformance audit and pentest) begins.
+on v0.196.0 (Compile-fail state and lifetime tests) and must be independently trustworthy before v0.198.0 (Role and API conformance audit and pentest) begins.
 
 #### Deliverables
 
@@ -7592,20 +7755,20 @@ on v0.192.0 (Compile-fail state and lifetime tests) and must be independently tr
 #### Exit criteria
 
 The Long-running soak and exhaustion campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.192.0 (Compile-fail state and lifetime tests) still passes; no behavior assigned to v0.194.0 (Role and API conformance audit and pentest) is
+reproducible evidence; v0.196.0 (Compile-fail state and lifetime tests) still passes; no behavior assigned to v0.198.0 (Role and API conformance audit and pentest) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.193.0 implementation stop reached. Run pentest for this exact commit.`
+`0.197.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.194.0 — Role and API conformance audit and pentest
+### v0.198.0 — Role and API conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
 Deliver **Role and API conformance audit and pentest** as the sole primary capability in this stop. It builds
-on v0.193.0 (Long-running soak and exhaustion campaign) and must be independently trustworthy before v0.195.0 (Standard blocking-stream adapter) begins.
+on v0.197.0 (Long-running soak and exhaustion campaign) and must be independently trustworthy before v0.199.0 (Standard blocking-stream adapter) begins.
 
 #### Deliverables
 
@@ -7631,24 +7794,24 @@ on v0.193.0 (Long-running soak and exhaustion campaign) and must be independentl
 #### Exit criteria
 
 The Role and API conformance audit and pentest contract and all previously implemented relevant behavior have
-reproducible evidence; v0.193.0 (Long-running soak and exhaustion campaign) still passes; no behavior assigned to v0.195.0 (Standard blocking-stream adapter) is
+reproducible evidence; v0.197.0 (Long-running soak and exhaustion campaign) still passes; no behavior assigned to v0.199.0 (Standard blocking-stream adapter) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.194.0 implementation stop reached. Run pentest for this exact commit.`
+`0.198.0 implementation stop reached. Run pentest for this exact commit.`
 
 ## Phase 5 — OS, Aesynx readiness, and 1.0 evidence
 
 Phase contract: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 
-### v0.195.0 — Standard blocking-stream adapter
+### v0.199.0 — Standard blocking-stream adapter
 
 Status: planned
 
 #### Goal
 
 Deliver **Standard blocking-stream adapter** as the sole primary capability in this stop. It builds
-on v0.194.0 (Role and API conformance audit and pentest) and must be independently trustworthy before v0.196.0 (Standard nonblocking-stream adapter) begins.
+on v0.198.0 (Role and API conformance audit and pentest) and must be independently trustworthy before v0.200.0 (Standard nonblocking-stream adapter) begins.
 
 #### Deliverables
 
@@ -7674,20 +7837,20 @@ on v0.194.0 (Role and API conformance audit and pentest) and must be independent
 #### Exit criteria
 
 The Standard blocking-stream adapter contract and all previously implemented relevant behavior have
-reproducible evidence; v0.194.0 (Role and API conformance audit and pentest) still passes; no behavior assigned to v0.196.0 (Standard nonblocking-stream adapter) is
+reproducible evidence; v0.198.0 (Role and API conformance audit and pentest) still passes; no behavior assigned to v0.200.0 (Standard nonblocking-stream adapter) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.195.0 implementation stop reached. Run pentest for this exact commit.`
+`0.199.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.196.0 — Standard nonblocking-stream adapter
+### v0.200.0 — Standard nonblocking-stream adapter
 
 Status: planned
 
 #### Goal
 
 Deliver **Standard nonblocking-stream adapter** as the sole primary capability in this stop. It builds
-on v0.195.0 (Standard blocking-stream adapter) and must be independently trustworthy before v0.197.0 (Brynja TLS provider contract and admission review) begins.
+on v0.199.0 (Standard blocking-stream adapter) and must be independently trustworthy before v0.201.0 (Brynja TLS provider contract and admission review) begins.
 
 #### Deliverables
 
@@ -7713,20 +7876,20 @@ on v0.195.0 (Standard blocking-stream adapter) and must be independently trustwo
 #### Exit criteria
 
 The Standard nonblocking-stream adapter contract and all previously implemented relevant behavior have
-reproducible evidence; v0.195.0 (Standard blocking-stream adapter) still passes; no behavior assigned to v0.197.0 (Brynja TLS provider contract and admission review) is
+reproducible evidence; v0.199.0 (Standard blocking-stream adapter) still passes; no behavior assigned to v0.201.0 (Brynja TLS provider contract and admission review) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.196.0 implementation stop reached. Run pentest for this exact commit.`
+`0.200.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.197.0 — Brynja TLS provider contract and admission review
+### v0.201.0 — Brynja TLS provider contract and admission review
 
 Status: planned
 
 #### Goal
 
 Deliver **Brynja TLS provider contract and admission review** as the sole primary capability in this stop. It builds
-on v0.196.0 (Standard nonblocking-stream adapter) and must be independently trustworthy before v0.198.0 (Separate vef-brynja adapter crate) begins.
+on v0.200.0 (Standard nonblocking-stream adapter) and must be independently trustworthy before v0.202.0 (Separate vef-brynja adapter crate) begins.
 
 #### Deliverables
 
@@ -7752,20 +7915,20 @@ on v0.196.0 (Standard nonblocking-stream adapter) and must be independently trus
 #### Exit criteria
 
 The Brynja TLS provider contract and admission review contract and all previously implemented relevant behavior have
-reproducible evidence; v0.196.0 (Standard nonblocking-stream adapter) still passes; no behavior assigned to v0.198.0 (Separate vef-brynja adapter crate) is
+reproducible evidence; v0.200.0 (Standard nonblocking-stream adapter) still passes; no behavior assigned to v0.202.0 (Separate vef-brynja adapter crate) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.197.0 implementation stop reached. Run pentest for this exact commit.`
+`0.201.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.198.0 — Separate vef-brynja adapter crate
+### v0.202.0 — Separate vef-brynja adapter crate
 
 Status: planned
 
 #### Goal
 
 Deliver **Separate vef-brynja adapter crate** as the sole primary capability in this stop. It builds
-on v0.197.0 (Brynja TLS provider contract and admission review) and must be independently trustworthy before v0.199.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) begins.
+on v0.201.0 (Brynja TLS provider contract and admission review) and must be independently trustworthy before v0.203.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) begins.
 
 #### Deliverables
 
@@ -7791,20 +7954,20 @@ on v0.197.0 (Brynja TLS provider contract and admission review) and must be inde
 #### Exit criteria
 
 The Separate vef-brynja adapter crate contract and all previously implemented relevant behavior have
-reproducible evidence; v0.197.0 (Brynja TLS provider contract and admission review) still passes; no behavior assigned to v0.199.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) is
+reproducible evidence; v0.201.0 (Brynja TLS provider contract and admission review) still passes; no behavior assigned to v0.203.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.198.0 implementation stop reached. Run pentest for this exact commit.`
+`0.202.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.199.0 — HTTP/2 TLS admission prerequisites and authenticated metadata
+### v0.203.0 — HTTP/2 TLS admission prerequisites and authenticated metadata
 
 Status: planned
 
 #### Goal
 
 Deliver **HTTP/2 TLS admission prerequisites and authenticated metadata** as the sole primary capability in this stop. It builds
-on v0.198.0 (Separate vef-brynja adapter crate) and must be independently trustworthy before v0.200.0 (TLS transport termination, resumption, alert, and EOF mapping) begins.
+on v0.202.0 (Separate vef-brynja adapter crate) and must be independently trustworthy before v0.204.0 (TLS transport termination, resumption, alert, and EOF mapping) begins.
 
 #### Deliverables
 
@@ -7831,20 +7994,20 @@ on v0.198.0 (Separate vef-brynja adapter crate) and must be independently trustw
 #### Exit criteria
 
 The HTTP/2 TLS admission prerequisites and authenticated metadata contract and all previously implemented relevant behavior have
-reproducible evidence; v0.198.0 (Separate vef-brynja adapter crate) still passes; no behavior assigned to v0.200.0 (TLS transport termination, resumption, alert, and EOF mapping) is
+reproducible evidence; v0.202.0 (Separate vef-brynja adapter crate) still passes; no behavior assigned to v0.204.0 (TLS transport termination, resumption, alert, and EOF mapping) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.199.0 implementation stop reached. Run pentest for this exact commit.`
+`0.203.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.200.0 — TLS transport termination, resumption, alert, and EOF mapping
+### v0.204.0 — TLS transport termination, resumption, alert, and EOF mapping
 
 Status: planned
 
 #### Goal
 
 Deliver **TLS transport termination, resumption, alert, and EOF mapping** as the sole primary capability in this stop. It builds
-on v0.199.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) and must be independently trustworthy before v0.201.0 (TLS 1.3 early-data prohibition and close semantics) begins.
+on v0.203.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) and must be independently trustworthy before v0.205.0 (TLS 1.3 early-data prohibition and close semantics) begins.
 
 #### Deliverables
 
@@ -7870,20 +8033,20 @@ on v0.199.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) and 
 #### Exit criteria
 
 The TLS transport termination, resumption, alert, and EOF mapping contract and all previously implemented relevant behavior have
-reproducible evidence; v0.199.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) still passes; no behavior assigned to v0.201.0 (TLS 1.3 early-data prohibition and close semantics) is
+reproducible evidence; v0.203.0 (HTTP/2 TLS admission prerequisites and authenticated metadata) still passes; no behavior assigned to v0.205.0 (TLS 1.3 early-data prohibition and close semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.200.0 implementation stop reached. Run pentest for this exact commit.`
+`0.204.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.201.0 — TLS 1.3 early-data prohibition and close semantics
+### v0.205.0 — TLS 1.3 early-data prohibition and close semantics
 
 Status: planned
 
 #### Goal
 
 Deliver **TLS 1.3 early-data prohibition and close semantics** as the sole primary capability in this stop. It builds
-on v0.200.0 (TLS transport termination, resumption, alert, and EOF mapping) and must be independently trustworthy before v0.202.0 (Aesynx fixed-memory capability profile) begins.
+on v0.204.0 (TLS transport termination, resumption, alert, and EOF mapping) and must be independently trustworthy before v0.206.0 (Aesynx fixed-memory capability profile) begins.
 
 #### Deliverables
 
@@ -7909,20 +8072,20 @@ on v0.200.0 (TLS transport termination, resumption, alert, and EOF mapping) and 
 #### Exit criteria
 
 The TLS 1.3 early-data prohibition and close semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.200.0 (TLS transport termination, resumption, alert, and EOF mapping) still passes; no behavior assigned to v0.202.0 (Aesynx fixed-memory capability profile) is
+reproducible evidence; v0.204.0 (TLS transport termination, resumption, alert, and EOF mapping) still passes; no behavior assigned to v0.206.0 (Aesynx fixed-memory capability profile) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.201.0 implementation stop reached. Run pentest for this exact commit.`
+`0.205.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.202.0 — Aesynx fixed-memory capability profile
+### v0.206.0 — Aesynx fixed-memory capability profile
 
 Status: planned
 
 #### Goal
 
 Deliver **Aesynx fixed-memory capability profile** as the sole primary capability in this stop. It builds
-on v0.201.0 (TLS 1.3 early-data prohibition and close semantics) and must be independently trustworthy before v0.203.0 (Aesynx transport and readiness adapter) begins.
+on v0.205.0 (TLS 1.3 early-data prohibition and close semantics) and must be independently trustworthy before v0.207.0 (Aesynx transport and readiness adapter) begins.
 
 #### Deliverables
 
@@ -7948,20 +8111,20 @@ on v0.201.0 (TLS 1.3 early-data prohibition and close semantics) and must be ind
 #### Exit criteria
 
 The Aesynx fixed-memory capability profile contract and all previously implemented relevant behavior have
-reproducible evidence; v0.201.0 (TLS 1.3 early-data prohibition and close semantics) still passes; no behavior assigned to v0.203.0 (Aesynx transport and readiness adapter) is
+reproducible evidence; v0.205.0 (TLS 1.3 early-data prohibition and close semantics) still passes; no behavior assigned to v0.207.0 (Aesynx transport and readiness adapter) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.202.0 implementation stop reached. Run pentest for this exact commit.`
+`0.206.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.203.0 — Aesynx transport and readiness adapter
+### v0.207.0 — Aesynx transport and readiness adapter
 
 Status: planned
 
 #### Goal
 
 Deliver **Aesynx transport and readiness adapter** as the sole primary capability in this stop. It builds
-on v0.202.0 (Aesynx fixed-memory capability profile) and must be independently trustworthy before v0.204.0 (Aesynx timer and deadline adapter) begins.
+on v0.206.0 (Aesynx fixed-memory capability profile) and must be independently trustworthy before v0.208.0 (Aesynx timer and deadline adapter) begins.
 
 #### Deliverables
 
@@ -7987,20 +8150,20 @@ on v0.202.0 (Aesynx fixed-memory capability profile) and must be independently t
 #### Exit criteria
 
 The Aesynx transport and readiness adapter contract and all previously implemented relevant behavior have
-reproducible evidence; v0.202.0 (Aesynx fixed-memory capability profile) still passes; no behavior assigned to v0.204.0 (Aesynx timer and deadline adapter) is
+reproducible evidence; v0.206.0 (Aesynx fixed-memory capability profile) still passes; no behavior assigned to v0.208.0 (Aesynx timer and deadline adapter) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.203.0 implementation stop reached. Run pentest for this exact commit.`
+`0.207.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.204.0 — Aesynx timer and deadline adapter
+### v0.208.0 — Aesynx timer and deadline adapter
 
 Status: planned
 
 #### Goal
 
 Deliver **Aesynx timer and deadline adapter** as the sole primary capability in this stop. It builds
-on v0.203.0 (Aesynx transport and readiness adapter) and must be independently trustworthy before v0.205.0 (Aesynx kernel integration tests) begins.
+on v0.207.0 (Aesynx transport and readiness adapter) and must be independently trustworthy before v0.209.0 (Aesynx kernel integration tests) begins.
 
 #### Deliverables
 
@@ -8026,20 +8189,20 @@ on v0.203.0 (Aesynx transport and readiness adapter) and must be independently t
 #### Exit criteria
 
 The Aesynx timer and deadline adapter contract and all previously implemented relevant behavior have
-reproducible evidence; v0.203.0 (Aesynx transport and readiness adapter) still passes; no behavior assigned to v0.205.0 (Aesynx kernel integration tests) is
+reproducible evidence; v0.207.0 (Aesynx transport and readiness adapter) still passes; no behavior assigned to v0.209.0 (Aesynx kernel integration tests) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.204.0 implementation stop reached. Run pentest for this exact commit.`
+`0.208.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.205.0 — Aesynx kernel integration tests
+### v0.209.0 — Aesynx kernel integration tests
 
 Status: planned
 
 #### Goal
 
 Deliver **Aesynx kernel integration tests** as the sole primary capability in this stop. It builds
-on v0.204.0 (Aesynx timer and deadline adapter) and must be independently trustworthy before v0.206.0 (Deterministic CPU, stack, code-size, and amplification budgets) begins.
+on v0.208.0 (Aesynx timer and deadline adapter) and must be independently trustworthy before v0.210.0 (Deterministic CPU, stack, code-size, and amplification budgets) begins.
 
 #### Deliverables
 
@@ -8065,20 +8228,20 @@ on v0.204.0 (Aesynx timer and deadline adapter) and must be independently trustw
 #### Exit criteria
 
 The Aesynx kernel integration tests contract and all previously implemented relevant behavior have
-reproducible evidence; v0.204.0 (Aesynx timer and deadline adapter) still passes; no behavior assigned to v0.206.0 (Deterministic CPU, stack, code-size, and amplification budgets) is
+reproducible evidence; v0.208.0 (Aesynx timer and deadline adapter) still passes; no behavior assigned to v0.210.0 (Deterministic CPU, stack, code-size, and amplification budgets) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.205.0 implementation stop reached. Run pentest for this exact commit.`
+`0.209.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.206.0 — Deterministic CPU, stack, code-size, and amplification budgets
+### v0.210.0 — Deterministic CPU, stack, code-size, and amplification budgets
 
 Status: planned
 
 #### Goal
 
 Deliver **Deterministic CPU, stack, code-size, and amplification budgets** as the sole primary capability in this stop. It builds
-on v0.205.0 (Aesynx kernel integration tests) and must be independently trustworthy before v0.207.0 (32-bit target campaign) begins.
+on v0.209.0 (Aesynx kernel integration tests) and must be independently trustworthy before v0.211.0 (32-bit target campaign) begins.
 
 #### Deliverables
 
@@ -8104,20 +8267,20 @@ on v0.205.0 (Aesynx kernel integration tests) and must be independently trustwor
 #### Exit criteria
 
 The Deterministic CPU, stack, code-size, and amplification budgets contract and all previously implemented relevant behavior have
-reproducible evidence; v0.205.0 (Aesynx kernel integration tests) still passes; no behavior assigned to v0.207.0 (32-bit target campaign) is
+reproducible evidence; v0.209.0 (Aesynx kernel integration tests) still passes; no behavior assigned to v0.211.0 (32-bit target campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.206.0 implementation stop reached. Run pentest for this exact commit.`
+`0.210.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.207.0 — 32-bit target campaign
+### v0.211.0 — 32-bit target campaign
 
 Status: planned
 
 #### Goal
 
 Deliver **32-bit target campaign** as the sole primary capability in this stop. It builds
-on v0.206.0 (Deterministic CPU, stack, code-size, and amplification budgets) and must be independently trustworthy before v0.208.0 (Big-endian target campaign) begins.
+on v0.210.0 (Deterministic CPU, stack, code-size, and amplification budgets) and must be independently trustworthy before v0.212.0 (Big-endian target campaign) begins.
 
 #### Deliverables
 
@@ -8143,20 +8306,20 @@ on v0.206.0 (Deterministic CPU, stack, code-size, and amplification budgets) and
 #### Exit criteria
 
 The 32-bit target campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.206.0 (Deterministic CPU, stack, code-size, and amplification budgets) still passes; no behavior assigned to v0.208.0 (Big-endian target campaign) is
+reproducible evidence; v0.210.0 (Deterministic CPU, stack, code-size, and amplification budgets) still passes; no behavior assigned to v0.212.0 (Big-endian target campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.207.0 implementation stop reached. Run pentest for this exact commit.`
+`0.211.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.208.0 — Big-endian target campaign
+### v0.212.0 — Big-endian target campaign
 
 Status: planned
 
 #### Goal
 
 Deliver **Big-endian target campaign** as the sole primary capability in this stop. It builds
-on v0.207.0 (32-bit target campaign) and must be independently trustworthy before v0.209.0 (Cross-architecture campaign) begins.
+on v0.211.0 (32-bit target campaign) and must be independently trustworthy before v0.213.0 (Cross-architecture campaign) begins.
 
 #### Deliverables
 
@@ -8182,20 +8345,20 @@ on v0.207.0 (32-bit target campaign) and must be independently trustworthy befor
 #### Exit criteria
 
 The Big-endian target campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.207.0 (32-bit target campaign) still passes; no behavior assigned to v0.209.0 (Cross-architecture campaign) is
+reproducible evidence; v0.211.0 (32-bit target campaign) still passes; no behavior assigned to v0.213.0 (Cross-architecture campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.208.0 implementation stop reached. Run pentest for this exact commit.`
+`0.212.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.209.0 — Cross-architecture campaign
+### v0.213.0 — Cross-architecture campaign
 
 Status: planned
 
 #### Goal
 
 Deliver **Cross-architecture campaign** as the sole primary capability in this stop. It builds
-on v0.208.0 (Big-endian target campaign) and must be independently trustworthy before v0.210.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) begins.
+on v0.212.0 (Big-endian target campaign) and must be independently trustworthy before v0.214.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) begins.
 
 #### Deliverables
 
@@ -8221,20 +8384,20 @@ on v0.208.0 (Big-endian target campaign) and must be independently trustworthy b
 #### Exit criteria
 
 The Cross-architecture campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.208.0 (Big-endian target campaign) still passes; no behavior assigned to v0.210.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) is
+reproducible evidence; v0.212.0 (Big-endian target campaign) still passes; no behavior assigned to v0.214.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.209.0 implementation stop reached. Run pentest for this exact commit.`
+`0.213.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.210.0 — Linux, Windows, BSD, macOS, Android, and iOS matrix
+### v0.214.0 — Linux, Windows, BSD, macOS, Android, and iOS matrix
 
 Status: planned
 
 #### Goal
 
 Deliver **Linux, Windows, BSD, macOS, Android, and iOS matrix** as the sole primary capability in this stop. It builds
-on v0.209.0 (Cross-architecture campaign) and must be independently trustworthy before v0.211.0 (Kani shared-core proof replay and expansion) begins.
+on v0.213.0 (Cross-architecture campaign) and must be independently trustworthy before v0.215.0 (Kani shared-core proof replay and expansion) begins.
 
 #### Deliverables
 
@@ -8260,20 +8423,20 @@ on v0.209.0 (Cross-architecture campaign) and must be independently trustworthy 
 #### Exit criteria
 
 The Linux, Windows, BSD, macOS, Android, and iOS matrix contract and all previously implemented relevant behavior have
-reproducible evidence; v0.209.0 (Cross-architecture campaign) still passes; no behavior assigned to v0.211.0 (Kani shared-core proof replay and expansion) is
+reproducible evidence; v0.213.0 (Cross-architecture campaign) still passes; no behavior assigned to v0.215.0 (Kani shared-core proof replay and expansion) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.210.0 implementation stop reached. Run pentest for this exact commit.`
+`0.214.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.211.0 — Kani shared-core proof replay and expansion
+### v0.215.0 — Kani shared-core proof replay and expansion
 
 Status: planned
 
 #### Goal
 
 Deliver **Kani shared-core proof replay and expansion** as the sole primary capability in this stop. It builds
-on v0.210.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) and must be independently trustworthy before v0.212.0 (Kani HTTP/1 proof replay and expansion) begins.
+on v0.214.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) and must be independently trustworthy before v0.216.0 (Kani HTTP/1 proof replay and expansion) begins.
 
 #### Deliverables
 
@@ -8299,20 +8462,20 @@ on v0.210.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) and must be in
 #### Exit criteria
 
 The Kani shared-core proof replay and expansion contract and all previously implemented relevant behavior have
-reproducible evidence; v0.210.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) still passes; no behavior assigned to v0.212.0 (Kani HTTP/1 proof replay and expansion) is
+reproducible evidence; v0.214.0 (Linux, Windows, BSD, macOS, Android, and iOS matrix) still passes; no behavior assigned to v0.216.0 (Kani HTTP/1 proof replay and expansion) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.211.0 implementation stop reached. Run pentest for this exact commit.`
+`0.215.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.212.0 — Kani HTTP/1 proof replay and expansion
+### v0.216.0 — Kani HTTP/1 proof replay and expansion
 
 Status: planned
 
 #### Goal
 
 Deliver **Kani HTTP/1 proof replay and expansion** as the sole primary capability in this stop. It builds
-on v0.211.0 (Kani shared-core proof replay and expansion) and must be independently trustworthy before v0.213.0 (Kani HPACK proof replay and expansion) begins.
+on v0.215.0 (Kani shared-core proof replay and expansion) and must be independently trustworthy before v0.217.0 (Kani HPACK proof replay and expansion) begins.
 
 #### Deliverables
 
@@ -8338,20 +8501,20 @@ on v0.211.0 (Kani shared-core proof replay and expansion) and must be independen
 #### Exit criteria
 
 The Kani HTTP/1 proof replay and expansion contract and all previously implemented relevant behavior have
-reproducible evidence; v0.211.0 (Kani shared-core proof replay and expansion) still passes; no behavior assigned to v0.213.0 (Kani HPACK proof replay and expansion) is
+reproducible evidence; v0.215.0 (Kani shared-core proof replay and expansion) still passes; no behavior assigned to v0.217.0 (Kani HPACK proof replay and expansion) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.212.0 implementation stop reached. Run pentest for this exact commit.`
+`0.216.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.213.0 — Kani HPACK proof replay and expansion
+### v0.217.0 — Kani HPACK proof replay and expansion
 
 Status: planned
 
 #### Goal
 
 Deliver **Kani HPACK proof replay and expansion** as the sole primary capability in this stop. It builds
-on v0.212.0 (Kani HTTP/1 proof replay and expansion) and must be independently trustworthy before v0.214.0 (Kani HTTP/2 proof replay and expansion) begins.
+on v0.216.0 (Kani HTTP/1 proof replay and expansion) and must be independently trustworthy before v0.218.0 (Kani HTTP/2 proof replay and expansion) begins.
 
 #### Deliverables
 
@@ -8377,20 +8540,20 @@ on v0.212.0 (Kani HTTP/1 proof replay and expansion) and must be independently t
 #### Exit criteria
 
 The Kani HPACK proof replay and expansion contract and all previously implemented relevant behavior have
-reproducible evidence; v0.212.0 (Kani HTTP/1 proof replay and expansion) still passes; no behavior assigned to v0.214.0 (Kani HTTP/2 proof replay and expansion) is
+reproducible evidence; v0.216.0 (Kani HTTP/1 proof replay and expansion) still passes; no behavior assigned to v0.218.0 (Kani HTTP/2 proof replay and expansion) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.213.0 implementation stop reached. Run pentest for this exact commit.`
+`0.217.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.214.0 — Kani HTTP/2 proof replay and expansion
+### v0.218.0 — Kani HTTP/2 proof replay and expansion
 
 Status: planned
 
 #### Goal
 
 Deliver **Kani HTTP/2 proof replay and expansion** as the sole primary capability in this stop. It builds
-on v0.213.0 (Kani HPACK proof replay and expansion) and must be independently trustworthy before v0.215.0 (Stateful cargo-fuzz replay and expansion) begins.
+on v0.217.0 (Kani HPACK proof replay and expansion) and must be independently trustworthy before v0.219.0 (Stateful cargo-fuzz replay and expansion) begins.
 
 #### Deliverables
 
@@ -8416,20 +8579,20 @@ on v0.213.0 (Kani HPACK proof replay and expansion) and must be independently tr
 #### Exit criteria
 
 The Kani HTTP/2 proof replay and expansion contract and all previously implemented relevant behavior have
-reproducible evidence; v0.213.0 (Kani HPACK proof replay and expansion) still passes; no behavior assigned to v0.215.0 (Stateful cargo-fuzz replay and expansion) is
+reproducible evidence; v0.217.0 (Kani HPACK proof replay and expansion) still passes; no behavior assigned to v0.219.0 (Stateful cargo-fuzz replay and expansion) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.214.0 implementation stop reached. Run pentest for this exact commit.`
+`0.218.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.215.0 — Stateful cargo-fuzz replay and expansion
+### v0.219.0 — Stateful cargo-fuzz replay and expansion
 
 Status: planned
 
 #### Goal
 
 Deliver **Stateful cargo-fuzz replay and expansion** as the sole primary capability in this stop. It builds
-on v0.214.0 (Kani HTTP/2 proof replay and expansion) and must be independently trustworthy before v0.216.0 (Differential and interoperability campaign) begins.
+on v0.218.0 (Kani HTTP/2 proof replay and expansion) and must be independently trustworthy before v0.220.0 (Differential and interoperability campaign) begins.
 
 #### Deliverables
 
@@ -8455,20 +8618,20 @@ on v0.214.0 (Kani HTTP/2 proof replay and expansion) and must be independently t
 #### Exit criteria
 
 The Stateful cargo-fuzz replay and expansion contract and all previously implemented relevant behavior have
-reproducible evidence; v0.214.0 (Kani HTTP/2 proof replay and expansion) still passes; no behavior assigned to v0.216.0 (Differential and interoperability campaign) is
+reproducible evidence; v0.218.0 (Kani HTTP/2 proof replay and expansion) still passes; no behavior assigned to v0.220.0 (Differential and interoperability campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.215.0 implementation stop reached. Run pentest for this exact commit.`
+`0.219.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.216.0 — Differential and interoperability campaign
+### v0.220.0 — Differential and interoperability campaign
 
 Status: planned
 
 #### Goal
 
 Deliver **Differential and interoperability campaign** as the sole primary capability in this stop. It builds
-on v0.215.0 (Stateful cargo-fuzz replay and expansion) and must be independently trustworthy before v0.217.0 (Whole-project conformance audit and pentest) begins.
+on v0.219.0 (Stateful cargo-fuzz replay and expansion) and must be independently trustworthy before v0.221.0 (Whole-project conformance audit and pentest) begins.
 
 #### Deliverables
 
@@ -8494,20 +8657,20 @@ on v0.215.0 (Stateful cargo-fuzz replay and expansion) and must be independently
 #### Exit criteria
 
 The Differential and interoperability campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.215.0 (Stateful cargo-fuzz replay and expansion) still passes; no behavior assigned to v0.217.0 (Whole-project conformance audit and pentest) is
+reproducible evidence; v0.219.0 (Stateful cargo-fuzz replay and expansion) still passes; no behavior assigned to v0.221.0 (Whole-project conformance audit and pentest) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.216.0 implementation stop reached. Run pentest for this exact commit.`
+`0.220.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.217.0 — Whole-project conformance audit and pentest
+### v0.221.0 — Whole-project conformance audit and pentest
 
 Status: planned
 
 #### Goal
 
 Deliver **Whole-project conformance audit and pentest** as the sole primary capability in this stop. It builds
-on v0.216.0 (Differential and interoperability campaign) and must be independently trustworthy before v0.218.0 (Independent security audit) begins.
+on v0.220.0 (Differential and interoperability campaign) and must be independently trustworthy before v0.222.0 (Independent security audit) begins.
 
 #### Deliverables
 
@@ -8533,20 +8696,20 @@ on v0.216.0 (Differential and interoperability campaign) and must be independent
 #### Exit criteria
 
 The Whole-project conformance audit and pentest contract and all previously implemented relevant behavior have
-reproducible evidence; v0.216.0 (Differential and interoperability campaign) still passes; no behavior assigned to v0.218.0 (Independent security audit) is
+reproducible evidence; v0.220.0 (Differential and interoperability campaign) still passes; no behavior assigned to v0.222.0 (Independent security audit) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.217.0 implementation stop reached. Run pentest for this exact commit.`
+`0.221.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.218.0 — Independent security audit
+### v0.222.0 — Independent security audit
 
 Status: planned
 
 #### Goal
 
 Deliver **Independent security audit** as the sole primary capability in this stop. It builds
-on v0.217.0 (Whole-project conformance audit and pentest) and must be independently trustworthy before v0.219.0 (Audit remediation and API freeze) begins.
+on v0.221.0 (Whole-project conformance audit and pentest) and must be independently trustworthy before v0.223.0 (Audit remediation and API freeze) begins.
 
 #### Deliverables
 
@@ -8572,20 +8735,20 @@ on v0.217.0 (Whole-project conformance audit and pentest) and must be independen
 #### Exit criteria
 
 The Independent security audit contract and all previously implemented relevant behavior have
-reproducible evidence; v0.217.0 (Whole-project conformance audit and pentest) still passes; no behavior assigned to v0.219.0 (Audit remediation and API freeze) is
+reproducible evidence; v0.221.0 (Whole-project conformance audit and pentest) still passes; no behavior assigned to v0.223.0 (Audit remediation and API freeze) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.218.0 implementation stop reached. Run pentest for this exact commit.`
+`0.222.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.219.0 — Audit remediation and API freeze
+### v0.223.0 — Audit remediation and API freeze
 
 Status: planned
 
 #### Goal
 
 Deliver **Audit remediation and API freeze** as the sole primary capability in this stop. It builds
-on v0.218.0 (Independent security audit) and must be independently trustworthy before v0.220.0 (Documentation, packaging, SBOM, provenance, and RC readiness) begins.
+on v0.222.0 (Independent security audit) and must be independently trustworthy before v0.224.0 (Documentation, packaging, SBOM, provenance, and RC readiness) begins.
 
 #### Deliverables
 
@@ -8611,20 +8774,20 @@ on v0.218.0 (Independent security audit) and must be independently trustworthy b
 #### Exit criteria
 
 The Audit remediation and API freeze contract and all previously implemented relevant behavior have
-reproducible evidence; v0.218.0 (Independent security audit) still passes; no behavior assigned to v0.220.0 (Documentation, packaging, SBOM, provenance, and RC readiness) is
+reproducible evidence; v0.222.0 (Independent security audit) still passes; no behavior assigned to v0.224.0 (Documentation, packaging, SBOM, provenance, and RC readiness) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.219.0 implementation stop reached. Run pentest for this exact commit.`
+`0.223.0 implementation stop reached. Run pentest for this exact commit.`
 
-### v0.220.0 — Documentation, packaging, SBOM, provenance, and RC readiness
+### v0.224.0 — Documentation, packaging, SBOM, provenance, and RC readiness
 
 Status: planned
 
 #### Goal
 
 Deliver **Documentation, packaging, SBOM, provenance, and RC readiness** as the sole primary capability in this stop. It builds
-on v0.219.0 (Audit remediation and API freeze) and must be independently trustworthy before the 1.0 release-candidate sequence begins.
+on v0.223.0 (Audit remediation and API freeze) and must be independently trustworthy before the 1.0 release-candidate sequence begins.
 
 #### Deliverables
 
@@ -8650,11 +8813,11 @@ on v0.219.0 (Audit remediation and API freeze) and must be independently trustwo
 #### Exit criteria
 
 The Documentation, packaging, SBOM, provenance, and RC readiness contract and all previously implemented relevant behavior have
-reproducible evidence; v0.219.0 (Audit remediation and API freeze) still passes; no behavior assigned to the 1.0 release-candidate sequence is
+reproducible evidence; v0.223.0 (Audit remediation and API freeze) still passes; no behavior assigned to the 1.0 release-candidate sequence is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.220.0 implementation stop reached. Run pentest for this exact commit.`
+`0.224.0 implementation stop reached. Run pentest for this exact commit.`
 
 ## 1.0 release candidates
 

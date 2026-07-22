@@ -124,6 +124,15 @@ Only acknowledgement of the complete carrying frame emits
 `LocalEndStreamComplete`; partial/failing output cannot claim half-close or
 close, peer-first closure remains authoritative, and fragmented HEADERS retain
 CONTINUATION/HPACK ownership after their directional transition.
+Ordinary output is AcceptedPrivate, Frozen, Complete, or
+SupersededBeforeExposure. Peer/completed local reset suppresses only unexposed
+private output and releases its DATA reservation. Any non-empty exposure freezes
+the frame even if zero bytes are acknowledged; finish its suffix before
+RST_STREAM and run its completion hook once. DATA reserves exact payload,
+Pad Length, and padding—but not the frame header—atomically against stream and
+connection available credit. Unexposed reservation may revoke on reset,
+SETTINGS, or resegmentation; frozen debit never refunds, negative stream windows
+block new DATA, and zero-length END_STREAM DATA charges zero.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

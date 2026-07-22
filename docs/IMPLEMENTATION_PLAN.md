@@ -74,6 +74,15 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   END_STREAM command acceptance seals the application send direction; only
   complete carrying-frame acknowledgement changes wire state, while partial
   output/failure does not and fragmented HEADERS retain CONTINUATION ownership.
+  AcceptedPrivate ordinary output may be superseded by reset and releases any
+  dual DATA reservation; first exposure freezes it, commits stream+connection
+  debit, and forces whole-frame suffix completion before RST_STREAM.
+- Outbound DATA atomically reserves exact payload/padding credit—not its frame
+  header—from the signed stream and nonnegative connection ledgers before
+  exposure.
+  Available, reserved-unexposed, and committed-debited states are distinct;
+  WINDOW_UPDATE and SETTINGS/resegmentation reconcile only unexposed state,
+  frozen debit never refunds, and negative windows block later exposure.
 - Internal receive-credit accounting is distinct from bounded, coalesced
   WINDOW_UPDATE emission; padding cannot drive one control frame per DATA frame.
 - Unknown HTTP/2 frames are bounded, incrementally drained, state-neutral, and
@@ -411,6 +420,10 @@ Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
 events with partial acknowledgement and credit release, then the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
+Stream flow control introduces signed available/reserved/committed accounting;
+connection flow control composes one atomic dual reservation; INITIAL_WINDOW_SIZE
+changes revoke paired unexposed reservations before an all-or-nothing delta;
+outbound commands choose exact payload/padding then reserve before exposure.
 Keep policy disposition orthogonal to the RFC stream state and reset-output
 progress/reason/reservation, remote-closure record, first-closure cause,
 terminal state/semantic stage, and active block. Normalize HEADERS/DATA,
@@ -432,6 +445,9 @@ does not abort. First non-empty reset exposure freezes frame identity/bytes;
 acknowledge by generation token, resume only at the exact suffix, and never emit
 another reset. Prefixes 0..=12 do not change wire state; acknowledgement 13
 applies one local close only if the stream is not already remotely closed.
+For ordinary output, peer/local reset supersedes only AcceptedPrivate; Frozen
+output—including zero acknowledged—retains debit, finishes the exact frame
+before reset serialization, and executes its completion hook once.
 Malformed/abort release semantic leases once and fatal input owns
 acknowledged-prefix cleanup without an incomplete close. Drive every
 ownership/stage/event/output product through the model/fuzz table.

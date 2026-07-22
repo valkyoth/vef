@@ -230,6 +230,18 @@ acknowledgement emits `LocalEndStreamComplete`: Open becomes half-closed(local),
 or half-closed(remote) becomes Closed. Partial output and failure claim neither;
 HEADERS completion performs the transition even when CONTINUATION/HPACK
 ownership remains live until END_HEADERS.
+Ordinary frames retain an explicit AcceptedPrivate/Frozen/Complete/
+SupersededBeforeExposure disposition. Peer or completed local reset can discard
+only AcceptedPrivate bytes and release their unexposed credit. First non-empty
+exposure freezes the exact frame even after a zero acknowledgement; its suffix
+owns connection framing and must finish before a same-connection RST_STREAM,
+then its completion hook runs once without overwriting peer-first closure.
+Outbound DATA uses an atomic dual ledger: exact payload including Pad Length and
+padding, but excluding the nine-byte header, moves from stream+connection
+available to reserved-unexposed before exposure and to committed-debited at
+first exposure. Unexposed supersession or SETTINGS reconciliation releases both
+reservations; frozen debit is never refunded. Negative stream windows block new
+exposure, and zero-length END_STREAM DATA consumes zero credit.
 HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
 reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
 the RFC-required contexts.

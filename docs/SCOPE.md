@@ -126,23 +126,32 @@ close, peer-first closure remains authoritative, and fragmented HEADERS retain
 CONTINUATION/HPACK ownership after their directional transition.
 Ordinary output is AcceptedPrivate, Frozen, Complete, or
 SupersededBeforeExposure. Peer/completed local reset suppresses only unexposed
-private output outside a committed outbound field block. A whole Private
-HEADERS/PUSH_PROMISE block may roll back before initial exposure; first exposure
-commits all remaining CONTINUATIONs through END_HEADERS at connection scope, so
-reset, GOAWAY, required controls, and other streams wait. Transport failure can
-abandon it only with the connection, while an initial HEADERS END_STREAM hook
-remains tied to that frame's completion. Any ordinary non-empty exposure
+private output outside a framing-committed outbound field block. Before initial
+exposure, fully encode the bounded HEADERS/PUSH_PROMISE block and atomically
+reserve every slot/entry required to drain it with fragments no larger than
+16,384 plus its provisional HPACK transaction. A whole Private block may roll
+back with zero exposure; first exposure selects FramingCommitted, making every
+CONTINUATION non-supersedable through END_HEADERS despite later local exhaustion.
+Reset, GOAWAY, required controls, and other streams wait. Full final-frame
+acknowledgement alone publishes HpackCommitted; transport failure abandons it
+only with the connection, while an initial HEADERS END_STREAM hook remains tied
+to that frame's completion. Any ordinary non-empty exposure
 freezes its exact arena slot even if zero bytes are acknowledged; finish its
 suffix before RST_STREAM and run its hook once. DATA reserves exact payload,
 Pad Length, and padding—but not the frame header—atomically against stream and
 connection available credit, then copies the exact frame into an exclusive
 caller-provided `OutboundFrameArena` slot. Segmentation is bounded by peer
 MAX_FRAME_SIZE, local `max_outbound_frame_payload`, both credits, and remaining
-payload; peer limits never require peer-sized storage. Queue bytes and entries
+payload; checked slot capacity covers `9 + payload`, and data length is chosen
+only after subtracting checked padding overhead. Impossible padding is reduced
+by explicit deterministic policy or returns local backpressure, never overflow
+or silent truncation. Peer limits never require peer-sized storage. Queue bytes and entries
 have separate limits. Unexposed reservation/slot may revoke on reset, SETTINGS,
 or resegmentation; frozen debit and staged bytes remain owned through full
 acknowledgement, negative stream windows block new DATA, and zero-length
 END_STREAM DATA charges zero.
+Each scalar or vectored output token owns one frame-slot suffix; acknowledgement
+cannot cross a slot boundary, release several records, or batch hooks.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

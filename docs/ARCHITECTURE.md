@@ -190,8 +190,11 @@ waits for both sides to commit.
 codecs. It has no HTTP/2 stream or transport knowledge. Valid compression
 state updates are never rolled back because later HTTP semantics reject a
 stream; unsafe incomplete decoding closes the connection.
-Encoder table mutation occurs only when the corresponding output bytes commit;
-partial output, retry, or cancellation cannot advance it ahead of the peer.
+Encoder work occurs in one serialized provisional transaction per field block.
+Private rollback discards it; first frame exposure commits only framing; full
+acknowledgement of the END_HEADERS frame atomically publishes encoder table
+mutation as HpackCommitted. No later block encodes against provisional entries,
+and partial output, retry, or cancellation cannot advance state ahead of the peer.
 Sensitive indexing uses typed directives and conservative defaults; received
 never-indexed fields cannot be downgraded, secret values do not participate in
 attacker-controlled indexing comparisons, and diagnostics remain redacted.
@@ -232,16 +235,22 @@ HEADERS completion performs the transition even when CONTINUATION/HPACK
 ownership remains live until END_HEADERS.
 Ordinary frames retain an explicit AcceptedPrivate/Frozen/Complete/
 SupersededBeforeExposure disposition. Peer or completed local reset can discard
-only AcceptedPrivate bytes that do not belong to a committed field block and
+only AcceptedPrivate bytes that do not belong to a framing-committed field block and
 release their unexposed credit. Before any initial HEADERS/PUSH_PROMISE byte is
-exposed, its whole Private field block may be superseded together. First
-non-empty initial-frame exposure creates a connection-scoped Committed field
-block through END_HEADERS: every remaining CONTINUATION is non-supersedable
-even while individually AcceptedPrivate, and RST_STREAM, GOAWAY, required
-control replies, and other streams wait. Transport failure abandons that block
-only with the whole connection and emits no interleaved GOAWAY. The initial
-HEADERS END_STREAM hook still runs at that frame's full acknowledgement,
-independently of the block obligation. Outside that obligation, first non-empty
+exposed, the engine fully encodes the bounded field block and atomically
+materializes/reserves every HEADERS/CONTINUATION slot and queue entry using
+fragments no larger than the RFC-minimum peer limit of 16,384. Any shortage
+leaves the whole Private block supersedable with zero exposure. First non-empty
+initial-frame exposure creates a connection-scoped FramingCommitted obligation
+through END_HEADERS: every remaining CONTINUATION is already owned and
+non-supersedable even while individually AcceptedPrivate, and RST_STREAM,
+GOAWAY, required control replies, and other streams wait. Its provisional HPACK
+encoder transaction remains unpublished and blocks later field-block encoding;
+only full acknowledgement of the END_HEADERS frame publishes HpackCommitted.
+Transport failure abandons that transaction/block only with the whole
+connection and emits no interleaved GOAWAY. The initial HEADERS END_STREAM hook
+still runs at that frame's full acknowledgement, independently of final HPACK
+commit. Outside that obligation, first non-empty
 exposure freezes the exact frame even after a zero acknowledgement; its suffix
 owns connection framing and must finish before a same-connection RST_STREAM,
 then its completion hook runs once without overwriting peer-first closure.
@@ -257,9 +266,16 @@ copy, but staged bytes cannot be accessed, mutated, or reused until
 supersession, full acknowledgement, or connection cleanup. Segmentation uses
 the minimum of peer MAX_FRAME_SIZE, nonzero local
 `max_outbound_frame_payload`, both available credits, and remaining padded
-payload. Peer limits never dictate local allocation. Queue-byte and queue-entry
-capacity are independent, and exhaustion is typed local
+payload, and every slot proves checked capacity for its nine-byte header plus
+that local maximum. DATA derives application length only after checked
+subtraction of the optional Pad Length octet and padding; padding that cannot
+fit follows a deterministic reduction policy or local backpressure, never
+overflow or silent data truncation. Peer limits never dictate local allocation.
+Queue-byte and queue-entry capacity are independent, and exhaustion is typed local
 `OutboundFrameStorageCapacity` backpressure rather than a peer error.
+Every scalar or vectored offer token owns exactly one immutable frame-slot
+suffix. Acknowledgement cannot cross into another slot or batch completion
+hooks; overflow is `InvalidState` without mutation.
 HTTP/2 `:path` is decomposed into the same raw path/optional-query identity and
 reconstructed without normalization; an empty HTTP(S) path becomes `/` only in
 the RFC-required contexts.
@@ -368,8 +384,9 @@ enabled extension owns their type; they cannot interleave an active field
 block. Receive-credit accounting is separate from WINDOW_UPDATE emission so
 discarded padding can be credited internally while output is coalesced under
 rate and amplification limits. The scheduler preserves inbound field-block
-contiguity and treats a committed outbound field block as its highest framing
-obligation through END_HEADERS; mandatory-control capacity remains reserved
+contiguity and treats a FramingCommitted outbound field block as its highest
+framing obligation through final END_HEADERS acknowledgement; its complete
+slot/entry set was pre-reserved, while mandatory-control capacity remains reserved
 while serialization waits. Outside that obligation it preserves
 unrelated-stream progress and bounded starvation across cancellation and
 SETTINGS changes.

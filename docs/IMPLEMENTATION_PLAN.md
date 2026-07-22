@@ -75,13 +75,16 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   complete carrying-frame acknowledgement changes wire state, while partial
   output/failure does not and fragmented HEADERS retain CONTINUATION ownership.
   AcceptedPrivate ordinary output may be superseded by reset only when it is
-  outside a committed outbound field block. A whole Private HEADERS/
-  PUSH_PROMISE block may roll back before initial exposure; first exposure
-  commits its connection-scoped obligation through END_HEADERS, so no reset,
-  control, GOAWAY, or other stream can supersede/interleave its CONTINUATIONs.
-  Transport failure abandons the connection, while the initial HEADERS
-  completion hook remains frame-scoped. First ordinary exposure freezes its
-  exact slot, commits stream+connection debit, and forces suffix completion.
+  outside a framing-committed outbound field block. Before initial exposure,
+  fully encode a bounded HEADERS/PUSH_PROMISE block and atomically reserve every
+  exact slot/queue entry required by 16,384-byte worst-case fragmentation plus
+  one provisional HPACK transaction. A whole Private block may roll back; first
+  exposure selects FramingCommitted through END_HEADERS, so later exhaustion,
+  reset, control, GOAWAY, or another stream cannot strand/interleave it. Full
+  final-frame acknowledgement alone publishes HpackCommitted; transport failure
+  abandons both transaction and connection, while the initial HEADERS completion
+  hook remains frame-scoped. First ordinary exposure freezes its exact slot,
+  commits stream+connection debit, and forces suffix completion.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.
@@ -91,9 +94,15 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   each exact frame into an exclusive generation-checked slot in a caller-owned
   fixed-capacity `OutboundFrameArena`; a nonzero local
   `max_outbound_frame_payload` caps segmentation independently of peer
-  MAX_FRAME_SIZE. Slot bytes remain unavailable until supersession, full
+  MAX_FRAME_SIZE, and slot configuration proves checked `9 + payload` capacity.
+  Select DATA only after checked padding-overhead subtraction; deterministically
+  reduce impossible padding or return typed local backpressure, never truncate
+  data or overflow. Slot bytes remain unavailable until supersession, full
   acknowledgement, or connection cleanup, while queue-byte and queue-entry
   exhaustion produce distinct typed local backpressure.
+- Each output token owns one immutable protocol-record/frame-slot suffix.
+  Scalar or vectored transport adapters cannot combine records; exact completion
+  runs one hook and any acknowledgement crossing the slot is InvalidState.
 - Internal receive-credit accounting is distinct from bounded, coalesced
   WINDOW_UPDATE emission; padding cannot drive one control frame per DATA frame.
 - Unknown HTTP/2 frames are bounded, incrementally drained, state-neutral, and
@@ -457,10 +466,12 @@ acknowledge by generation token, resume only at the exact suffix, and never emit
 another reset. Prefixes 0..=12 do not change wire state; acknowledgement 13
 applies one local close only if the stream is not already remotely closed.
 For ordinary output, peer/local reset supersedes only AcceptedPrivate outside a
-committed block. Before initial exposure, supersede the entire Private HEADERS/
-PUSH_PROMISE block or none of it. First initial exposure commits every remaining
-CONTINUATION through END_HEADERS; controls and other streams wait even when the
-next continuation is still AcceptedPrivate. Frozen output—including zero
+framing-committed block. Before initial exposure, supersede the entire Private
+HEADERS/PUSH_PROMISE block—including its complete slot/entry reservation and
+provisional HPACK transaction—or none of it. First initial exposure makes every
+pre-reserved CONTINUATION non-supersedable through END_HEADERS; controls and
+other streams wait even when the next continuation is still AcceptedPrivate.
+Publish the encoder table only after final-frame acknowledgement. Frozen output—including zero
 acknowledged—retains its arena slot/debit, finishes the exact frame before reset
 serialization, and executes its completion hook once. Transport failure may
 abandon the block only with the connection; an initial HEADERS END_STREAM hook

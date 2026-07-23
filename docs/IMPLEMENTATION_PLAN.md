@@ -402,7 +402,7 @@ Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
 persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`,
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReuseLedger`/`Http10ReusePermit`/`Http10ReuseResolutionOutcome`/
+`Http10ReuseLedger`/`Http10ReusePermit`/`Http10CompletionDecision`/
 `Http10SuccessorAdmissionOutcome`, and
 either-version
 intermediary stripping consume that one result. HTTP/1.0
@@ -436,24 +436,24 @@ semantic/Connection/output validation and generation binding, while the server
 mode persists until a response is supplied.
 Existing private heads are rewritten/revalidated, and absent heads retain the
 mode. The mode cannot mint
-`CommittedHttp10KeepAliveHead`. Total reuse resolution returns
-`Http10ReuseResolutionOutcome::{Minted, CloseWithoutReuse { reason }}` after
-both lifecycles are terminal, even when evidence is absent. Correlation,
-policy, framing, configured-zero, exhausted-ledger, unavailable-negotiation,
-and deadline-arithmetic reasons have fixed precedence and are independently
-reachable. Only `Minted` consumes both signals and installs the non-Copy permit
-directly in engine-owned `Reusable` without decrementing. Duplicate hooks and
-cancellation are serialized by the normal-completion transaction so there is
-at most one resolution, terminal publication, and permit. The permit alone
-owns the exact generation-bound idle deadline. Close creates no permit,
-consumes no successor input, and never reports peer error.
+`CommittedHttp10KeepAliveHead`. Total reuse resolution after both terminal
+lifecycles returns unpublished
+`Http10CompletionDecision::{Reuse { provisional_permit }, Close { reason }}`,
+even when evidence is absent. Reasons have fixed precedence and are reachable.
+Only Reuse consumes both signals. The normal-completion transaction owns the
+decision in `Completing`; resolution never installs `Reusable`. The provisional
+permit alone owns the exact generation-bound deadline.
 The separate successor transition first builds role-specific all-or-nothing
 `Http10NextExchangeReservation::{Client { request, private_output, ... },
 Server { parser, local_persistence_mode, ... }}` over all shared records,
 leases, count debit, parser-work reserve, immutable deadline snapshot, and
 checked generation. It never owns the deadline. One-short releases tentative
 ownership and leaves permit/deadline/input/ledger/generation/output unchanged
-except bounded monotonic `Http10AdmissionAttemptWork` already charged. Its
+except bounded monotonic attempt work already charged. Each permit owns
+`Http10AdmissionAttemptBudget`, initialized once and retained across retries;
+one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
+permits. Checked charge-before-work updates both, and success transfers the
+already-charged permit total into diagnostics without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/
 conflicting client commands retain no caller borrow and expose no bytes;
@@ -476,19 +476,22 @@ That immutable snapshot is diagnostic/binding metadata and never authorizes a
 later mint; only the ledger does. Admission never refunds and checked
 generation exhaustion closes without wrap. Client/proxy-upstream request
 acceptance/exposure and origin/server input consumption require admission.
-Normal success runs one linear `Http10NormalCompletionTransaction` that keeps
-correlation/evidence owned through reuse resolution, transfers provisional
-permit/close authority, releases all non-transferred records/leases/reserve,
-and atomically publishes exactly one terminal event plus connection state.
-Cancellation before publication revokes provisional authority and cannot expose
-`Reusable`; duplicate hooks are neutral. Other terminal paths use
+Normal success enters `Completing` and runs one linear completion transaction
+that keeps evidence through resolution, retains its unpublished decision,
+reclaims non-transferred resources, and moves the reserved event slot into
+`PendingHttp10TerminalPublication` with encoded event, receipts, and final
+generation. Backpressure retains that object without rerunning work. Only its
+infallible final consumption atomically publishes one terminal event and
+constructs Reusable/closing state. Cancellation beforehand rewrites the held
+slot, revokes provisional reuse, and remains Completing. Other terminal paths use
 generation-bound cleanup. Ledger,
 request-count, admission-work, and consumed parser-work charges never refund.
 Stale cleanup cannot release a newer exchange; no-refund never leaks caller
 storage.
 Same-call input requires the acknowledgement that enters `MessageCommitted`
 after exact fixed-length final bytes or a semantically bodyless final head and
-remains wholly unconsumed until completion atomically publishes `Reusable`.
+remains wholly unconsumed while Completing and until final publication constructs
+`Reusable`.
 Transfer-Encoding, chunked coding, trailers, and HTTP/1.1 transfer semantics
 remain rejected, while close-delimited responses finish only by closure; none
 can create evidence, permit, or successor. Full acknowledgement of an earlier

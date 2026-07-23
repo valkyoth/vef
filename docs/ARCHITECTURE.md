@@ -209,16 +209,33 @@ Transactions and dependent owner references remain live through that boundary,
 with FIFO serialization and commitment across received frames. Fatal or
 transport failure before byte nine abandons the connection without exposing
 dependent output, so no component can race or overstate an ACK.
+Encoder capacity is explicit:
+`EncoderTableLimits { peer_received_ceiling: u32,
+peer_wire_acknowledged_ceiling: u32, selected_capacity: u32,
+physical_capacity: usize }`. Selected capacity never exceeds the received
+ceiling, the acknowledged ceiling when increasing, or the checked logical
+capacity derived from the active profile and caller-provided storage. A peer
+reduction below selected clamps and evicts immediately while its update remains
+ACK-gated; a peer increase changes only the ceiling. Local policy reductions
+create update debt without SETTINGS, and increases are permitted only through
+the acknowledged/profile/physical minimum. Initial selected capacity below the
+HTTP/2 default 4096 creates initial debt. Decoder advertisement is independently
+bounded by safely representable caller storage; HTTP/2 activation cannot assume
+a sub-4096 decoder table is safe before the peer has processed a reduction.
 Peer HEADER_TABLE_SIZE uses
-`PendingEncoderTableSizeTransition::{None, AwaitingSafeApply { .. },
-AppliedAwaitingAckCommit { owners, smallest_seen, final_value }}` and never owns
-ACK authority. Separately, linear `EncoderTableUpdateDebt {
+`PendingEncoderTableSizeTransition::{None, AwaitingSafeApply {
+obligations: EncoderLimitAckObligationSet }, AppliedAwaitingAckCommit {
+obligations: EncoderLimitAckObligationSet }}` and never owns ACK authority. Each
+obligation retains its frame generation, received-ceiling snapshot, and optional
+selected-capacity delta. Separately, linear `EncoderTableUpdateDebt {
 smallest_since_last_exposed_block, final_value }` preserves every unsignaled
-encoder-limit change. No-active applies the transition; Private first rolls
+selected-capacity change—never raw peer ceilings. No-active applies the
+transition; Private first rolls
 back its provisional transaction and returns any exact debt lease;
 FramingCommitted drains/publishes first. Applying a transition makes HPACK
-participants effective, but its values merge into existing debt only after all
-owning ACKs commit, retaining the older minimum. ACK commitment never clears
+participants effective. Each owning ACK commit advances the wire-acknowledged
+ceiling to that frame's snapshot and merges only its selected-capacity delta
+into existing debt, retaining the older minimum. ACK commitment never clears
 debt. Private encoding leases—rather than consumes—the exact debt and emits its
 one or smallest-then-final prefix. Rollback returns that lease before newer
 settings merge. First non-empty initial-frame exposure irreversibly transfers

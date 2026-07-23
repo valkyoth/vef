@@ -164,12 +164,16 @@ HPACK/window/frame-size/admission/push/extension participants; all must be
 effective before FIFO ACK eligibility. The frozen nine-byte ACK retains its
 transaction and owner references through offsets 0..=8, and only final-byte
 commitment produces AckCommitted; fatal or partial-output failure abandons the
-connection without dependent output. HEADER_TABLE_SIZE tracks smallest/final
-values plus owner references, never ACKs: no-active applies directly, Private
-rolls back, and FramingCommitted drains/publishes first, while transitions remain
-AppliedAwaitingAckCommit until every owner commits. Committed transitions merge
-into a separate linear `EncoderTableUpdateDebt` and never replace its older
-minimum. Private encoding only leases this debt; rollback restores it exactly,
+connection without dependent output. HEADER_TABLE_SIZE keeps peer-received,
+peer-wire-acknowledged, locally selected, and checked physical capacities
+distinct. Selected never exceeds received/profile/storage limits; increases also
+wait for the acknowledged ceiling. Peer reductions clamp and evict immediately,
+peer increases do not enlarge selection, local reductions create debt without
+SETTINGS, and initial selection below 4096 starts indebted. Per-frame transition
+obligations retain ceiling snapshots and selected deltas, never ACK authority.
+AckCommitted advances the acknowledged snapshot and merges only selected changes
+into linear `EncoderTableUpdateDebt`, never raw peer ceilings or a replacement
+for its older minimum. Private encoding only leases this debt; rollback restores it exactly,
 and first non-empty initial-frame exposure alone transfers it to the
 guaranteed-to-finish block. New settings after exposure accrue debt for the next
 HEADERS/PUSH_PROMISE block.

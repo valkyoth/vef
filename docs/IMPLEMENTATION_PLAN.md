@@ -97,11 +97,17 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   output, and transaction/owner lifetime continues until the ninth ACK byte
   commits. Fatal or partial-output transport failure abandons the connection
   without dependent field exposure. HEADER_TABLE_SIZE uses
-  AwaitingSafeApply/AppliedAwaitingAckCommit states with smallest/final values
-  and transaction references but no ACK authority. A separate linear
-  `EncoderTableUpdateDebt` retains the minimum and final values since the last
-  exposed field block. Every-owner AckCommitted merges a transition into debt
-  without clearing it. Private encoding leases the exact debt; rollback restores
+  `EncoderTableLimits` separates peer-received ceiling, peer-wire-acknowledged
+  ceiling, selected capacity, and checked physical capacity. Selected is bounded
+  by received/profile/storage limits, and increases additionally by the wire-
+  acknowledged ceiling. Peer reductions clamp/evict immediately; increases do
+  not select capacity. Local policy changes and an initial selection below 4096
+  create updates. AwaitingSafeApply/AppliedAwaitingAckCommit obligations retain
+  per-frame ceiling snapshots plus optional selected deltas without ACK
+  authority. A separate linear `EncoderTableUpdateDebt` retains selected—not
+  peer-ceiling—changes since the last exposed field block. AckCommitted advances
+  the acknowledged snapshot and merges only its selected delta without clearing
+  debt. Private encoding leases the exact debt; rollback restores
   it before newer settings merge. First non-empty exposure alone transfers the
   debt into the guaranteed-to-finish FramingCommitted block; settings received
   afterward accrue debt for the following HEADERS/PUSH_PROMISE block.

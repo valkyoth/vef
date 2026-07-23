@@ -427,8 +427,13 @@ consumers neither reparse nor renormalize raw fields or substitute authority
 across versions, roles, directions, hops, or generations.
 One connection/hop `Http10ReuseLedger` is the sole mutable future-successor
 admission count. Configured zero closes the initial private local head and
-creates no signal. A one-to-zero admission succeeds, but its new local head is
-closed and revalidated before exposure; a zero snapshot cannot mint
+creates no signal through `Http10LocalPersistenceMode::LastUseMustClose`. A
+one-to-zero admission succeeds and installs that immutable mode without
+requiring a server response. Client request and later server response builders
+apply close before exposure: the client command/head is reserved and validated
+during admission, while the server mode persists until a response is supplied.
+Existing private heads are rewritten/revalidated, and absent heads retain the
+mode. The mode cannot mint
 `CommittedHttp10KeepAliveHead`. Permit minting first returns
 `Http10PermitMintOutcome::{Minted, CloseWithoutReuse { reason }}`. Its close
 reasons are zero configured allowance, ledger exhaustion, unavailable
@@ -437,14 +442,16 @@ and correlation invariant failure. `Minted` consumes both signals and installs
 the non-Copy permit directly in engine-owned `Reusable` without decrementing.
 Duplicate acknowledgements/hooks and cancellation before/during/after mint are
 serialized so there is at most one outcome/permit, and admission prevents
-recreation of `Reusable`. Every mint failure creates no permit, consumes no
-successor input, and closes locally without a peer error.
+recreation of `Reusable`. The permit alone owns the exact generation-bound idle
+deadline. Every mint failure creates no permit, consumes no successor input,
+and closes locally without a peer error.
 The separate successor transition first builds an all-or-nothing internal
 linear `Http10NextExchangeReservation` over the next-exchange/correlation
 records, parser/event/output leases, request-count debit, admission-work charge,
-minimum parser-work reserve, idle-deadline owner, and checked generation. Any
-one-short component releases all tentative ownership without visible mutation.
-Its result is
+minimum parser-work reserve, immutable checked deadline snapshot, selected
+persistence mode, and checked generation. It never owns the deadline. Any
+one-short component releases all tentative ownership without visible mutation
+and leaves the exact permit/deadline in Reusable. Its result is
 `Http10SuccessorAdmissionOutcome::{Admitted, RetryableCapacity { reason },
 CloseLocal { reason }}`. Capacity returns only a freely constructible reason
 while `Reusable` exclusively retains permit/input/ledger state. Admission
@@ -453,15 +460,23 @@ revocation, idle-deadline equality, `PermitLedgerMismatch`, correlation
 invariant failure, and generation exhaustion; each consumes no input, revokes
 the permit, closes locally, never blames the peer, and never decrements.
 `PermitLedgerMismatch` is explicitly a local invariant failure. Admission
-atomically consumes the complete reservation, permit, and deadline; commits
-all records, leases, count/work charges and parser reserve; decrements the
-ledger once; applies the last-allowance private-head close; and installs
-`ActiveExchange { next_exchange_generation, reuse_remaining_snapshot }`.
-Only then is ActiveExchange visible, with no fallible initialization remaining.
+atomically consumes the complete reservation and permit including its deadline;
+commits all records, leases, count/work charges and parser reserve; decrements
+the ledger once; and installs `ActiveExchange { next_exchange_generation,
+reuse_remaining_snapshot, local_persistence_mode }`. Only then is ActiveExchange
+visible. Stale permit expiry cannot affect it. No engine-structural fallible
+initialization remains; later server response construction remains fallible
+before exposure under the retained persistence mode.
 That immutable snapshot is diagnostic/binding metadata and never authorizes a
 later mint; only the ledger does. Admission never refunds and checked
 generation exhaustion closes without wrap. Client/proxy-upstream request
 acceptance/exposure and origin/server input consumption require admission.
+Generation-bound terminal cleanup releases exchange/correlation records,
+parser/event/output leases, and unused parser-work reserve exactly once on
+success, cancellation, parse/transport failure, or connection close. Ledger,
+request-count, admission-work, and consumed parser-work charges never refund.
+Stale cleanup cannot release a newer exchange; no-refund never leaks caller
+storage.
 Same-call input requires the acknowledgement that enters `MessageCommitted`
 after exact fixed-length final bytes or a semantically bodyless final head.
 Transfer-Encoding, chunked coding, trailers, and HTTP/1.1 transfer semantics

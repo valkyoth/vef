@@ -294,33 +294,44 @@ ambiguity closes. Persistence loss rewrites only private heads; after exposure
 it preserves immutable output, prohibits successors, and closes. Reuse alone
 does not admit work. One per-hop ledger is the sole mutable authorization count
 of future successor admissions and never resets/refunds. Zero closes the
-initial private local head; a one-to-zero admission permits that successor but
-closes its new private head before exposure, and its zero snapshot cannot mint
-a local signal. `Http10PermitMintOutcome` handles zero allowance, ledger
+initial exchange through immutable `Http10LocalPersistenceMode::LastUseMustClose`;
+a one-to-zero admission installs that mode without requiring a server response.
+Client requests and later server responses apply it before exposure; existing
+client command/head state participates in admission, while the server mode
+persists until a response is supplied. Existing private heads are rewritten and
+absent heads retain the mode. It cannot mint a local signal.
+`Http10PermitMintOutcome` handles zero allowance, ledger
 exhaustion, missing negotiation, non-reusable framing, policy,
 deadline-add overflow, and correlation failure before `Reusable`; failure
 creates no permit or successor. A minted permit is installed only in
-engine-owned `Reusable` without decrementing. Duplicate acknowledgement/hook
-and cancellation races yield at most one mint/permit and cannot recreate
-Reusable after admission. The separate atomic `Reusable -> ActiveExchange`
+engine-owned `Reusable` without decrementing and is the sole idle-deadline
+owner. Duplicate acknowledgement/hook and cancellation races yield at most one
+mint/permit and cannot recreate Reusable after admission. The separate atomic
+`Reusable -> ActiveExchange`
 transition first assembles an internal linear `Http10NextExchangeReservation`
 with all exchange/correlation records, parser/event/output leases, count/work
-charges, parser-work reserve, deadline, and generation; one-short failure
-releases all of it without visible mutation.
+charges, parser-work reserve, deadline snapshot, selected persistence mode, and
+generation; the reservation never owns the deadline, and one-short failure
+releases all of it without visible mutation to the exact permit/deadline.
 Capacity returns a freely constructible reason only, with permit/input/ledger
 retained exclusively in `Reusable`. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit
 local-invariant `PermitLedgerMismatch`. Admission indivisibly consumes the
-complete reservation/permit/deadline, commits every resource and budget,
-decrements the ledger, installs the generation/snapshot/last-allowance close,
-and only then publishes ActiveExchange; no fallible initialization follows.
+complete reservation and permit including its deadline, commits every resource
+and budget, decrements the ledger, installs the generation/snapshot/persistence
+mode, and only then publishes ActiveExchange. Stale expiry cannot affect it.
+No engine-structural fallible initialization follows; later server response
+validation remains fallible before exposure under the retained mode.
 The snapshot is immutable and non-authoritative; future minting reads only the
 ledger. Client output and server input require admission. Same-call input requires the exact transition into
 `MessageCommitted` at a semantically bodyless head or exact fixed-length final
 byte. Transfer-Encoding, chunked coding, trailers, and close-delimited responses
 create no evidence, permit, or successor. Full acknowledgement of a nonfinal
 record remains premature. Admitted work never rolls back. No HTTP/1.0 path
-pipelines. HTTP/1.0
+pipelines. Generation-bound terminal cleanup releases records, storage leases,
+and unused parser-work reserve exactly once, while ledger/count/admission-work
+and consumed parser-work accounting never refunds. Stale cleanup cannot affect
+later generations, and no-refund never leaks caller storage. HTTP/1.0
 CONNECT is unsupported: local
 capacity stays local; aggregate start-line byte/work and method limits keep
 typed peer-limit close/optional safe 400; malformed/overlong version closes

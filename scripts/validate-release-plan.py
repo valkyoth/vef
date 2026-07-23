@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Check 225 minor milestones, 22 patch stops, and two release candidates."""
+"""Check 225 minor milestones, 36 patch stops, and two release candidates."""
 from __future__ import annotations
-import re
-import sys
+import re, sys
 from pathlib import Path
 def versions(pattern: str, text: str) -> list[int]:
     return [int(value) for value in re.findall(pattern, text, flags=re.MULTILINE)]
@@ -13,17 +12,10 @@ def main() -> int:
     expected = list(range(1, 226))
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
-    patch_stops = (
-        "0.75.1", "0.75.2", "0.75.3",
-        "0.157.1", "0.157.2", "0.157.3",
-        "0.157.4", "0.157.5",
-        "0.163.1", "0.163.2",
-        "0.180.1", "0.180.2", "0.180.3",
-        "0.180.4", "0.180.5",
-        "0.181.1", "0.181.2", "0.182.1",
-        "0.191.1", "0.191.2", "0.191.3",
-        "0.196.1",
-    )
+    patch_stops = tuple("""0.68.1 0.75.1 0.75.2 0.75.3 0.157.1 0.157.2 0.157.3 0.157.4 0.157.5 0.157.6
+0.163.1 0.163.2 0.179.1 0.179.2 0.179.3 0.180.1 0.180.2 0.180.3 0.180.4 0.180.5
+0.181.1 0.181.2 0.182.1 0.182.2 0.182.3 0.191.1 0.191.2 0.191.3 0.196.1
+0.222.1 0.222.2 0.222.3 0.222.4 0.222.5 0.222.6 0.222.7""".split())
     failures: list[str] = []; failures.extend(f"implementation-stop section exceeds 15,360-scalar review cap: {match.group(1)}" for match in re.finditer(r"(?ms)^### (v(?:0\.\d+\.\d+ — [^\n]+|1\.0\.0-rc\.\d+))\n(.*?)(?=^### |^## |\Z)", detailed) if len(match.group(2)) > 15_360)
     if detailed_versions != expected:
         failures.append("detailed plan does not cover v0.1.0 through v0.225.0 exactly")
@@ -32,12 +24,12 @@ def main() -> int:
     for patch_stop in patch_stops:
         if detailed.count(f"### v{patch_stop} — ") != 1:
             failures.append(f"detailed plan does not contain exactly one v{patch_stop} patch stop")
-        if compact.count(f"| `{patch_stop}` |") != 1:
+        if len(re.findall(rf"^\| `{re.escape(patch_stop)}` \|", compact, re.MULTILINE)) != 1:
             failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 247:
-            failures.append(f"expected 247 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 249:
+        if detailed.count(f"#### {heading}") != 261:
+            failures.append(f"expected 261 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 263:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -86,11 +78,20 @@ def main() -> int:
         "Streaming partial-response and retained-prefix validation",
         "Cross-request partial assembly and header synthesis",
         "Role-aware outbound response semantic validator",
+        "WebSocket URI and opening-resource validation", "Cache directive and cache-metadata forwarding contract",
+        "RFC 9218 role, retransmission, and coalescing scheduling decisions", "Weighted content-negotiation grammar",
+        "Standard content-negotiation fields and Vary selection contract", "Request/response context and representation-metadata fields",
+        "Standard method and status semantic matrix", "Normative-language, applicability, and exclusion closure",
+        "Historical HTTP, URI, media-type, and date evidence closure", "HTTP semantics and caching evidence closure",
+        "HTTP/1.1 and optimistic-transition evidence closure", "WebSocket, ALPN, TLS-context, and extended-CONNECT evidence closure",
+        "HPACK and HTTP/2 evidence closure", "Structured Fields and extensible-priority evidence closure",
     )
     for marker in required_markers:
         if marker not in detailed or marker not in compact:
             failures.append(f"missing gap-closure milestone: {marker}")
+    failures.extend(f"version index lacks one pinned RFC {number} coverage row" for number in (1945, 2046, 2119, 3986, 5322, 6455, 7301, 7541, 8174, 8441, 8446, 9110, 9111, 9112, 9113, 9218, 9298, 9651, 9931) if compact.count(f"| {number} |") != 1)
     ordering = (
+        ("Separate WebSocket handshake crate, key, version, and token validation", "WebSocket URI and opening-resource validation"), ("WebSocket URI and opening-resource validation", "Caller-supplied WebSocket nonce and entropy boundary"), ("Dependency-free media-type grammar", "Cache directive and cache-metadata forwarding contract"), ("Cache directive and cache-metadata forwarding contract", "Max-Forwards TRACE and OPTIONS intermediary semantics"), ("Priority update flood budgeting", "RFC 9218 role, retransmission, and coalescing scheduling decisions"), ("RFC 9218 role, retransmission, and coalescing scheduling decisions", "Weighted content-negotiation grammar"), ("Weighted content-negotiation grammar", "Standard content-negotiation fields and Vary selection contract"), ("Standard content-negotiation fields and Vary selection contract", "Client request builder and target forms"), ("Role-aware outbound response semantic validator", "Request/response context and representation-metadata fields"), ("Request/response context and representation-metadata fields", "Standard method and status semantic matrix"), ("Standard method and status semantic matrix", "Origin-server role API"), ("Whole-project conformance audit and pentest", "Normative-language, applicability, and exclusion closure"), ("Normative-language, applicability, and exclusion closure", "Historical HTTP, URI, media-type, and date evidence closure"), ("Historical HTTP, URI, media-type, and date evidence closure", "HTTP semantics and caching evidence closure"), ("HTTP semantics and caching evidence closure", "HTTP/1.1 and optimistic-transition evidence closure"), ("HTTP/1.1 and optimistic-transition evidence closure", "WebSocket, ALPN, TLS-context, and extended-CONNECT evidence closure"), ("WebSocket, ALPN, TLS-context, and extended-CONNECT evidence closure", "HPACK and HTTP/2 evidence closure"), ("HPACK and HTTP/2 evidence closure", "Structured Fields and extensible-priority evidence closure"), ("Structured Fields and extensible-priority evidence closure", "Independent security audit"),
         ("Connection-option, Upgrade, and hop-by-hop field grammar", "101 Switching Protocols transition and publication barrier"),
         ("SETTINGS frame codec", "SETTINGS syntax, role, directional values, and ACK rules"),
         ("Fixed-capacity caller-storage public API", "Optional alloc-backed convenience API"),
@@ -492,7 +493,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 minor milestones, 22 patch stops, and two release candidates")
+    print("release plan: 225 minor milestones, 36 patch stops, and two release candidates")
     return 0
 if __name__ == "__main__":
     raise SystemExit(main())

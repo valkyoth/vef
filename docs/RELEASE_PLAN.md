@@ -2761,7 +2761,7 @@ Status: planned
 #### Goal
 
 Deliver **Separate WebSocket handshake crate, key, version, and token validation** as the sole primary capability in this stop. It builds
-on v0.67.0 (101 Switching Protocols transition and publication barrier) and must be independently trustworthy before v0.69.0 (Caller-supplied WebSocket nonce and entropy boundary) begins.
+on v0.67.0 (101 Switching Protocols transition and publication barrier) and must be independently trustworthy before v0.68.1 (WebSocket URI and opening-resource validation) begins.
 
 #### Deliverables
 
@@ -2787,11 +2787,73 @@ on v0.67.0 (101 Switching Protocols transition and publication barrier) and must
 #### Exit criteria
 
 The Separate WebSocket handshake crate, key, version, and token validation contract and all previously implemented relevant behavior have
-reproducible evidence; v0.67.0 (101 Switching Protocols transition and publication barrier) still passes; no behavior assigned to v0.69.0 (Caller-supplied WebSocket nonce and entropy boundary) is
+reproducible evidence; v0.67.0 (101 Switching Protocols transition and publication barrier) still passes; no behavior assigned to v0.68.1 (WebSocket URI and opening-resource validation) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.68.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.68.1 — WebSocket URI and opening-resource validation
+
+Status: planned
+
+#### Goal
+
+Deliver **WebSocket URI and opening-resource validation** as the sole primary
+capability in this stop. It builds on v0.68.0 (Separate WebSocket handshake
+crate, key, version, and token validation) and must be independently trustworthy
+before v0.69.0 (Caller-supplied WebSocket nonce and entropy boundary) begins.
+
+#### Deliverables
+
+- Acceptance contract: In the isolated `vef-websocket-handshake` crate, add
+  bounded `ws`/`wss` URI parsing over the existing v0.17.0 RFC 3986 component
+  types. Accept only the RFC 6455 Section 3 syntax and scheme semantics; reject
+  fragments, user information, invalid bracketed hosts, invalid ports, control
+  bytes, and every authority/path/query ambiguity before an opening request can
+  be built. Preserve raw host, path, query, percent-encoding, and absent versus
+  present-empty query evidence without implicit decoding or normalization.
+- Construct the exact opening-handshake request resource name by the RFC 6455
+  algorithm, including empty-path-to-`/` handling and its query rule. Keep
+  transport security and default-port selection as typed adapter policy:
+  `wss` requires authenticated secure-transport evidence, while neither scheme
+  grants DNS, dialing, TLS, origin authorization, or redirect authority.
+  Bind the validated URI/resource pair to the exact handshake generation so a
+  caller cannot substitute a host, request target, scheme, or transport after
+  validation.
+- Keep URI syntax separate from the v0.68.0 key/version/token validator and
+  from later nonce, accept, negotiation, and HTTP/2 bridge logic. The crate
+  still implements no WebSocket frames, masking, extensions, or application
+  data and performs no allocation.
+- Add paragraph-addressable RFC 3986 and RFC 6455 Section 3 requirements,
+  applicability and SHOULD decisions, errata dispositions, threat controls,
+  API documentation, release notes, resource measurements, and traceability.
+
+#### Verification
+
+- Test every `ws`/`wss` scheme spelling admitted by the grammar, IPv4,
+  registered names, bracketed IPv6/IPvFuture, explicit/default/empty/overflow
+  ports, empty and non-empty paths, absent/empty/non-empty queries,
+  percent-encoded delimiters, fragments, user information, controls, invalid
+  brackets, truncation at every byte, exact/one-short capacities, stale
+  generation evidence, scheme/transport mismatch, and URI/resource
+  substitution. Cross-check resource-name vectors against RFC 6455 and prove
+  no URI normalization or network authority is introduced.
+- Run arbitrary-byte no-panic and bounded-work tests plus all v0.68.0
+  handshake tests. No test may require nonce generation, accept calculation,
+  negotiation, frames, TLS implementation, or a later-version capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The WebSocket URI/resource contract has complete positive, negative,
+fragmentation, capacity, role, and transport-evidence coverage; v0.68.0 still
+passes; no v0.69.0 entropy behavior is claimed; every applicable RFC 6455
+Section 3 MUST/MUST NOT is traced; the active resource profile passes; and no
+critical/high finding is open.
+
+`0.68.1 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.69.0 — Caller-supplied WebSocket nonce and entropy boundary
 
@@ -2800,7 +2862,7 @@ Status: planned
 #### Goal
 
 Deliver **Caller-supplied WebSocket nonce and entropy boundary** as the sole primary capability in this stop. It builds
-on v0.68.0 (Separate WebSocket handshake crate, key, version, and token validation) and must be independently trustworthy before v0.70.0 (WebSocket accept generation and client/server validation) begins.
+on v0.68.1 (WebSocket URI and opening-resource validation) and must be independently trustworthy before v0.70.0 (WebSocket accept generation and client/server validation) begins.
 
 #### Deliverables
 
@@ -2826,7 +2888,7 @@ on v0.68.0 (Separate WebSocket handshake crate, key, version, and token validati
 #### Exit criteria
 
 The Caller-supplied WebSocket nonce and entropy boundary contract and all previously implemented relevant behavior have
-reproducible evidence; v0.68.0 (Separate WebSocket handshake crate, key, version, and token validation) still passes; no behavior assigned to v0.70.0 (WebSocket accept generation and client/server validation) is
+reproducible evidence; v0.68.1 (WebSocket URI and opening-resource validation) still passes; no behavior assigned to v0.70.0 (WebSocket accept generation and client/server validation) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -7130,7 +7192,7 @@ Status: planned
 #### Goal
 
 Deliver **Dependency-free media-type grammar** as the sole primary capability in this stop. It builds
-on v0.157.4 (Injected civil time and HTTP-date policy) and must be independently trustworthy before v0.158.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) begins.
+on v0.157.4 (Injected civil time and HTTP-date policy) and must be independently trustworthy before v0.157.6 (Cache directive and cache-metadata forwarding contract) begins.
 
 #### Deliverables
 
@@ -7147,9 +7209,80 @@ on v0.157.4 (Injected civil time and HTTP-date policy) and must be independently
 
 #### Exit criteria
 
-The dependency-free media-type grammar and generated-content validation contract and all previously implemented relevant behavior have reproducible evidence; v0.157.4 (Injected civil time and HTTP-date policy) still passes; no behavior assigned to v0.158.0 (Max-Forwards TRACE and OPTIONS intermediary semantics) is claimed; the active resource profile passes; and no critical/high finding is open.
+The dependency-free media-type grammar and generated-content validation contract and all previously implemented relevant behavior have reproducible evidence; v0.157.4 (Injected civil time and HTTP-date policy) still passes; no behavior assigned to v0.157.6 (Cache directive and cache-metadata forwarding contract) is claimed; the active resource profile passes; and no critical/high finding is open.
 
 `0.157.5 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.157.6 — Cache directive and cache-metadata forwarding contract
+
+Status: planned
+
+#### Goal
+
+Deliver **Cache directive and cache-metadata forwarding contract** as the sole
+primary capability in this stop. It builds on v0.157.5 (Dependency-free
+media-type grammar) and must be independently trustworthy before v0.158.0
+(Max-Forwards TRACE and OPTIONS intermediary semantics) begins.
+
+#### Deliverables
+
+- Acceptance contract: Add a dependency-free, no_std `vef-cache-fields` crate
+  depending only on `vef-core` and the v0.157.4 date types. Incrementally parse
+  bounded Cache-Control field lists into ordered directive events with
+  case-insensitive names, optional token or quoted-string values, preserved raw
+  bytes, duplicate/conflict evidence, unknown extension preservation,
+  independent byte/directive/decoded/work limits, and no hidden allocation.
+  Parse `delta-seconds` with checked arithmetic and retain an explicit
+  overflow-or-at-least-2^31 semantic state as required by RFC 9111 rather than
+  wrapping, truncating, or treating overflow as fresh.
+- Define typed, generation-bound syntax/evidence views for Age, Expires,
+  Pragma, Warning, and cache-related Vary metadata. Preserve invalid or
+  extension input for recipient policy without converting it into cache
+  authority. Keep multiple field-line combination, quoted comma handling, raw
+  forwarding, semantic lookup, and generated-field validation distinct; local
+  generation rejects injection, invalid decimals, and ambiguous duplicates
+  before any head bytes are exposed.
+- Define the complete no-cache-store disposition: VEF core does not compute
+  freshness, select stored responses, revalidate a cache entry, or issue reuse
+  authority. It preserves end-to-end cache metadata across legal translation,
+  strips only fields nominated by validated Connection options, never weakens
+  `no-store`, `private`, `no-cache`, `must-revalidate`, `proxy-revalidate`, or
+  `s-maxage`, and never performs a representation transformation when
+  `no-transform` applies. RFC 9111 requirements whose actor is an actual cache
+  receive paragraph-addressable `not-applicable` records with the no-store
+  rationale rather than false implementation claims.
+- Integrate exact cache-field evidence into v0.160.0 translation and the later
+  206/304 response validator. Preserve Date/Age ordering and received values;
+  any policy that removes obsolete Warning or compatibility Pragma must be
+  explicit, role-valid, generation-bound, and recorded without inventing
+  freshness. Update threat model, docs, release notes, resource measurements,
+  requirements, SHOULD decisions, errata dispositions, and traceability.
+
+#### Verification
+
+- Test every standard request and response directive, extension directives,
+  token and quoted-string values, escaped commas, combined/separate lines,
+  duplicate equal/conflicting directives, empty/malformed members, decimal
+  zero/maximum/overflow, every split, exact/one-short capacity, stale evidence,
+  and arbitrary bytes. Prove raw forwarding is lossless, local generation is
+  injection-proof, semantic lookup is bounded, and malformed cache metadata
+  never grants cache/reuse authority or becomes a framing error.
+- Exercise each intermediary path with Connection stripping, translation,
+  206/304 metadata, `no-transform`, Pragma/Warning policy, Date/Age
+  preservation, and unknown extensions. Assert VEF performs no storage,
+  freshness, heuristic, invalidation, revalidation, or cache selection and
+  that every cache-actor-only normative paragraph has an applicability record.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+All RFC 9111 field and intermediary obligations applicable to VEF are linked to
+code and tests; every cache-store-only obligation is explicitly and reviewedly
+not applicable; v0.157.5 still passes; no v0.158.0 behavior is claimed; the
+active resource profile passes; and no critical/high finding is open.
+
+`0.157.6 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.158.0 — Max-Forwards TRACE and OPTIONS intermediary semantics
 
@@ -7158,7 +7291,7 @@ Status: planned
 #### Goal
 
 Deliver **Max-Forwards TRACE and OPTIONS intermediary semantics** as the sole primary capability in this stop. It builds
-on v0.157.5 (Dependency-free media-type grammar) and must be independently trustworthy before v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) begins.
+on v0.157.6 (Cache directive and cache-metadata forwarding contract) and must be independently trustworthy before v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) begins.
 
 #### Deliverables
 
@@ -7185,7 +7318,7 @@ on v0.157.5 (Dependency-free media-type grammar) and must be independently trust
 #### Exit criteria
 
 The Max-Forwards TRACE and OPTIONS intermediary semantics contract and all previously implemented relevant behavior have
-reproducible evidence; v0.157.5 (Dependency-free media-type grammar) still passes; no behavior assigned to v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) is
+reproducible evidence; v0.157.6 (Cache directive and cache-metadata forwarding contract) still passes; no behavior assigned to v0.159.0 (HTTP/1 TE request-field and trailers forwarding semantics) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -8070,7 +8203,7 @@ Status: planned
 #### Goal
 
 Deliver **Priority update flood budgeting** as the sole primary capability in this stop. It builds
-on v0.178.0 (PRIORITY_UPDATE frame support) and must be independently trustworthy before v0.180.0 (Client request builder and target forms) begins.
+on v0.178.0 (PRIORITY_UPDATE frame support) and must be independently trustworthy before v0.179.1 (RFC 9218 role, retransmission, and coalescing scheduling decisions) begins.
 
 #### Deliverables
 
@@ -8096,11 +8229,187 @@ on v0.178.0 (PRIORITY_UPDATE frame support) and must be independently trustworth
 #### Exit criteria
 
 The Priority update flood budgeting contract and all previously implemented relevant behavior have
-reproducible evidence; v0.178.0 (PRIORITY_UPDATE frame support) still passes; no behavior assigned to v0.180.0 (Client request builder and target forms) is
+reproducible evidence; v0.178.0 (PRIORITY_UPDATE frame support) still passes; no behavior assigned to v0.179.1 (RFC 9218 role, retransmission, and coalescing scheduling decisions) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.179.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.179.1 — RFC 9218 role, retransmission, and coalescing scheduling decisions
+
+Status: planned
+
+#### Goal
+
+Deliver **RFC 9218 role, retransmission, and coalescing scheduling decisions**
+as the sole primary capability in this stop. It builds on v0.179.0 (Priority
+update flood budgeting) and must be independently trustworthy before v0.179.2
+(Weighted content-negotiation grammar) begins.
+
+#### Deliverables
+
+- Acceptance contract: Complete RFC 9218 Sections 9–13 with explicit
+  client/server/intermediary role decisions. Client request scheduling,
+  server response and push scheduling, CONNECT streams, and retransmission
+  hints feed the existing bounded scheduler only as non-authoritative inputs;
+  transport adapters may report retransmission classes but cannot mutate HTTP
+  state, grant flow credit, or bypass frozen/control/framing output.
+- Preserve the selected urgency and incremental value for a retransmitted
+  request unless a later valid reprioritization supersedes it. Define the exact
+  merge point for server knowledge and client hints, deterministic defaults,
+  starvation prevention, and a documented policy for new data versus
+  retransmission data. A CONNECT tunnel retains control-plane safety and fair
+  service without treating opaque tunnel bytes as HTTP messages.
+- When an intermediary coalesces requests from several clients or splits work
+  across backends, bind priority state to the exact downstream request and
+  upstream attempt generation. Apply per-principal/per-origin fairness before
+  global scheduling so one client cannot monopolize a shared backend; never
+  forward a downstream priority value as trusted backend authority, and discard
+  stale updates on retry, cancellation, or correlation reuse.
+- Record each RFC 9218 SHOULD/SHOULD NOT scheduling choice, its role and threat
+  rationale, limits, telemetry, requirements, tests, and interoperability
+  evidence. No kernel retransmission API, transport implementation, or
+  connection-coalescing policy is added to core.
+
+#### Verification
+
+- Model every urgency/incremental combination across client requests, server
+  responses, push, CONNECT, new data, reported retransmission data, retries,
+  reprioritization, and cancellation. Test coalesced clients with unequal load,
+  split backends, malicious priority churn, stale generations, scheduler
+  saturation, flow-control blocking, frozen suffixes, mandatory controls, and
+  bounded eventual service.
+- Prove hints cannot forge transport facts, credit, authorization, request
+  identity, or wire commitment; flood limits from v0.179.0 and all earlier
+  priority behavior remain intact. Run deterministic model, fuzz, and
+  long-running fairness tests with fixed seeds and recorded tolerances.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+Every applicable normative and advisory rule in RFC 9218 Sections 9–13 has an
+implemented or reviewed disposition and reproducible evidence; v0.179.0 still
+passes; no content-negotiation behavior is claimed; the active resource
+profile passes; and no critical/high finding is open.
+
+`0.179.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.179.2 — Weighted content-negotiation grammar
+
+Status: planned
+
+#### Goal
+
+Deliver **Weighted content-negotiation grammar** as the sole primary capability
+in this stop. It builds on v0.179.1 (RFC 9218 role, retransmission, and
+coalescing scheduling decisions) and must be independently trustworthy before
+v0.179.3 (Standard content-negotiation fields and Vary selection contract)
+begins.
+
+#### Deliverables
+
+- Acceptance contract: Add a dependency-free, no_std `vef-negotiation` crate
+  depending only on `vef-core` and `vef-media-type`. Implement bounded
+  incremental RFC 9110 quality-value and weighted-list grammar with exact
+  thousandth precision, canonical local serialization, ordered member events,
+  raw extension preservation, duplicate parameter evidence, and separate raw
+  byte/member/parameter/decoded/work limits. Reject out-of-range, over-precise,
+  signed, exponent, empty, malformed, and injection-bearing quality values;
+  never round a received value into validity.
+- Separate syntax evidence from selection policy. Parsed weights never choose a
+  representation, transcode content, authorize a response, or normalize raw
+  field values. Selection consumes a caller-provided finite candidate set,
+  active resource profile, explicit deterministic tie-break order, and exact
+  request generation, returning a sealed choice or typed no-match/capacity
+  result with no hidden allocation.
+- Define combination and duplicate handling without comma/quoted-string
+  ambiguity; preserve extension parameters and distinguish absent quality from
+  explicit zero. Generated fields use canonical bounded output and fail before
+  message exposure. Update RFC 9110 requirements, SHOULD decisions, errata,
+  threat controls, API docs, release notes, measurements, and traceability.
+
+#### Verification
+
+- Exhaust quality values 0/1 and every legal fractional width, one-below/above
+  boundaries, excess precision, leading/trailing syntax, duplicates,
+  quoted commas, extension parameters, combined lines, every-byte splits,
+  exact/one-short storage and work, canonical round trips, candidate ties,
+  no-match, stale generations, cancellation, and arbitrary input.
+- Prove linear bounded work, stable deterministic selection, zero output before
+  generated-field validation, no implicit content transformation, and no
+  selection authority in syntax evidence. Re-run v0.157.5 media-type tests.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The generic weighted-negotiation grammar and sealed selection boundary are
+complete and independently tested; v0.179.1 and v0.157.5 still pass; no
+field-specific negotiation behavior is claimed; the resource profile passes;
+and no critical/high finding is open.
+
+`0.179.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.179.3 — Standard content-negotiation fields and Vary selection contract
+
+Status: planned
+
+#### Goal
+
+Deliver **Standard content-negotiation fields and Vary selection contract** as
+the sole primary capability in this stop. It builds on v0.179.2 (Weighted
+content-negotiation grammar) and must be independently trustworthy before
+v0.180.0 (Client request builder and target forms) begins.
+
+#### Deliverables
+
+- Acceptance contract: Implement bounded field-specific parsing and selection
+  for Accept, Accept-Charset, Accept-Encoding, and Accept-Language over exact
+  v0.179.2 syntax evidence. Preserve wildcard, range specificity, parameter,
+  identity-coding, absent-field, empty-field, and explicit-zero distinctions;
+  use checked deterministic precedence and return sealed
+  `SelectedRepresentation` evidence tied to the exact request, candidate set,
+  policy, and response generation.
+- Implement Vary as a bounded case-insensitive field-name set or `*`, rejecting
+  invalid names and local duplicate ambiguity while preserving received raw
+  order. Derive cache/partial-combination variant identity only from the exact
+  request fields selected by valid Vary evidence; `Vary: *` grants no reusable
+  or recombination identity. Keep sensitive values redacted and stored only
+  under the lease/normalization rules planned at v0.181.1.
+- A missing acceptable representation produces an explicit application-policy
+  outcome; core does not invent 406, transcoding, language fallback, charset
+  conversion, or content coding. Intermediaries preserve end-to-end negotiation
+  fields unless an already-authorized transformation supplies a freshly
+  validated destination selection and Vary set. Integrate cache metadata from
+  v0.157.6 without adding a cache store.
+- Update paragraph-addressable RFC 9110 Sections 12.4–12.5 and RFC 9111 Vary
+  requirements, role/applicability and SHOULD decisions, errata, threat model,
+  API docs, release notes, resource measurements, corpora, and traceability.
+
+#### Verification
+
+- Exhaust each field's wildcards, specificity, casing, identity and zero
+  exclusions, absent/empty/multiple lines, parameters, language ranges,
+  candidate ties, unknown extensions, invalid grammar, every split and limit.
+  Test Vary `*`, duplicates, invalid names, sensitive values, stale selections,
+  candidate/request/policy substitution, intermediary preservation, and exact
+  variant identity across ordinary and partial responses.
+- Differentially test deterministic selection vectors and fuzz the product of
+  field syntax, candidates, work/capacity, cancellation, and translation.
+  Prove no unselected representation can be emitted with stale evidence and no
+  negotiation result grants cache, transformation, retry, or origin authority.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+All standard RFC 9110 proactive negotiation fields and Vary selection rules
+have bounded implementation and evidence; v0.179.2 and v0.157.6 still pass; no
+v0.180.0 builder behavior is claimed; the resource profile passes; and no
+critical/high finding is open.
+
+`0.179.3 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.180.0 — Client request builder and target forms
 
@@ -8109,7 +8418,7 @@ Status: planned
 #### Goal
 
 Deliver **Client request builder and target forms** as the sole primary capability in this stop. It builds
-on v0.179.0 (Priority update flood budgeting) and must be independently trustworthy before v0.180.1 (Dependency-free conditional semantics crate and validators) begins.
+on v0.179.3 (Standard content-negotiation fields and Vary selection contract) and must be independently trustworthy before v0.180.1 (Dependency-free conditional semantics crate and validators) begins.
 
 #### Deliverables
 
@@ -8441,7 +8750,7 @@ Status: planned
 #### Goal
 
 Deliver **Role-aware outbound response semantic validator** as the sole primary capability in this stop. It builds
-on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and must be independently trustworthy before v0.183.0 (Origin-server role API) begins.
+on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and must be independently trustworthy before v0.182.2 (Request/response context and representation-metadata fields) begins.
 
 #### Deliverables
 
@@ -8472,11 +8781,138 @@ on v0.182.0 (Retry safety, idempotency, and body-replayability contract) and mus
 #### Exit criteria
 
 The role-aware outbound response semantic validator contract and all previously implemented relevant behavior have
-reproducible evidence; v0.182.0 (Retry safety, idempotency, and body-replayability contract) still passes; no behavior assigned to v0.183.0 (Origin-server role API) is
+reproducible evidence; v0.182.0 (Retry safety, idempotency, and body-replayability contract) still passes; no behavior assigned to v0.182.2 (Request/response context and representation-metadata fields) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.182.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.182.2 — Request/response context and representation-metadata fields
+
+Status: planned
+
+#### Goal
+
+Deliver **Request/response context and representation-metadata fields** as the
+sole primary capability in this stop. It builds on v0.182.1 (Role-aware
+outbound response semantic validator) and must be independently trustworthy
+before v0.182.3 (Standard method and status semantic matrix) begins.
+
+#### Deliverables
+
+- Acceptance contract: Complete the RFC 9110 standard field surface not owned
+  by framing, authentication, conditions, ranges, cache, or negotiation.
+  Provide bounded typed validation and generation rules for From, Referer,
+  User-Agent, Allow, Location, Retry-After, Server, Content-Encoding,
+  Content-Language, and Content-Location, reusing URI, date, token, list, and
+  decimal primitives instead of creating parallel grammars. Preserve unknown
+  codings/languages and received raw values; never resolve a Location, follow a
+  redirect, decode content, contact an address, or infer user identity.
+- Bind field meaning to message role, method, status, representation, protocol,
+  and exact generation. Distinguish representation metadata from framing
+  Content-Length and selected-representation evidence; Content-Encoding order
+  is preserved, Content-Language is advisory metadata, Content-Location is not
+  a replacement for target URI, and Referer generation follows explicit
+  caller privacy policy with secure-to-insecure suppression and no invented
+  source. Product fields accept caller-provided values under injection,
+  length, and disclosure limits and have conservative omission defaults.
+- Extend `vef-semantics` so forbidden, required, or context-incoherent locally
+  generated fields fail with zero bytes, while received semantic violations
+  remain synchronized and receive an explicit role policy. Forwarders preserve
+  end-to-end fields and privacy decisions without rewriting representation
+  metadata unless an authorized transformation supplies fresh exact evidence.
+- Update every applicable RFC 9110 field paragraph, registry applicability,
+  SHOULD/SHOULD NOT choice, errata disposition, threat control, API document,
+  release note, resource measurement, corpus, and requirement-to-test link.
+
+#### Verification
+
+- Test every field across request/response, client/server/intermediary,
+  HTTP/1/HTTP/2, status/method applicability, absent/empty/multiple values,
+  unknown extensions, URI/date/delta boundaries, language/coding ordering,
+  controls/injection, privacy suppression, secure downgrade, exact/one-short
+  storage, every-byte splits, stale generations, and field substitution.
+- Prove Location/Content-Location/Referer never grant network or origin
+  authority, Content-Encoding never invokes a codec, received violations do not
+  desynchronize framing, and local invalid fields emit zero bytes. Re-run
+  cache, negotiation, translation, and response-semantic fuzz models.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+Every applicable RFC 9110 context-control and representation-metadata field has
+an explicit bounded contract and evidence; v0.182.1 still passes; no standard
+method/status matrix behavior is claimed; the resource profile passes; and no
+critical/high finding is open.
+
+`0.182.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.182.3 — Standard method and status semantic matrix
+
+Status: planned
+
+#### Goal
+
+Deliver **Standard method and status semantic matrix** as the sole primary
+capability in this stop. It builds on v0.182.2 (Request/response context and
+representation-metadata fields) and must be independently trustworthy before
+v0.183.0 (Origin-server role API) begins.
+
+#### Deliverables
+
+- Acceptance contract: Materialize the RFC 9110 method/status/content/field
+  decision table consumed by both protocol engines and every role API. Cover
+  GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, and TRACE plus extension
+  methods; cover each registered 1xx–5xx status defined by RFC 9110, including
+  reserved/unused codes, method-dependent semantics, required fields,
+  content-forbidden cases, cacheability metadata, retry implications, and
+  unknown-valid status preservation. The table validates wire-relevant
+  coherence but never fabricates application success, redirects, resources, or
+  authorization decisions.
+- Require exact request correlation and sealed pre/post-action,
+  representation, range, negotiation, cache-field, and location/date evidence
+  only where the selected matrix row needs it. HEAD metadata mirrors the
+  corresponding GET without content; CONNECT 2xx, 101, 204, 205, 304, and
+  informational responses retain their already-defined transition/framing
+  rules. Reserved 306 is not generated; unknown 100..=599 codes remain
+  classifiable and forwardable under explicit policy; invalid wire 600..=999
+  remains non-serializable evidence under v0.12.0.
+- Generate a machine-readable matrix artifact from one reviewed source and
+  test that HTTP/1, HTTP/2, translation, client, origin, proxy, gateway, and
+  facade paths consume it without divergent hand-written copies. Invalid local
+  combinations issue no response permit and no bytes; received semantic
+  violations preserve framing synchronization and expose a typed policy
+  decision.
+- Update paragraph-addressable RFC 9110 Sections 9 and 15 requirements,
+  cross-referenced RFC 9111 default-cacheability dispositions, every SHOULD
+  decision and erratum, threat controls, docs, release notes, measurements,
+  corpora, and traceability.
+
+#### Verification
+
+- Exhaust method × status × role × protocol × body/trailer × standard-field
+  combinations, request-correlation states, extension methods, every registered
+  and unknown-valid code, reserved 306, invalid 600/999/1000 boundaries,
+  HEAD-versus-GET metadata, CONNECT/101 transitions, redirects, authentication,
+  conditions, ranges, and retry metadata. Check generated and received paths
+  separately.
+- Add compile-time/table completeness checks and stateful differential tests
+  proving every engine and facade reaches the same decision. Fuzz frozen-head
+  substitution, missing evidence, capacity, cancellation, translation, and
+  partial output; prove invalid local combinations emit zero bytes and
+  semantic errors never become framing errors.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The RFC 9110 standard method/status matrix is exhaustive, generated from one
+reviewed source, and consumed without bypass by every role and protocol;
+v0.182.2 still passes; no v0.183.0 API behavior is claimed; the resource
+profile passes; and no critical/high finding is open.
+
+`0.182.3 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.183.0 — Origin-server role API
 
@@ -8485,7 +8921,7 @@ Status: planned
 #### Goal
 
 Deliver **Origin-server role API** as the sole primary capability in this stop. It builds
-on v0.182.1 (Role-aware outbound response semantic validator) and must be independently trustworthy before v0.184.0 (Forward-proxy role API) begins.
+on v0.182.3 (Standard method and status semantic matrix) and must be independently trustworthy before v0.184.0 (Forward-proxy role API) begins.
 
 #### Deliverables
 
@@ -10765,7 +11201,7 @@ Status: planned
 #### Goal
 
 Deliver **Whole-project conformance audit and pentest** as the sole primary capability in this stop. It builds
-on v0.221.0 (Differential and interoperability campaign) and must be independently trustworthy before v0.223.0 (Independent security audit) begins.
+on v0.221.0 (Differential and interoperability campaign) and must be independently trustworthy before v0.222.1 (Normative-language, applicability, and exclusion closure) begins.
 
 #### Deliverables
 
@@ -10791,11 +11227,338 @@ on v0.221.0 (Differential and interoperability campaign) and must be independent
 #### Exit criteria
 
 The Whole-project conformance audit and pentest contract and all previously implemented relevant behavior have
-reproducible evidence; v0.221.0 (Differential and interoperability campaign) still passes; no behavior assigned to v0.223.0 (Independent security audit) is
+reproducible evidence; v0.221.0 (Differential and interoperability campaign) still passes; no behavior assigned to v0.222.1 (Normative-language, applicability, and exclusion closure) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
 `0.222.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.1 — Normative-language, applicability, and exclusion closure
+
+Status: planned
+
+#### Goal
+
+Deliver **Normative-language, applicability, and exclusion closure** as the
+sole primary capability in this stop. It builds on v0.222.0 (Whole-project
+conformance audit and pentest) and must be independently trustworthy before
+v0.222.2 (Historical HTTP, URI, media-type, and date evidence closure) begins.
+
+#### Deliverables
+
+- Freeze the exact checksums and effective-document relationships for all 19
+  pinned RFC files. Complete RFC 2119/RFC 8174 keyword interpretation records,
+  actor/role/protocol applicability rules, supersession handling, verified and
+  held errata, deviations, and reviewed SHOULD/SHOULD NOT decisions.
+- Give every excluded surface a paragraph-addressable rationale tied to
+  `docs/SCOPE.md`. In particular, record every RFC 9298 requirement as
+  not-applicable because HTTP/1.1 CONNECT-UDP is absent, and prove no existing
+  CONNECT, extended CONNECT, capsule-like bytes, URI template, or optimistic
+  input path can silently enable it. Apply the same evidence discipline to
+  cache-store, TLS-implementation, WebSocket-frame, and multipart-body-parser
+  actor exclusions without marking their applicable preservation boundaries
+  excluded.
+- Generate source-checksum, applicability, unresolved-MUST, undecided-SHOULD,
+  errata, deviation, and exclusion reports for this exact commit. Fail closed
+  on an unclassified normative paragraph, unknown RFC checksum, unresolved
+  effective-spec relationship, duplicate requirement identity, or evidence
+  link outside the repository.
+
+#### Verification
+
+- Mutate fixtures for every requirement level, actor, role, supersession,
+  erratum state, checksum, duplicate ID, and exclusion rationale; prove the
+  evidence generator rejects missing/ambiguous records and produces stable
+  deterministic reports. Run `scripts/verify-rfcs.sh` and repository link,
+  schema, and reproducibility checks.
+- Attempt to activate RFC 9298 through every public CONNECT/Upgrade/translation
+  API and prove it remains unavailable at compile time or returns explicit
+  unsupported policy with zero output and no tunnel authority.
+
+#### Exit criteria
+
+Every pinned source has a checksum-bound applicability owner; all exclusions
+are explicit and reviewed; RFC 9298 cannot activate; no normative paragraph is
+unclassified; v0.222.0 evidence remains reproducible; and no critical/high
+finding is open.
+
+`0.222.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.2 — Historical HTTP, URI, media-type, and date evidence closure
+
+Status: planned
+
+#### Goal
+
+Deliver **Historical HTTP, URI, media-type, and date evidence closure** as the
+sole primary capability in this stop. It builds on v0.222.1 and must be
+independently trustworthy before v0.222.3 (HTTP semantics and caching evidence
+closure) begins.
+
+#### Deliverables
+
+- Close every applicable RFC 1945, RFC 2046, RFC 3986, and RFC 5322 Section 3.3
+  requirement against the implemented HTTP/0.9 isolation, HTTP/1.0 profile,
+  URI/authority/request-target types, media-type and multipart-boundary grammar,
+  and HTTP-date calendar behavior. Historical text not governing the declared
+  profiles receives explicit evidence-only or not-applicable status.
+- Review all component boundary, delimiter, percent-encoding, IPv6/IPvFuture,
+  port, empty-path/query, leap-day/year/second, quoted parameter, duplicate,
+  and multipart-boundary cases against named code and tests. Confirm no
+  implicit URI normalization, general multipart parser, wall-clock ownership,
+  or HTTP/1.0 CONNECT support has been claimed.
+- Emit per-RFC role coverage and zero-unresolved-applicable-MUST/MUST-NOT
+  reports bound to the exact source checksums and implementation commit.
+
+#### Verification
+
+- Replay the complete HTTP/0.9/1.0, URI, media-type/boundary, and date corpora
+  with every-byte splits, exact/one-short limits, arbitrary input, and
+  cross-profile rejection. Audit each requirement-to-symbol and
+  requirement-to-test link and fail on stale, missing, or overly broad links.
+- Manually review SHOULD dispositions, historical applicability, and
+  no-normalization/no-parser boundaries; independently sample source paragraphs
+  against generated records.
+
+#### Exit criteria
+
+RFCs 1945, 2046, 3986, and the applicable RFC 5322 date subset have zero
+unresolved applicable MUST/MUST NOT, zero undecided SHOULD/SHOULD NOT, complete
+errata disposition, and reproducible code/test links; v0.222.1 still passes.
+
+`0.222.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.3 — HTTP semantics and caching evidence closure
+
+Status: planned
+
+#### Goal
+
+Deliver **HTTP semantics and caching evidence closure** as the sole primary
+capability in this stop. It builds on v0.222.2 and must be independently
+trustworthy before v0.222.4 (HTTP/1.1 and optimistic-transition evidence
+closure) begins.
+
+#### Deliverables
+
+- Close every applicable RFC 9110 and RFC 9111 requirement across methods,
+  statuses, fields, content, conditional/range behavior, authentication,
+  negotiation, translation, intermediary roles, cache-field preservation, and
+  no-cache-store applicability. Cross-check all Section 9/12/13/14/15 field and
+  semantic tables against v0.157.1–v0.182.3 rather than accepting a generic
+  “complete semantics” assertion.
+- Produce separate client, origin, forward-proxy, reverse-proxy, gateway, and
+  tunnel reports. Every cache-actor-only obligation must name the missing
+  cache-store actor and every preservation/no-transform/intermediary obligation
+  must link to implementation and tests. Unknown extension methods, fields,
+  cache directives, and valid status codes retain explicit handling.
+- Reconcile cross-RFC references and errata so one behavior cannot be marked
+  implemented in RFC 9110 but excluded in RFC 9111, or vice versa. Fail the
+  release on an untested generated-message requirement, unreviewed recipient
+  policy, field with no translation disposition, or any semantic bypass.
+
+#### Verification
+
+- Replay method/status/field matrices, cache directives, negotiation, Vary,
+  conditions, ranges, authentication, date, metadata, retry, translation, and
+  all role APIs under fragmentation, capacity, cancellation, and invalid local
+  construction. Differentially compare the generated conformance matrix with
+  both protocol engines and facade paths.
+- Manually sample every RFC 9110 and RFC 9111 section, audit all SHOULD
+  decisions and cache-store exclusions, and require zero unresolved applicable
+  MUST/MUST NOT and zero semantic output bypass.
+
+#### Exit criteria
+
+RFCs 9110 and 9111 have complete role-specific applicability, code, test,
+errata, and SHOULD evidence; no cache-store behavior is falsely claimed; every
+applicable cache-preservation boundary is implemented; v0.222.2 still passes;
+and no critical/high finding is open.
+
+`0.222.3 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.4 — HTTP/1.1 and optimistic-transition evidence closure
+
+Status: planned
+
+#### Goal
+
+Deliver **HTTP/1.1 and optimistic-transition evidence closure** as the sole
+primary capability in this stop. It builds on v0.222.3 and must be independently
+trustworthy before v0.222.5 (WebSocket, ALPN, TLS-context, and extended-CONNECT
+evidence closure) begins.
+
+#### Deliverables
+
+- Treat RFC 9112 plus RFC 9931 as one effective HTTP/1.1 baseline. Close every
+  applicable parser, serializer, framing, connection, persistence, upgrade,
+  CONNECT, optimistic-data, transition, and security requirement against named
+  code and tests, including all verified/held errata and superseded guidance.
+- Audit request-smuggling ambiguity, duplicate framing, incomplete messages,
+  connection-option stripping, head/body commitment, pipelining correlation,
+  100/early-final behavior, transition over-read, exact close proof, and
+  content-independent acknowledgement-before-input ordering across client,
+  server, and intermediary roles.
+- Generate a combined effective-spec report that prevents an RFC 9112 record
+  from satisfying an RFC 9931 update without the updated behavior and rejects
+  any old optimistic-forwarding rule that survives in code, docs, tests, or a
+  public API.
+
+#### Verification
+
+- Replay grammar, smuggling, pipeline, transition, optimistic-data, cancellation,
+  capacity, and partial-output corpora at every split and acknowledgement
+  offset. Model stale evidence, missing close proof, same-call input, and
+  cross-role translation; prove unsafe optimistic bytes are discarded exactly
+  once and never reparsed or promoted.
+- Manually audit the effective-requirement merge and all errata, requiring zero
+  unresolved applicable MUST/MUST NOT and zero undecided SHOULD/SHOULD NOT.
+
+#### Exit criteria
+
+The effective RFC 9112+RFC 9931 HTTP/1.1 baseline is fully traced and tested,
+no superseded optimistic behavior remains, v0.222.3 still passes, and no
+critical/high finding is open.
+
+`0.222.4 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.5 — WebSocket, ALPN, TLS-context, and extended-CONNECT evidence closure
+
+Status: planned
+
+#### Goal
+
+Deliver **WebSocket, ALPN, TLS-context, and extended-CONNECT evidence closure**
+as the sole primary capability in this stop. It builds on v0.222.4 and must be
+independently trustworthy before v0.222.6 (HPACK and HTTP/2 evidence closure)
+begins.
+
+#### Deliverables
+
+- Close the declared RFC 6455 opening-handshake subset, RFC 7301 ALPN, RFC 8441
+  extended CONNECT, and RFC 8446 TLS 1.3 adapter-context requirements. Trace
+  URI/resource validation, nonce/accept/negotiation, 101 barriers, directional
+  SETTINGS activation, bidirectional mapping, authenticated ALPN, TLS version/
+  cipher/renegotiation/early-data prerequisites, alerts, EOF, and transport
+  generation metadata.
+- Prove scope boundaries: no WebSocket frame protocol, TLS implementation,
+  certificate validation, DNS, or socket ownership is claimed. Nonetheless,
+  every adapter fact used by HTTP has authenticated typed provenance and cannot
+  be fabricated, downgraded, reused across connections, or inferred from
+  untrusted ALPN/application bytes.
+- Reconcile extension behavior with RFC 9110/9112/9113 and record every
+  paragraph-level applicability, SHOULD decision, erratum, code symbol, test,
+  interop artifact, and exclusion rationale.
+
+#### Verification
+
+- Replay WebSocket URI/handshake/bridge, ALPN, TLS admission, early-data,
+  renegotiation, EOF/alert, extended-CONNECT SETTINGS, transition, and
+  over-read tests across roles, protocols, stale generations, partial output,
+  cancellation, and capacity. Include negative adapter implementations and
+  compile-fail evidence for unforgeable metadata.
+- Audit source-to-test links and independently verify all excluded frame/TLS/
+  network requirements are excluded by actor and scope rather than hidden
+  behind an untested runtime branch.
+
+#### Exit criteria
+
+RFCs 6455, 7301, 8441, and the applicable RFC 8446 context have complete
+evidence and honest exclusions; v0.222.4 still passes; no out-of-scope transport
+or WebSocket behavior is claimed; and no critical/high finding is open.
+
+`0.222.5 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.6 — HPACK and HTTP/2 evidence closure
+
+Status: planned
+
+#### Goal
+
+Deliver **HPACK and HTTP/2 evidence closure** as the sole primary capability in
+this stop. It builds on v0.222.5 and must be independently trustworthy before
+v0.222.7 (Structured Fields and extensible-priority evidence closure) begins.
+
+#### Deliverables
+
+- Close every applicable RFC 7541 and RFC 9113 requirement across HPACK
+  integer/string/Huffman/table/representation behavior; compression state and
+  publication; HTTP/2 frames, streams, settings, errors, flow control, push,
+  mapping, connection management, scheduling, and TLS prerequisites. Record
+  every role, direction, state, error scope, SHOULD decision, and erratum.
+- Audit the security-critical boundaries that generic vectors miss: HPACK
+  mutation only at wire commitment, header-list limits, sensitive indexing,
+  fragmented field-block ownership, SETTINGS transactions and ACK commitment,
+  control priority, exact flow-credit restoration, reset/end-stream closure,
+  GOAWAY cutoffs, push rejection, and content-independent token/input order.
+- Generate complete RFC-to-state-transition and RFC-to-error-disposition
+  reports, rejecting requirements linked only to a broad module or test suite;
+  every link names the responsible symbol/state and positive plus adversarial
+  test.
+
+#### Verification
+
+- Replay RFC vectors, exhaustive small-state models, Kani proofs, stateful fuzz
+  corpora, interoperability traces, every frame split, every output
+  acknowledgement offset, exact/one-short capacity, cancellation, and fatal
+  cleanup. Differentially verify HPACK and HTTP/2 role/error tables.
+- Manually sample all RFC 7541/9113 sections and errata and require zero
+  unresolved applicable MUST/MUST NOT, zero undecided SHOULD/SHOULD NOT, and no
+  evidence link that omits role, direction, or state.
+
+#### Exit criteria
+
+RFCs 7541 and 9113 have complete state-, role-, and error-specific evidence;
+all formal/fuzz/interoperability artifacts replay; v0.222.5 still passes; and
+no critical/high finding is open.
+
+`0.222.6 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.222.7 — Structured Fields and extensible-priority evidence closure
+
+Status: planned
+
+#### Goal
+
+Deliver **Structured Fields and extensible-priority evidence closure** as the
+sole primary capability in this stop. It builds on v0.222.6 and must be
+independently trustworthy before v0.223.0 (Independent security audit) begins.
+
+#### Deliverables
+
+- Close every applicable RFC 9651 and RFC 9218 requirement across Structured
+  Fields grammar, data model, duplicate/overwrite behavior, canonical
+  serialization, limits, Priority fields, SETTINGS integration,
+  PRIORITY_UPDATE, reprioritization, client/server/intermediary scheduling,
+  CONNECT, retransmission, coalescing fairness, and security controls.
+- Confirm that smaller Structured Fields profiles are labeled constrained,
+  mandatory minima are met, syntax evidence grants no scheduling authority,
+  priority remains advisory, malformed updates follow the fixed disposition,
+  and floods/coalesced clients cannot starve required control or other
+  principals.
+- Generate per-section code/test/SHOULD/errata coverage and cross-check RFC 9218
+  uses only the RFC 9651 parser/serializer rather than a parallel grammar.
+  Freeze the complete 19-RFC closure manifest as input to the independent
+  security audit.
+
+#### Verification
+
+- Replay all Structured Fields and priority vectors, canonical round trips,
+  malformed and capacity corpora, scheduler models, long-running fairness,
+  retransmission/CONNECT/coalescing cases, update floods, stale generations,
+  and interop traces. Prove bounded work and no syntax/scheduler authority
+  confusion.
+- Run the final source-to-requirement reconciliation over all 19 pinned RFCs;
+  require zero unresolved applicable MUST/MUST NOT, zero undecided applicable
+  SHOULD/SHOULD NOT, zero unreviewed errata, and zero unexplained exclusions.
+
+#### Exit criteria
+
+RFCs 9651 and 9218 are fully traced and tested; the checksum-bound closure
+manifest accounts for every pinned RFC and is ready for independent review;
+v0.222.6 still passes; and no critical/high finding is open.
+
+`0.222.7 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.223.0 — Independent security audit
 
@@ -10804,7 +11567,7 @@ Status: planned
 #### Goal
 
 Deliver **Independent security audit** as the sole primary capability in this stop. It builds
-on v0.222.0 (Whole-project conformance audit and pentest) and must be independently trustworthy before v0.224.0 (Audit remediation and API freeze) begins.
+on v0.222.7 (Structured Fields and extensible-priority evidence closure) and must be independently trustworthy before v0.224.0 (Audit remediation and API freeze) begins.
 
 #### Deliverables
 

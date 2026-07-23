@@ -26,8 +26,10 @@ and bind optional cross-request assembly to pre-output linear, shard-isolated
 invalidation namespaces, structurally safe leases, explicit semantic
 replacement identity, and borrow-aware physical reclamation. The roadmap
 remains at minor `0.225.0` with focused patch stops at `0.75.1`–`0.75.3`,
-`0.157.1`–`0.157.5`, `0.163.1`–`0.163.2`, `0.180.1`–`0.180.5`,
-`0.181.1`–`0.181.2`, `0.182.1`, `0.191.1`–`0.191.3`, and `0.196.1`.
+`0.68.1`, `0.157.1`–`0.157.6`, `0.163.1`–`0.163.2`,
+`0.179.1`–`0.179.3`, `0.180.1`–`0.180.5`, `0.181.1`–`0.181.2`,
+`0.182.1`–`0.182.3`, `0.191.1`–`0.191.3`, `0.196.1`, and
+`0.222.1`–`0.222.7`.
 
 | Gap closed | Versions | Binding consequence |
 | --- | --- | --- |
@@ -55,6 +57,7 @@ remains at minor `0.225.0` with focused patch stops at `0.75.1`–`0.75.3`,
 | Bounded outbound DATA staging and arithmetic | resource basis at `0.8.0`; concrete arena at `0.137.0`; segmentation at `0.143.0`; audit/public API at `0.154.0`/`0.191.0`; diagnostics/fuzz/compile-fail at `0.193.0`/`0.196.0`/`0.197.0`; resource replay at `0.211.0` | Copy each exact frame into an exclusive caller-provided slot sized by checked `9 + payload`. Select data only after checked padding overhead and all peer/local/credit/arena bounds; impossible padding follows explicit reduction or local backpressure, bytes never truncate silently, capacities remain separate, and staged storage cannot recycle early. |
 | Status-code validity | `0.12.0` | Limit StatusCode to 100..=599, preserve unknown valid codes, retain received 600..=999 only as typed invalid wire evidence, process them under client 5xx policy, and prohibit serialization. |
 | URI path/query identity | `0.17.0`, `0.128.0`, `0.160.0` | Store raw path and optional query separately, preserve absent versus empty query and percent encoding, map exact `:path`, and perform only required empty-path-to-slash conversion. |
+| WebSocket URI/resource identity | `0.68.1` | Validate exact ws/wss URI syntax and RFC 6455 resource construction, preserve raw component identity, bind scheme to transport evidence, and grant no DNS/TLS/frame authority. |
 | Trusted effective target | `0.19.0`, `0.40.0`, `0.156.0`, `0.203.0`, `0.208.0` | Bind fixed/gateway/transport scheme evidence to connection generation, apply explicit precedence/conflict policy before publication, and reuse the complete scheme/authority/path/query decision. |
 | CONNECT authority and policy | `0.40.0`, `0.64.0`, `0.161.0` | Require explicit checked port 1..=65535, bracket-safe host parsing, no Host/default substitution, caller target authorization before external action, no request content, strict success fields, and non-cacheability. |
 | Endpoint-bound CONNECT admission | `0.19.0`, `0.64.0`, `0.130.0`, `0.161.0`, `0.184.0` | Stage lexical authorization, attempt token, caller resolution and per-endpoint policy, then require generation-matched resolved endpoint and actual peer evidence before success/output/tunnel publication without giving core DNS/socket authority. |
@@ -68,6 +71,9 @@ remains at minor `0.225.0` with focused patch stops at `0.75.1`–`0.75.3`,
 | HPACK encoder atomicity | `0.98.0` | Couple dynamic-table mutation to committed output bytes and formally prove retry/cancel/partial-output behavior. |
 | Sensitive HPACK indexing | `0.97.0` | Use typed directives, conservative secret defaults, never-indexed preservation, decision noninterference, diagnostic redaction, and non-bypassable profiles. |
 | Generic HTTP authentication grammar | `0.97.0`, `0.157.2` | Add dependency-free `vef-auth`; preserve raw/case-insensitive schemes, compare parameter names case-insensitively, reject duplicates, quote generated realm, enforce terminal token68 padding, resolve comma ambiguity, and prevent secret ownership/diagnostic/index exposure. |
+| Cache fields without a cache store | `0.157.6`, integrated at `0.160.0` and `0.182.1` | Parse and preserve bounded Cache-Control/Age/Expires/Pragma/Warning/Vary evidence, honor no-transform and intermediary obligations, and explicitly classify storage/freshness/reuse requirements as not applicable. |
+| Weighted content negotiation | `0.179.2`–`0.179.3` | Add bounded qvalue/list grammar and exact Accept/Accept-Charset/Accept-Encoding/Accept-Language/Vary selection evidence without inventing transcoding, fallback, or cache authority. |
+| Complete priority scheduling roles | `0.179.1` | Close RFC 9218 client/server/CONNECT/retransmission/coalescing/fairness decisions while priority remains advisory and bounded below mandatory protocol progress. |
 | Hop-scoped proxy authentication | `0.19.0`, `0.65.0`, `0.97.0`, `0.157.2`–`0.157.3`, `0.184.0` | Bind validated proxy credentials to hop/connection/generation/exchange, consume before origin forwarding, permit only named cooperative relay, scope challenges/info to the next client, require challenged 407, redact/never-index/exclude from TRACE, and force fresh HTTP/1 CONNECT authentication retry. |
 | Compression principals | `0.97.0`, `0.190.0` | Tag dynamic entries by caller provenance, prohibit cross-principal lookup on shared/coalesced connections, and default unknown provenance to non-indexing. |
 | Compression provenance bookkeeping | `0.90.0`–`0.91.0`, `0.97.0` | Keep immutable provenance as an encoder sidecar that never changes HPACK size/index order, and remove it atomically with entry eviction or reset. |
@@ -126,13 +132,14 @@ remains at minor `0.225.0` with focused patch stops at `0.75.1`–`0.75.3`,
 | Exact validated-response binding | `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.197.0` | `ValidatedResponse` owns or immutably borrows the precise ordered head, framing, sensitivity/indexing, body, and trailer plan; engines consume it whole, never `(raw_head, permit)`, and every mutation requires revalidation. |
 | Mandatory semantic reserve | `0.25.0`, `0.38.0`, `0.182.1`, `0.183.0`, `0.191.0` | Reserve engine-only validation slots and frozen-head storage for 400/414/431 and other mandatory output; application work cannot exhaust it, and total reserve failure commits one zero-partial-output close/shutdown action. |
 | Unbypassable response semantics | `0.54.0`, `0.137.0`, `0.157.2`, `0.180.1`–`0.181.2`, `0.182.1`, `0.183.0`, `0.191.0`, `0.192.0`, `0.194.0`, `0.197.0` | Make `vef-semantics` depend on core/auth/media-type/conditions, require frozen sealed request/response objects in both engines, remove raw public serialization, retain validation through facade/fixed/alloc/features, and compile-fail bypasses. |
-| Role-aware response semantics | `0.157.2`, `0.157.4`, `0.180.1`–`0.181.2`, `0.182.1`, `0.183.0` | Validate 401/405/426, retrieval-snapshot-bound 206/304/416 metadata and Date policy, client partial segments/combinations, and the complete RFC 9110 matrix; preserve multipart opaquely and separate local InvalidState from received policy/forwarding. |
+| Role-aware response semantics | `0.157.2`, `0.157.4`, `0.180.1`–`0.181.2`, `0.182.1`–`0.182.3`, `0.183.0` | Validate 401/405/426, retrieval-snapshot-bound 206/304/416 metadata, context/representation fields, and a generated complete method/status matrix; preserve multipart opaquely and separate local InvalidState from received policy/forwarding. |
 | Server-wide OPTIONS final hop | `0.158.0`, `0.160.0` | Preserve absolute-form through intermediate forward proxies, convert empty-path/absent-query OPTIONS to `*` only at the origin-facing hop, and keep empty query and `/` resource-specific. |
 | Structured Fields conformance profiles | `0.168.0`, `0.170.0`, `0.173.0` | Overwrite duplicate parameters/dictionary members with the final value, meet RFC 9651 mandatory minima, label smaller profiles constrained, and keep capacity distinct from syntax. |
 | HTTP/2 PRIORITY_UPDATE | `0.178.0` | Own only frame type 0x10 with receiver-server-relative request and push states, exact errors, concurrency bounds, and a fixed ignore-malformed-value policy. |
 | Concrete acceptance contracts | `0.1.0`–`0.225.0` | Eliminate generic state-graph and family templates; every type, parser, codec, protocol, adapter, campaign, audit, and release stop states its actual accepted input, state, error, capacity, and publication evidence. |
 | Intermediary and retry semantics | `0.158.0`, `0.159.0`, `0.182.0` | Cover required forward-proxy fields and never infer replay safety from GOAWAY/421 alone. |
-| Structured Fields and priority | `0.164.0`–`0.179.0` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, and flood behavior. |
+| Structured Fields and priority | `0.164.0`–`0.179.1` | Give an optional dependency-free crate explicit ownership, place complete bare-item dispatch after every item grammar, and add bounded RFC 9651/RFC 9218 scheduling, intermediary, retransmission, coalescing, fairness, and flood behavior. |
+| RFC-by-RFC release closure | `0.222.1`–`0.222.7` | Reconcile all 19 pinned sources by family, require zero unresolved applicable MUST/MUST NOT and undecided SHOULD/SHOULD NOT, and freeze checksum-bound evidence before independent audit. |
 | Translation and byte handoff | `0.155.0` then `0.160.0`; `0.188.0` | Separate representation from validated mapping and transfer post-transition bytes exactly once without HTTP reinterpretation. |
 | Protocol-specific tunnel closure | `0.186.0` | HTTP/1 EOF flushes then closes both sides; HTTP/2/RFC8441 END_STREAM is a directional FIN that preserves reverse traffic until both finish, while resets/fatal errors abort both. |
 | TLS and bare-metal contracts | `0.204.0`–`0.205.0` plus adapter milestones | Enumerate RFC 9113 TLS prerequisites and concrete short-I/O/readiness/deadline/EOF/alignment/scatter-gather behavior. |
@@ -143,6 +150,30 @@ RFC 6455 remains an optional source-locked opening-handshake extension. RFC
 9298 remains source-locked but not applicable unless HTTP/1.1 CONNECT-UDP enters
 scope. Via, Max-Forwards, and TE map to RFC 9110/9112. RFC 7239 `Forwarded`
 transformation remains outside 1.0.
+
+## Pinned RFC coverage before 1.0
+
+| RFC | Declared 1.0 disposition | Implementation stops | Final evidence stop |
+| --- | --- | --- | --- |
+| 1945 | Isolated HTTP/0.9 and hardened HTTP/1.0 profiles | `0.28.0`, `0.73.0`–`0.81.0` | `0.222.2` |
+| 2046 | Media-type parameters and multipart boundary only | `0.157.5`, `0.180.5` | `0.222.2` |
+| 2119 | Normative-language ledger rules | `0.26.0` | `0.222.1` |
+| 3986 | URI components without implicit normalization | `0.17.0`, `0.68.1`, `0.128.0`, `0.160.0` | `0.222.2` |
+| 5322 | Section 3.3 calendar/year semantics only | `0.157.4`, `0.180.1` | `0.222.2` |
+| 6455 | Optional opening handshake; no frame protocol | `0.68.0`–`0.71.0`, `0.163.0`–`0.163.2` | `0.222.5` |
+| 7301 | Authenticated ALPN adapter metadata | `0.146.0`, `0.204.0`–`0.205.0` | `0.222.5` |
+| 7541 | Complete bounded HPACK encoder/decoder | `0.82.0`–`0.101.0`, integration through `0.154.0` | `0.222.6` |
+| 8174 | Uppercase normative-keyword interpretation | `0.26.0` | `0.222.1` |
+| 8441 | Optional HTTP/2 extended CONNECT | `0.139.0`, `0.162.0`–`0.163.2` | `0.222.5` |
+| 8446 | TLS 1.3 context/provider evidence; no TLS implementation | `0.202.0`–`0.206.0` | `0.222.5` |
+| 9110 | Shared semantics for all declared roles | `0.11.0`–`0.19.0`, `0.155.0`–`0.188.0` | `0.222.3` |
+| 9111 | Required metadata/intermediary behavior; no cache store | `0.157.0`, `0.157.6`, `0.179.3`, `0.180.1`–`0.182.3` | `0.222.3` |
+| 9112 | Full HTTP/1.1 messaging | `0.29.0`–`0.72.0`, `0.80.0`–`0.81.0` | `0.222.4` |
+| 9113 | Full HTTP/2 wire/state/mapping behavior | `0.102.0`–`0.154.0`, integration through `0.190.0` | `0.222.6` |
+| 9218 | Optional extensible priorities | `0.174.0`–`0.179.1` | `0.222.7` |
+| 9298 | Source-locked and explicitly not applicable | prohibition at `0.65.0`, `0.71.0`, `0.161.0`, `0.163.1` | `0.222.1` |
+| 9651 | Complete bounded Structured Fields for priority support | `0.164.0`–`0.173.0` | `0.222.7` |
+| 9931 | Effective optimistic-transition update to RFC 9112 | `0.65.0`, replay through `0.81.0` and `0.163.1` | `0.222.4` |
 
 ## Universal release gate
 
@@ -233,8 +264,9 @@ HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownersh
 | `0.65.0` | RFC 9931 optimistic-data protections | Requires CONNECT request and successful tunnel transition; refines received HTTP/1.1 close proof only from exact v0.56.0 `ValidatedConnectionOptions`, or uses an exact locally generated close-bearing head after full commitment. Configured intent, queued bytes, raw reparsing, and HTTP/1.0 lifecycle state are insufficient; missing proof gets strict discard/close/no-reparse/no-promotion. Unlocks Connection-option, Upgrade, and hop-by-hop field grammar. |
 | `0.66.0` | Connection-option, Upgrade, and hop-by-hop field grammar | Requires RFC 9931 optimistic-data protections; reuses `ValidatedConnectionOptions` without reparsing and adds only bounded Upgrade-value grammar plus generation-bound Connection/Upgrade pairing. Unlocks 101 Switching Protocols transition and publication barrier. |
 | `0.67.0` | 101 Switching Protocols transition and publication barrier | Requires Connection-option, Upgrade, and hop-by-hop field grammar; client 101 requires a committed opening request and server transition/over-read publication requires full 101-head acknowledgement; Unlocks Separate WebSocket handshake crate, key, version, and token validation. |
-| `0.68.0` | Separate WebSocket handshake crate, key, version, and token validation | Requires 101 Switching Protocols transition and publication barrier; Unlocks Caller-supplied WebSocket nonce and entropy boundary. |
-| `0.69.0` | Caller-supplied WebSocket nonce and entropy boundary | Requires Separate WebSocket handshake crate, key, version, and token validation; Unlocks WebSocket accept generation and client/server validation. |
+| `0.68.0` | Separate WebSocket handshake crate, key, version, and token validation | Requires 101 Switching Protocols transition and publication barrier; Unlocks WebSocket URI and opening-resource validation. |
+| `0.68.1` | WebSocket URI and opening-resource validation | Requires `0.68.0`; validates ws/wss components and exact resource-name construction without granting transport or frame authority; Unlocks nonce/entropy boundary. |
+| `0.69.0` | Caller-supplied WebSocket nonce and entropy boundary | Requires `0.68.1`; Unlocks WebSocket accept generation and client/server validation. |
 | `0.70.0` | WebSocket accept generation and client/server validation | Requires Caller-supplied WebSocket nonce and entropy boundary; Unlocks WebSocket negotiation, origin metadata, and byte-publication barrier. |
 | `0.71.0` | WebSocket negotiation, origin metadata, and byte-publication barrier | Requires WebSocket accept generation and client/server validation; only legal 101-following over-read becomes transition-owned, full acknowledgement plus input is post-handshake, zero/short acknowledgement makes input premature, and invalid acknowledgement consumes none; Unlocks Safe forwarding and explicit reframing plan. |
 | `0.72.0` | Safe forwarding and explicit reframing plan | Requires WebSocket negotiation, origin metadata, and byte-publication barrier; Unlocks RFC 1945 HTTP/1.0 parser and hardened profile. |
@@ -344,8 +376,9 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.157.2` | Dependency-free generic authentication grammar and sensitive storage | Requires Via grammar, append, privacy, and loop policy; Unlocks Proxy-authentication hop ownership and 407 lifecycle. |
 | `0.157.3` | Proxy-authentication hop ownership and 407 lifecycle | Requires Dependency-free generic authentication grammar and sensitive storage; Unlocks Injected civil time and HTTP-date policy. |
 | `0.157.4` | Injected civil time and HTTP-date policy | Requires Proxy-authentication hop ownership and 407 lifecycle; Unlocks Dependency-free media-type grammar. |
-| `0.157.5` | Dependency-free media-type grammar | Requires Injected civil time and HTTP-date policy; Unlocks Max-Forwards TRACE and OPTIONS intermediary semantics. |
-| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires Dependency-free media-type grammar; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
+| `0.157.5` | Dependency-free media-type grammar | Requires Injected civil time and HTTP-date policy; Unlocks cache directive and metadata forwarding. |
+| `0.157.6` | Cache directive and cache-metadata forwarding contract | Requires `0.157.5`; adds bounded RFC 9111 field evidence and explicit no-cache-store applicability; Unlocks Max-Forwards TRACE/OPTIONS. |
+| `0.158.0` | Max-Forwards TRACE and OPTIONS intermediary semantics | Requires `0.157.6`; Unlocks HTTP/1 TE request-field and trailers forwarding semantics. |
 | `0.159.0` | HTTP/1 TE request-field and trailers forwarding semantics | Requires Max-Forwards TRACE and OPTIONS intermediary semantics; Unlocks Normative HTTP/1 and HTTP/2 translation matrix. |
 | `0.160.0` | Normative HTTP/1 and HTTP/2 translation matrix | Requires HTTP/1 TE request-field and trailers forwarding semantics; Unlocks CONNECT translation across HTTP versions. |
 | `0.161.0` | CONNECT translation across HTTP versions | Requires Normative HTTP/1 and HTTP/2 translation matrix; linearly carries ordinary HTTP/2 PendingConnect as permitted optimistic input through one success transfer or failure discard and never grants that authority to RFC 8441/CONNECT-UDP; Unlocks RFC 8441 extended CONNECT. |
@@ -368,8 +401,11 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.176.0` | Priority scheduling hints and fairness | Requires SETTINGS_NO_RFC7540_PRIORITIES priority-mode integration; Unlocks Priority intermediary behavior. |
 | `0.177.0` | Priority intermediary behavior | Requires Priority scheduling hints and fairness; Unlocks PRIORITY_UPDATE frame support. |
 | `0.178.0` | PRIORITY_UPDATE frame support | Requires Priority intermediary behavior; Unlocks Priority update flood budgeting. |
-| `0.179.0` | Priority update flood budgeting | Requires PRIORITY_UPDATE frame support; Unlocks Client request builder and target forms. |
-| `0.180.0` | Client request builder and target forms | Requires Priority update flood budgeting; Unlocks Dependency-free conditional semantics crate and validators. |
+| `0.179.0` | Priority update flood budgeting | Requires PRIORITY_UPDATE frame support; Unlocks role/retransmission/coalescing scheduling decisions. |
+| `0.179.1` | RFC 9218 role, retransmission, and coalescing scheduling decisions | Requires `0.179.0`; completes Sections 9–13 with advisory hints, per-principal fairness, and no transport authority; Unlocks weighted negotiation grammar. |
+| `0.179.2` | Weighted content-negotiation grammar | Requires `0.179.1`; adds bounded exact qvalues/lists and sealed deterministic selection without field semantics; Unlocks standard negotiation fields. |
+| `0.179.3` | Standard content-negotiation fields and Vary selection contract | Requires `0.179.2` plus `0.157.6`; owns Accept family and exact Vary identity without transcoding/cache authority; Unlocks client builder. |
+| `0.180.0` | Client request builder and target forms | Requires `0.179.3`; Unlocks Dependency-free conditional semantics crate and validators. |
 | `0.180.1` | Dependency-free conditional semantics crate and validators | Requires Client request builder and target forms; Unlocks Conditional request fields and ordered precondition evaluation. |
 | `0.180.2` | Conditional request fields and ordered precondition evaluation | Requires Dependency-free conditional semantics crate and validators; Unlocks Bounded byte ranges and single-range response planning. |
 | `0.180.3` | Bounded byte ranges and single-range response planning | Requires Conditional request fields and ordered precondition evaluation; Unlocks Outbound conditional and range request validation. |
@@ -379,8 +415,10 @@ Role APIs expose validated authorized messages; translation emits nothing before
 | `0.181.1` | Streaming partial-response and retained-prefix validation | Requires the exact ordinary or promised correlation and held handle/provenance; pushed 206 cannot retain/assemble without all evidence, and pushed/ordinary 200 enters identical keyed/unkeyed evidence; Unlocks Cross-request partial assembly and header synthesis. |
 | `0.181.2` | Cross-request partial assembly and header synthesis | Requires Streaming partial-response and retained-prefix validation; consumes immutable pushed provenance after associated-stream teardown/reuse with namespace-bounded invalidation and borrow-aware reclamation; Unlocks Retry safety, idempotency, and body-replayability contract. |
 | `0.182.0` | Retry safety, idempotency, and body-replayability contract | Requires Cross-request partial assembly and header synthesis; Unlocks Role-aware outbound response semantic validator. |
-| `0.182.1` | Role-aware outbound response semantic validator | Requires Retry safety, idempotency, and body-replayability contract; Unlocks Origin-server role API. |
-| `0.183.0` | Origin-server role API | Requires Role-aware outbound response semantic validator; Unlocks Forward-proxy role API. |
+| `0.182.1` | Role-aware outbound response semantic validator | Requires Retry safety, idempotency, and body-replayability contract; Unlocks context and representation fields. |
+| `0.182.2` | Request/response context and representation-metadata fields | Requires `0.182.1`; closes remaining RFC 9110 typed field contracts without network/codec authority; Unlocks standard method/status matrix. |
+| `0.182.3` | Standard method and status semantic matrix | Requires `0.182.2`; generates one exhaustive RFC 9110 matrix consumed by all roles/protocols; Unlocks origin API. |
+| `0.183.0` | Origin-server role API | Requires `0.182.3`; Unlocks Forward-proxy role API. |
 | `0.184.0` | Forward-proxy role API | Requires Origin-server role API; Unlocks Reverse-proxy and gateway role API. |
 | `0.185.0` | Reverse-proxy and gateway role API | Requires Forward-proxy role API; Unlocks Tunnel lifecycle and half-close semantics. |
 | `0.186.0` | Tunnel lifecycle and half-close semantics | Requires Reverse-proxy and gateway role API plus the v0.137.0 END_STREAM commit boundary; application FIN seals output immediately but HTTP/2/RFC8441 directional wire half-close occurs only after the final carrying frame is fully acknowledged; Unlocks Upgrade transformation boundary. |
@@ -430,8 +468,15 @@ Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministi
 | `0.219.0` | Kani HTTP/2 proof replay and expansion | Requires Kani HPACK proof replay and expansion; Unlocks Stateful cargo-fuzz replay and expansion. |
 | `0.220.0` | Stateful cargo-fuzz replay and expansion | Requires Kani HTTP/2 proof replay and expansion; Unlocks Differential and interoperability campaign. |
 | `0.221.0` | Differential and interoperability campaign | Requires Stateful cargo-fuzz replay and expansion; Unlocks Whole-project conformance audit and pentest. |
-| `0.222.0` | Whole-project conformance audit and pentest | Requires Differential and interoperability campaign; Unlocks Independent security audit. |
-| `0.223.0` | Independent security audit | Requires Whole-project conformance audit and pentest; Unlocks Audit remediation and API freeze. |
+| `0.222.0` | Whole-project conformance audit and pentest | Requires Differential and interoperability campaign; Unlocks RFC evidence closure. |
+| `0.222.1` | Normative-language, applicability, and exclusion closure | Requires `0.222.0`; closes RFC 2119/8174 policy and RFC 9298 non-applicability; Unlocks syntax/historical closure. |
+| `0.222.2` | Historical HTTP, URI, media-type, and date evidence closure | Requires `0.222.1`; closes RFCs 1945, 2046, 3986, and the RFC 5322 date subset; Unlocks semantics/cache closure. |
+| `0.222.3` | HTTP semantics and caching evidence closure | Requires `0.222.2`; closes RFCs 9110 and 9111 across every declared role and honest no-cache-store exclusions; Unlocks HTTP/1 closure. |
+| `0.222.4` | HTTP/1.1 and optimistic-transition evidence closure | Requires `0.222.3`; closes the effective RFC 9112+9931 baseline; Unlocks extension/transport-context closure. |
+| `0.222.5` | WebSocket, ALPN, TLS-context, and extended-CONNECT evidence closure | Requires `0.222.4`; closes RFCs 6455, 7301, 8441, and applicable 8446 context; Unlocks HPACK/HTTP2 closure. |
+| `0.222.6` | HPACK and HTTP/2 evidence closure | Requires `0.222.5`; closes RFCs 7541 and 9113 with state/role/error-specific evidence; Unlocks Structured Fields/priority closure. |
+| `0.222.7` | Structured Fields and extensible-priority evidence closure | Requires `0.222.6`; closes RFCs 9651 and 9218 and freezes all 19-RFC evidence; Unlocks independent audit. |
+| `0.223.0` | Independent security audit | Requires `0.222.7`; Unlocks Audit remediation and API freeze. |
 | `0.224.0` | Audit remediation and API freeze | Requires Independent security audit; Unlocks Documentation, packaging, SBOM, provenance, and RC readiness. |
 | `0.225.0` | Documentation, packaging, SBOM, provenance, and RC readiness | Requires Audit remediation and API freeze; Unlocks 1.0.0-rc.1. |
 

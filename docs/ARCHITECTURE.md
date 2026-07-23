@@ -132,7 +132,13 @@ Received proof is refined from the exact `ValidatedConnectionOptions`, never
 from reparsing raw fields. A configured intention without committed wire
 evidence grants no authority. HTTP/1.0 CONNECT is unsupported; default-close,
 explicit close, keep-alive, and fallback-close state cannot construct or
-substitute either HTTP/1.1 proof variant.
+substitute either HTTP/1.1 proof variant. Local builders return zero-output
+`UnsupportedVersionMethod`. Receivers select role-specific
+`UnsupportedHttp10ConnectDisposition`: server, proxy, intermediary, and gateway
+reserve a bounded 501 plus mandatory close, never publish/resolve/forward, and
+discard same-buffer optimistic bytes once. Partial 501 failure closes without
+fabricated completion; mandatory-response reserve failure uses the existing
+zero-partial-output close action.
 HTTP/2 ordinary CONNECT uses its existing PendingConnect owner. Unpermitted
 ordinary CONNECT follows the strict policy: discard once, close, never reparse,
 and never promote even after 2xx. Forbidden WebSocket/CONNECT-UDP input follows
@@ -240,11 +246,13 @@ HTTP/0.9.
 The parser is an incremental byte-state machine. It does not decode the whole
 message as UTF-8, reparse accepted bytes, scan without limits, allocate from a
 peer length, or continue indefinitely without progress.
-HTTP/1.1 `Connection` fields have one bounded parser. It produces sealed
-`ValidatedConnectionOptions` bound to the exact ordered fields, version, role,
-message/request generation, and connection generation. Persistence, received
-optimistic-CONNECT close proof, Upgrade pairing, and intermediary stripping
-consume that same evidence; none reparses or renormalizes raw fields.
+HTTP/1 `Connection` fields have one bounded version-neutral parser. It produces
+sealed `ValidatedConnectionOptions` bound to the exact ordered fields, exact
+HTTP version, role, message/request generation, and connection generation.
+HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
+pairing; HTTP/1.0 default-close and `ValidatedHttp10KeepAlive`; and
+either-version intermediary stripping consume that same evidence. None reparses
+or renormalizes raw fields, and no semantic refinement crosses versions.
 Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
 elements, and close-over-keep-alive precedence are decided once. Malformed,
 quoted/substr-like close values and `Proxy-Connection` produce no close

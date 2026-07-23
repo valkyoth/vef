@@ -397,11 +397,18 @@ persistence, transitions, and connection state. It cannot parse or select
 HTTP/0.9. Starting at v0.157.5 it depends on `vef-media-type`; it later depends
 on `vef-conditions` and `vef-semantics`, consumes frozen validated requests/responses, and has no public head-output entry accepting a
 raw `vef-core` request or response.
-Its v0.56.0 bounded `Connection` parser is the only such parser and emits sealed
-`ValidatedConnectionOptions` for persistence, received optimistic-CONNECT close
-proof, Upgrade pairing, and intermediary stripping. Later consumers neither
-reparse nor renormalize raw fields. The HTTP/1.0 profile rejects CONNECT before
-publication; default-close/keep-alive state cannot become HTTP/1.1 proof.
+Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
+`ValidatedConnectionOptions` retaining the exact HTTP version. HTTP/1.1
+persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
+default-close/`ValidatedHttp10KeepAlive`, and either-version intermediary
+stripping consume that one result. Later consumers neither reparse nor
+renormalize raw fields or substitute semantic authority across versions.
+The HTTP/1.0 profile rejects CONNECT before publication through
+`UnsupportedHttp10ConnectDisposition`: local builders return zero-output
+`UnsupportedVersionMethod`; receivers reserve bounded 501-and-close, suppress
+publication/resolution/forwarding, discard optimistic bytes once, and use the
+existing zero-partial close when mandatory response capacity is unavailable.
+Partial 501 failure never fabricates completion or permits a successor/tunnel.
 
 ### `vef-http09` (planned at `0.76.0`)
 
@@ -812,9 +819,10 @@ HTTP/1 101 over-read/HTTP/2 success-plus-DATA and permitted ordinary optimistic
 CONNECT. HTTP/1 permission consumes exact request-bound proof: a received,
 validated Connection-close option or a locally generated close-bearing head
 that is fully transport-committed. Received proof refines only the exact
-v0.56.0 `ValidatedConnectionOptions`, never raw fields. Configuration intent
-alone is insufficient. HTTP/1.0 CONNECT is unsupported and its default-close or
-keep-alive state grants no proof authority.
+v0.56.0 HTTP/1.1-bound `ValidatedConnectionOptions`, never raw fields.
+Configuration intent alone is insufficient. HTTP/1.0
+`ValidatedConnectionOptions` may refine only to `ValidatedHttp10KeepAlive`; it
+grants no close-proof, optimistic-CONNECT, or HTTP/1.1 Upgrade authority.
 HTTP/2 ordinary CONNECT reuses PendingConnect. Missing HTTP/1 close proof is a
 separate strict unpermitted provenance: discard, close, never reparse or promote
 after success. Optimistic WebSocket and HTTP/1 CONNECT-UDP are also

@@ -2279,7 +2279,7 @@ on v0.55.0 (Inbound body acknowledgement, drain, discard, cancellation, and reus
 
 #### Deliverables
 
-- Acceptance contract: HTTP/1.1 is persistent by default only after a self-delimited complete message. Implement the sole bounded `Connection` field parser here and return sealed `ValidatedConnectionOptions` bound to the exact ordered field set, HTTP version, role, message/request generation, and connection generation. Parse repeated field lines and comma lists once under field/value/element/work limits, compare token values case-insensitively after permitted OWS handling, tolerate bounded empty list elements only as non-evidence, let `close` override `keep-alive`, and retain ordered nominated hop-field names for later consumers. Quoted, substring-like, or otherwise malformed values never count as `close`; any malformed field invalidates the whole evidence object; `Proxy-Connection` is not an alias and grants no option evidence. No later milestone may reparse or independently normalize `Connection`. Apply close and mark reuse impossible after close-delimited bodies, framing errors, incomplete bodies, failed transitions, cancellation, or mandatory-close policy. For an early final response, `SuppressRemainingAndClose` and `TransportAborted` permanently prohibit reuse, including when the response omits `Connection: close`; a partially transmitted fixed-length request or chunked request lacking its terminating zero chunk can never precede another request. `ContinueToDelimiterForReuse` permits later reuse only after the exact request body/trailers reach `MessageCommitted` and the response lifecycle independently completes.
+- Acceptance contract: HTTP/1.1 is persistent by default only after a self-delimited complete message. Implement the sole bounded, version-neutral `Connection` field parser here and return sealed `ValidatedConnectionOptions` bound to the exact ordered field set, exact HTTP version, role, message/request generation, and connection generation. Parse repeated field lines and comma lists once under field/value/element/work limits, compare token values case-insensitively after permitted OWS handling, tolerate bounded empty list elements only as non-evidence, let `close` override `keep-alive`, and retain ordered nominated hop-field names for later consumers. Quoted, substring-like, or otherwise malformed values never count as `close`; any malformed field invalidates the whole evidence object; `Proxy-Connection` is not an alias and grants no option evidence. No later milestone may reparse or independently normalize `Connection`. At this stop activate only the HTTP/1.1 persistence interpretation; the HTTP/1.0 parser later invokes the same lexical component and applies only its separately sealed version-specific semantics. Apply close and mark reuse impossible after close-delimited bodies, framing errors, incomplete bodies, failed transitions, cancellation, or mandatory-close policy. For an early final response, `SuppressRemainingAndClose` and `TransportAborted` permanently prohibit reuse, including when the response omits `Connection: close`; a partially transmitted fixed-length request or chunked request lacking its terminating zero chunk can never precede another request. `ContinueToDelimiterForReuse` permits later reuse only after the exact request body/trailers reach `MessageCommitted` and the response lifecycle independently completes.
 - Treat close-delimited response selection and every peer/local close token as
   an input to the v0.54.0 early-final legality matrix. If suppression selects
   `SealHttpOutputAndDrainResponse`, bound response drain bytes/work/time and
@@ -2296,7 +2296,7 @@ on v0.55.0 (Inbound body acknowledgement, drain, discard, cancellation, and reus
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Cross repeated `Connection` fields and comma lists, mixed casing and OWS, `keep-alive` plus `close` with close winning, bounded empty elements, quoted/substr-like close values, `Proxy-Connection: close`, malformed fields containing a recognizable close token, and substitution across request/message/connection generations. Require one parser result, no partial evidence from malformed input, and exact ordered nominations. Cross early final responses with/without validated `Connection: close`, each request framing mode and partial prefix, continuation/suppression, response-body parsing, EOF/failure, and attempted reuse; prove only two fully delimited completed lifecycles permit reuse.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Cross repeated `Connection` fields and comma lists, mixed casing and OWS, `keep-alive` plus `close` with close winning, bounded empty elements, quoted/substr-like close values, `Proxy-Connection: close`, malformed fields containing a recognizable close token, and substitution across HTTP versions and request/message/connection generations. Require one version-neutral lexical result, exact version retention, no partial evidence from malformed input, and exact ordered nominations. Cross early final responses with/without validated `Connection: close`, each request framing mode and partial prefix, continuation/suppression, response-body parsing, EOF/failure, and attempted reuse; prove only two fully delimited completed HTTP/1.1 lifecycles permit reuse.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2956,7 +2956,7 @@ on v0.72.0 (Safe forwarding and explicit reframing plan) and must be independent
 
 #### Deliverables
 
-- Acceptance contract: In the explicit HTTP/1.0 profile accept only RFC 1945 request/status lines and fields under strict configured CRLF/obs-fold policy, do not require Host, reject chunked framing and HTTP/1.1-only transfer semantics, preserve unknown methods/statuses within shared valid domains, and apply hardened size/work ceilings before publication. Reject HTTP/1.0 CONNECT as unsupported before request publication or tunnel/optimistic-input ownership; this profile does not create a default-close CONNECT proof and cannot consume either HTTP/1.1 `OptimisticConnectCloseProof` variant.
+- Acceptance contract: In the explicit HTTP/1.0 profile accept only RFC 1945 request/status lines and fields under strict configured CRLF/obs-fold policy, do not require Host, reject chunked framing and HTTP/1.1-only transfer semantics, preserve unknown methods/statuses within shared valid domains, and apply hardened size/work ceilings before publication. Invoke the sole v0.56.0 version-neutral `Connection` lexer and retain `ValidatedConnectionOptions` with exact HTTP/1.0 version binding; do not yet grant keep-alive semantics. Classify HTTP/1.0 CONNECT as typed `UnsupportedHttp10ConnectDisposition` before application publication, authority resolution, forwarding, tunnel state, or optimistic-input ownership. A local client builder returns zero-output `UnsupportedVersionMethod`. A receiving server or proxy selects one bounded semantically valid 501 Not Implemented response plus mandatory transport close. An intermediary or gateway never resolves or forwards the authority and uses the same downstream 501-and-close action. If optimistic bytes accompany the request, discard them exactly once, emit the reserved 501 while output remains possible, close, and never HTTP-reparse them. Partial 501 output followed by EOF/cancellation/transport failure closes with no successor, tunnel publication, or fabricated response completion. If the engine-only mandatory-response reserve cannot hold the complete response before exposure, select the existing deterministic zero-partial-output close action. This profile creates no CONNECT proof and cannot consume either HTTP/1.1 `OptimisticConnectCloseProof` variant.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2968,7 +2968,7 @@ on v0.72.0 (Safe forwarding and explicit reframing plan) and must be independent
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Test every HTTP/1.0 CONNECT target/framing/field boundary, including default-close, explicit `Connection: close`, and `Proxy-Connection: close`; require one unsupported-method/profile rejection, close/discard without HTTP reparse or tunnel publication, and no HTTP/1.1 close-proof construction or rebinding.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Test local-builder zero-output rejection and receiving server/proxy/intermediary/gateway outcomes for every HTTP/1.0 CONNECT target/framing/field boundary, including request plus optimistic bytes in one buffer, default-close, explicit `Connection: close`, `Connection: keep-alive`, and `Proxy-Connection: close`. Cross every bounded 501 output acknowledgement offset, mandatory-response capacity failure, EOF, cancellation, and transport failure; attempt application publication, authority resolution, forwarding, successor parsing, and tunnel creation. Require the exact typed disposition, one semantic-byte discard, reserved complete 501 or zero-partial close, mandatory close, no fabricated completion, and no HTTP/1.1 close-proof construction or rebinding.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2995,7 +2995,7 @@ on v0.73.0 (RFC 1945 HTTP/1.0 parser and hardened profile) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Treat every supported HTTP/1.0 exchange as connection-close by default, delimit an unlengthened response by EOF, never pipeline, and permit no reuse merely because a message is self-delimited or carries an unrecognized Connection token; cancellation, error, or EOF completes the transport lifecycle deterministically. Default-close is transport-lifecycle evidence only: it never authorizes HTTP/1.0 CONNECT, optimistic input, or refinement into `ReceivedValidatedCloseOption`.
+- Acceptance contract: Treat every supported HTTP/1.0 exchange as connection-close by default, delimit an unlengthened response by EOF, never pipeline, and permit no reuse merely because a message is self-delimited or carries an unrecognized Connection token; cancellation, error, or EOF completes the transport lifecycle deterministically. Consume the exact HTTP/1.0-bound v0.56.0 `ValidatedConnectionOptions` only as input to this lifecycle; default-close is transport-lifecycle evidence only and never authorizes CONNECT, optimistic input, or refinement into `ReceivedValidatedCloseOption`. Rejected CONNECT retains the complete v0.73.0 `UnsupportedHttp10ConnectDisposition` 501/close/capacity/failure table.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3007,7 +3007,7 @@ on v0.73.0 (RFC 1945 HTTP/1.0 parser and hardened profile) and must be independe
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Replay rejected HTTP/1.0 CONNECT under default-close and every EOF/error/cancellation order; require discard/close once, no reparse/publication, and no optimistic/HTTP/1.1 proof authority.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Replay rejected HTTP/1.0 CONNECT under default-close across optimistic same-buffer input, every 501 acknowledgement offset, mandatory-response capacity failure, and every EOF/error/cancellation order; require the v0.73.0 typed outcome, discard/close once, no reparse/publication/resolution/forwarding, and no optimistic/HTTP/1.1 proof authority.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -3034,7 +3034,7 @@ on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Enable HTTP/1.0 keep-alive only through explicit policy and a recognized Connection: keep-alive exchange with self-delimited messages; require Content-Length where closure would otherwise delimit, remove hop fields when forwarding, bound request count/idle time, and fall back to mandatory close on ambiguity or incomplete bodies. This extension does not widen method support: HTTP/1.0 CONNECT remains rejected whether default-close, keep-alive, explicit close, or mandatory-close fallback applies, and none of those states can mint or substitute HTTP/1.1 optimistic-CONNECT proof.
+- Acceptance contract: Enable HTTP/1.0 keep-alive only through explicit policy and a sealed `ValidatedHttp10KeepAlive` refinement of the exact HTTP/1.0-bound v0.56.0 `ValidatedConnectionOptions` for each applicable request/response head; never reparse `Connection`. Require a recognized `keep-alive` option with no winning `close`, a self-delimited exchange, Content-Length where closure would otherwise delimit, bounded request count/idle time, and fall back to mandatory close on ambiguity or incomplete bodies. This refinement authorizes only the HTTP/1.0 keep-alive lifecycle. It cannot construct `ReceivedValidatedCloseOption`, authorize optimistic CONNECT, bind HTTP/1.1 Upgrade, or substitute evidence across versions/generations. This extension does not widen method support: HTTP/1.0 CONNECT retains the v0.73.0 typed rejection whether default-close, keep-alive, explicit close, or mandatory-close fallback applies.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3046,7 +3046,7 @@ on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustwor
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Cross rejected HTTP/1.0 CONNECT with recognized/unrecognized keep-alive, explicit close, self-delimited/ambiguous framing, and fallback close; prove no tunnel, optimistic-input lease, successor parse, or HTTP/1.1 proof is created.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Replay the complete v0.56.0 `Connection` corpus under HTTP/1.0 and HTTP/1.1; require identical lexical token/nominated-field decisions and exact version bindings but version-specific persistence/refinement outcomes. Test forged/stale/cross-version `ValidatedHttp10KeepAlive`, keep-alive plus close precedence, self-delimited/ambiguous framing, and fallback close. Cross rejected HTTP/1.0 CONNECT with every keep-alive outcome, optimistic same-buffer input, every 501 acknowledgement offset, and capacity/EOF/cancellation/failure; prove no tunnel, application publication, authority resolution, forwarding, successor parse, optimistic-input lease, HTTP/1.1 close proof, or Upgrade authority is created.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -3268,7 +3268,7 @@ on v0.80.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently tru
 
 #### Deliverables
 
-- Acceptance contract: Close every applicable RFC 1945/6455/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on any divergent framing, publication, close, capacity, or bounded-work result. Audit the complete HTTP/1 causal product: the v0.56.0 sole `Connection` parser and sealed `ValidatedConnectionOptions` consumers at v0.65.0/v0.66.0, `AcceptedPrivate -> Frozen -> HeadCommitted -> MessageCommitted/Abandoned`, outstanding-response FIFO insertion and oldest matching, 100/early-final behavior, the total disposition legality matrix and both typed transport actions over fixed/chunked/trailer output, persistence/writability/source/budget, successor/reuse/417 rules, complete-100-before-101 output, HTTP/1.1 CONNECT 2xx and Upgrade/WebSocket 101 publication, explicit HTTP/1.0 CONNECT rejection across default-close/keep-alive modes, and ambiguous response input without a committed request.
+- Acceptance contract: Close every applicable RFC 1945/6455/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on any divergent framing, publication, close, capacity, or bounded-work result. Audit the complete HTTP/1 causal product: the v0.56.0 sole version-neutral `Connection` lexer and version-bound `ValidatedConnectionOptions` consumers at v0.65.0/v0.66.0/v0.74.0/v0.75.0, `AcceptedPrivate -> Frozen -> HeadCommitted -> MessageCommitted/Abandoned`, outstanding-response FIFO insertion and oldest matching, 100/early-final behavior, the total disposition legality matrix and both typed transport actions over fixed/chunked/trailer output, persistence/writability/source/budget, successor/reuse/417 rules, complete-100-before-101 output, HTTP/1.1 CONNECT 2xx and Upgrade/WebSocket 101 publication, the total role-specific HTTP/1.0 `UnsupportedHttp10ConnectDisposition` across 501 output/capacity/failure states, and ambiguous response input without a committed request.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3280,7 +3280,7 @@ on v0.80.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently tru
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Replay the complete v0.56.0 `Connection` corpus through persistence, received-close proof, Upgrade pairing, and intermediary nomination consumers; require identical evidence, no reparsing, and generation-safe substitution rejection. Replay HTTP/1.0 CONNECT under default-close, explicit close, keep-alive, malformed transition, non-2xx, EOF, and cancellation; require unsupported rejection, close/discard once, no reparse, and no HTTP/1.1 proof rebinding. Replay every request/response head and request-body record acknowledgement offset and input call order, early response/body timing, fixed/chunked delimiter/trailers, each disposition, response close signaling, simultaneous response body, cancellation, 417 retry, FIFO/successor generation, supported HTTP/1.1 CONNECT/101 over-read boundary, partial failure, and optimistic WebSocket attempt; require exact commitment, suppression/continuation, reuse/close, ownership, and no-reparse outcomes.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Replay the complete v0.56.0 `Connection` corpus under both HTTP versions through HTTP/1.1 persistence/received-close/Upgrade, HTTP/1.0 default-close/keep-alive refinement, and later intermediary nomination consumers; require identical lexical decisions, exact version-specific semantics, no reparsing, and generation/version-safe substitution rejection. Replay every role-specific HTTP/1.0 CONNECT outcome with optimistic same-buffer bytes, default-close, explicit close, keep-alive, malformed transition, every 501 acknowledgement offset, mandatory-response capacity failure, EOF, cancellation, and transport failure; require exact typed outcome, close/discard once, no reparse/publication/resolution/forwarding/successor/tunnel, no fabricated completion, and no HTTP/1.1 proof/Upgrade rebinding. Replay every request/response head and request-body record acknowledgement offset and input call order, early response/body timing, fixed/chunked delimiter/trailers, each disposition, response close signaling, simultaneous response body, cancellation, 417 retry, FIFO/successor generation, supported HTTP/1.1 CONNECT/101 over-read boundary, partial failure, and optimistic WebSocket attempt; require exact commitment, suppression/continuation, reuse/close, ownership, and no-reparse outcomes.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6827,7 +6827,7 @@ on v0.156.0 (Effective URI and authority consistency) and must be independently 
 
 #### Deliverables
 
-- Acceptance contract: Consume the exact ordered nominations in v0.56.0 `ValidatedConnectionOptions`; never parse or normalize `Connection` again. Reject stale, cross-message, cross-role, cross-version, or cross-connection evidence and forbidden nominations, remove every occurrence of each validated nominated field plus fixed hop-by-hop fields without deleting unrelated end-to-end fields, preserve remaining field order and RFC 9111 cache metadata exactly, and publish the stripped representation only after complete validation and destination-capacity preflight.
+- Acceptance contract: Consume the exact ordered nominations in v0.56.0 `ValidatedConnectionOptions` for either HTTP/1.0 or HTTP/1.1; never parse or normalize `Connection` again. Preserve and validate the source version binding, reject stale, cross-message, cross-role, cross-version, or cross-connection evidence and forbidden nominations, remove every occurrence of each validated nominated field plus fixed hop-by-hop fields without deleting unrelated end-to-end fields, preserve remaining field order and RFC 9111 cache metadata exactly, and publish the stripped representation only after complete validation and destination-capacity preflight.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6839,7 +6839,7 @@ on v0.156.0 (Effective URI and authority consistency) and must be independently 
 
 #### Verification
 
-- Test nominated/fixed hop-field removal by replaying the v0.56.0 repeated-field/comma-list/case/OWS/empty-element/close-precedence/quoted-substring/Proxy-Connection/malformed corpus through the same sealed evidence. Test stale/cross-message/role/version/connection substitution, duplicate/forbidden nominations, end-to-end preservation, ordered cache metadata, zero destination output before complete validation, every capacity boundary, and all earlier positive/negative/truncation/cancellation/no-panic behavior. Require no second grammar or normalization decision.
+- Test nominated/fixed hop-field removal by replaying the v0.56.0 repeated-field/comma-list/case/OWS/empty-element/close-precedence/quoted-substring/Proxy-Connection/malformed corpus under both HTTP versions through the same sealed evidence. Require identical lexical nominations, version-specific semantic refinements, and correct stripping for either version. Test stale/cross-message/role/version/connection substitution, duplicate/forbidden nominations, end-to-end preservation, ordered cache metadata, zero destination output before complete validation, every capacity boundary, and all earlier positive/negative/truncation/cancellation/no-panic behavior. Require no second grammar or normalization decision.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -8638,8 +8638,11 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   engine-owned; caller preference cannot override framing, persistence,
   writability, source, or TLS/transport constraints. Keep `BridgeTransaction`,
   its phase/generation/reservation owners, all four phase-specific bridge
-  capabilities, the sole sealed `ValidatedConnectionOptions` parser result and
-  its received-close/Upgrade/stripping refinements, sealed five-way `TransitionInputProvenance`,
+  capabilities, the sole sealed version-bound `ValidatedConnectionOptions`
+  parser result and its HTTP/1.1 persistence/received-close/Upgrade, HTTP/1.0
+  `ValidatedHttp10KeepAlive`, and either-version stripping refinements,
+  `UnsupportedHttp10ConnectDisposition` plus mandatory 501/close ownership,
+  sealed five-way `TransitionInputProvenance`,
   `OptimisticConnectCloseProof`, `OptimisticConnectPermit`,
   one-shot `CommittedDownstreamSuccess`, reserved `BridgeActivationPermit` slot,
   clear-latch snapshot, matching frozen generation, and `BridgeInputLease` minting,
@@ -8648,6 +8651,10 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   downstream-success exposure, Active promotion, and terminal action
   engine-owned. Callers cannot substitute request/response, leg, role, head, or
   generation evidence; construct/reparse/renormalize Connection evidence;
+  substitute it across versions; turn `ValidatedHttp10KeepAlive` into
+  received-close, optimistic-CONNECT, or Upgrade authority; bypass or rewrite
+  a role-specific HTTP/1.0 CONNECT disposition; publish/resolve/forward before
+  its rejection; fabricate complete 501 output after partial failure;
   forge committed close proof or optimistic permission; bind an HTTP/1.1 close
   proof to HTTP/1.0 default-close/keep-alive state;
   treat configured close intent as proof; promote unpermitted input after
@@ -8779,9 +8786,12 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
   phase, reserved capacities, one of the four phase/message-kind capability
   classes and its redacted leg/role/head-generation binding, inbound terminal/
   correlation stage, all five transition-input provenance classes, v0.56.0
-  validated-option evidence generation and consumer/refinement kind, close-proof
-  kind and exact received/locally-committed head binding, HTTP version,
-  HTTP/1.0 CONNECT unsupported disposition, optimistic permit kind/binding,
+  validated-option evidence generation, exact HTTP version, lexical result,
+  and consumer/refinement kind; HTTP/1.0 keep-alive refinement outcome;
+  close-proof kind and exact received/locally-committed head binding;
+  role-specific HTTP/1.0 CONNECT disposition, application/resolve/forward
+  suppression, optimistic-byte discard, mandatory 501 reserve/output offset,
+  zero-partial close fallback, and terminal outcome; optimistic permit kind/binding,
   strict missing-proof disposition, transfer/discard outcome,
   and acknowledgement offset,
   HTTP/1
@@ -9034,8 +9044,11 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   stage, binding mismatch, reservation shortage, legal phase edge, illegal
   phase skip/reorder, lease kind, stale generation, and pre/post-downstream-
   exposure failure. Replay the sole v0.56.0 `ValidatedConnectionOptions` corpus
-  through close-proof, Upgrade-pairing, and intermediary-stripping consumers,
-  reject every cross-generation substitution, and generate all five provenance
+  under both versions through HTTP/1.1 persistence/close-proof/Upgrade,
+  HTTP/1.0 default-close/`ValidatedHttp10KeepAlive`, and either-version
+  intermediary-stripping consumers. Require identical lexical decisions with
+  distinct semantic authority and reject every cross-version/generation
+  substitution. Generate all five provenance
   classes, both HTTP/1 ordinary-
   CONNECT close-proof constructors, missing proof, configured intent, every
   locally generated head acknowledgement offset, stale/cross-head proof, and
@@ -9057,9 +9070,13 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   permit on a latched failure, exactly one evidence/slot/latch/generation
   consumption and at most one permit/success event/lease transfer, preserved
   unrelated frames/HPACK, no duplicate owner/credit, no close_notify-derived
-  TCP half-close, and immutable first cause. Replay HTTP/1.0 CONNECT through
-  parser/default-close/keep-alive modes and require unsupported close/discard
-  without HTTP/1.1 proof authority.
+  TCP half-close, and immutable first cause. Replay every role-specific
+  `UnsupportedHttp10ConnectDisposition` through request-plus-optimistic-bytes,
+  all default-close/keep-alive/close variants, every 501 acknowledgement offset,
+  mandatory-response capacity failure, EOF/cancellation/transport failure, and
+  attempted publication/resolution/forwarding/successor/tunnel creation. Require
+  zero-output local builder rejection or reserved 501-and-close/zero-partial
+  fallback, one discard, no fabricated completion, and no HTTP/1.1 authority.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -9117,11 +9134,16 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
   `ValidatedUpstreamSuccess`, and `CommittedDownstreamSuccess`, including
   mismatched bridge/connection/leg/role/message/head generations with equal
   numeric stream IDs; reject inbound HpackCommitted fabrication,
-  caller construction/rebinding of ValidatedConnectionOptions,
+  caller construction/rebinding of ValidatedConnectionOptions or
+  ValidatedHttp10KeepAlive,
   TransitionInputProvenance, OptimisticConnectCloseProof,
   OptimisticConnectPermit, CommittedDownstreamSuccess, or
   BridgeActivationPermit; raw Connection reparsing by later consumers;
-  HTTP/1.0 default-close/keep-alive rebound as HTTP/1.1 close proof;
+  cross-version option substitution; HTTP/1.0 keep-alive/default-close rebound
+  as HTTP/1.1 close proof, optimistic CONNECT, or Upgrade authority;
+  construction/bypass/rebinding of UnsupportedHttp10ConnectDisposition;
+  application publication/authority resolution/forwarding after HTTP/1.0
+  CONNECT; successor/tunnel or fabricated 501 completion after partial failure;
   configured close intent accepted as proof;
   missing-proof input promoted after success; raw CommittedDownstreamSuccess
   accepted as activation authority; duplicate consumption of committed-success,
@@ -9781,9 +9803,13 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
 - Independently size each configured early-final request's framing/progress/
   disposition record, legality inputs, continuation deadline/work budget,
   typed transport action, and held body/zero-chunk/trailer/successor ownership.
-  Size the one bounded `ValidatedConnectionOptions` ordered-token/nominated-
-  field record and its sealed generation bindings once for all persistence,
-  close-proof, Upgrade-pairing, and intermediary-stripping consumers. Size each
+  Size the one bounded version-neutral `ValidatedConnectionOptions` ordered-
+  token/nominated-field record and exact version/generation bindings once for
+  HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0 default-close/
+  `ValidatedHttp10KeepAlive`, and either-version intermediary stripping. Size
+  the role-specific `UnsupportedHttp10ConnectDisposition`, optimistic-byte
+  discard owner, complete mandatory 501 reserve/output state, and zero-partial
+  close fallback. Size each
   bridge generation's transaction, four phase-capability records,
   five-way input provenance, exact close-proof and optimistic-permit records,
   premature-input latch, one-shot wire-commit evidence, reserved/consumed

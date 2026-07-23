@@ -272,10 +272,15 @@ HTTP/1 101 over-read or HTTP/2 success-plus-DATA, HTTP/1 ordinary CONNECT with
 generation-bound received-validated-close or locally-committed-close-head
 evidence, and ordinary HTTP/2 CONNECT through existing PendingConnect. Mere
 configured intent grants no permit. Received-close evidence is refined only
-from the sole v0.56.0 sealed `ValidatedConnectionOptions` parse result, which
-also owns persistence, Upgrade-pairing, and intermediary-stripping decisions.
-HTTP/1.0 CONNECT is unsupported; default-close and keep-alive state cannot be
-rebound into either HTTP/1.1 close-proof variant. Missing committed close proof is strict:
+from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
+lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
+default-close/`ValidatedHttp10KeepAlive`, and either-version stripping consume
+that evidence with no cross-version authority. HTTP/1.0 CONNECT is unsupported:
+local builders return zero-output `UnsupportedVersionMethod`; receivers select
+role-specific `UnsupportedHttp10ConnectDisposition`, bounded 501 plus mandatory
+close, no publication/resolution/forwarding, one optimistic-byte discard, and
+the existing zero-partial close fallback. Partial 501 failure creates no
+completion, successor, or tunnel. Missing committed close proof is strict:
 discard once, close, never reparse, and never promote after later success.
 Forbidden WebSocket/CONNECT-UDP classes are likewise never transferable.
 Full acknowledgement in the same combined call precedes and legalizes input;

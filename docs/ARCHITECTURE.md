@@ -82,8 +82,21 @@ FIFO only after its final head octet is acknowledged. Informational and final
 responses correlate only to the oldest committed request. CONNECT and Upgrade
 publication waits for complete success-head acknowledgement on the emitting
 server leg and committed opening-request evidence on the receiving client leg.
-Cross-protocol bridges retain generation-bound per-leg commitment evidence and
-original-leg ownership of over-read bytes until both legs commit.
+An early final response selects an explicit request-body disposition: finish
+the promised delimiter for reuse, suppress only transport-unconsumed bytes and
+close, record an already committed message, or record transport abortion.
+Partial fixed/chunked requests never permit a successor, and 417 retry uses a
+fresh exchange generation without overlapping the incomplete original.
+
+Cross-protocol proxy legs are asymmetric and use one ordered generation-bound
+transaction: reserve all barrier/over-read/failure resources, validate the
+downstream request, fully commit the upstream request, validate the complete
+upstream success, freeze the downstream success, and activate only after its
+full commitment. HTTP/2 request/success field blocks reach the applicable
+commit phase only at `HpackCommitted`. Failure before downstream success
+exposure remains HTTP-framed; failure after partial exposure closes downstream
+and aborts/resets upstream. Over-read bytes remain on their original leg until
+the transaction becomes active.
 
 ## Shared model
 

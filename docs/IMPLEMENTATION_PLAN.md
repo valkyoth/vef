@@ -521,6 +521,12 @@ outstanding-response FIFO only at final-head-octet acknowledgement; every
 and Upgrade/WebSocket 101 publication waits for full response-head
 acknowledgement, while client receipt requires a committed opening request;
 partial failure never hands off or reparses over-read bytes.
+An early final response resolves the current output token first and chooses
+`EarlyFinalBodyDisposition`: finish the exact fixed/chunked body plus trailers
+for possible reuse, suppress only proven-unsent bytes and permanently close,
+recognize an already committed message, or record transport abortion. Partial
+framing never admits a successor; 417 retry uses a fresh exchange and a fresh
+connection unless the original request safely reached MessageCommitted.
 Host parsing accepts the RFC-required empty value but yields only a non-routable
 artifact. The next stop authorizes target form by origin/forward/reverse role,
 derives the full effective scheme/authority/path/query under explicit trusted
@@ -780,10 +786,13 @@ The v0.163 bridge is bidirectional: HTTP/1-side key/accept processing never
 leaks into RFC 8441, ws/wss and retained negotiation/end-to-end fields map
 exactly with lowercase HTTP/2 names, hostile HTTP/2 key/accept fields cannot
 influence fresh HTTP/1 keys, the reverse direction consumes caller entropy,
-and a generation-bound DownstreamCommitted × UpstreamCommitted barrier keeps
-over-read bytes on their original leg until both exact commitments. v0.187.0
-and v0.188.0 reuse that barrier for Upgrade/CONNECT; partial failure abandons
-once without crossing, releasing, parsing, or reinterpreting bytes.
+and a pre-reserved generation-bound bridge transaction advances only through
+downstream request validation, upstream request commitment, complete upstream
+success validation, downstream success freezing, and full downstream success
+commitment. v0.187.0 and v0.188.0 reuse that ordered transaction for
+Upgrade/CONNECT. HTTP/2 field blocks require `HpackCommitted`; early failure
+stays HTTP-framed, partial downstream-success failure closes/aborts, and bytes
+cannot cross, release, parse, or be reinterpreted before activation.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
 closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
 only full acknowledgement of its END_STREAM-carrying frame enters wire

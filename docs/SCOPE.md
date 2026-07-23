@@ -229,6 +229,21 @@ acknowledge bytes merely queued in caller-controlled memory. Apply this to
 HTTP/1 request/response FIFO correlation and success-head handoffs as well as
 SETTINGS/PING ACKs, locally initiated HTTP/2 responses, advertised extensions,
 and GOAWAY-dependent interpretation.
+An HTTP/1 final response received while its request body remains active selects
+`EarlyFinalBodyDisposition::{ContinueToDelimiterForReuse,
+SuppressRemainingAndClose, AlreadyMessageCommitted, TransportAborted}`.
+Acknowledged body prefixes remain committed. Suppression releases only bytes
+certified transport-unconsumed, rejects later body/trailer commands, and
+permanently forbids reuse; reuse requires the exact fixed/chunked delimiter and
+trailers to finish before any successor. A 417 retry cannot overlap the
+incomplete exchange and normally uses a fresh connection.
+Cross-protocol handoff uses an asymmetric ordered bridge transaction, not a
+per-leg symmetric barrier: pre-reservation precedes upstream request exposure,
+upstream request commitment precedes complete success validation, downstream
+success exposure follows validation, and byte crossing begins only after full
+downstream success commitment. HTTP/2 field-block commitment means
+`HpackCommitted`; failures retain original-leg byte ownership and select an
+HTTP-framed pre-exposure failure or close-plus-upstream-abort after exposure.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be

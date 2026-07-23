@@ -331,15 +331,15 @@ output/structural state for retry before the unchanged deadline. Bounded
 per-permit `Http10AdmissionAttemptBudget` and connection-lifetime cumulative
 ledger are charged from granular engine work kinds plus sealed bounded units.
 Each call owns `AdmissionAttempt<'command>` cursors tied to its exact command
-borrow. Checked base-plus-per-unit pricing derives units in O(1) from that
-attempt's bounded lengths/counts/cursors, never iterator traversal. Atomic
-charge returns private linear `AdmissionWorkPermit`; one governed step consumes
-it and emits diagnostic-only `AdmissionWorkReceipt`. Entry inspection follows
-its permit; actual `0..=charged` progress alone advances the cursor. Unused
-charged units remain consumed and confer no later work authority. Reason-only
-rejection/capacity destroys all cursors and the borrow; retry starts at zero,
-recharges repeated work, and cannot use stale/cross-attempt permits or receipts.
-Typed atomic failure preserves both ledgers.
+borrow and a checked non-wrapping generation allocated before inspection/ledger
+mutation. Exhaustion leaves both ledgers unchanged. Atomic charge returns
+private `AdmissionWorkPermit<'attempt, 'command>` structurally borrowing the
+attempt. Consuming it yields `ChargedWorkWindow`: bytes/entries expose at most
+the charge and other steps require `take_unit()`. `finish()` accepts no caller
+count, derives progress internally, advances the cursor, and emits a
+non-authoritative receipt containing attempt generation and cursor
+kind/before/after. Unused units remain consumed without authority. Reason-only
+return destroys cursors/borrow; retry cannot use stale permits/windows/receipts.
 Successful admission
 transfers rather than double-charges. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit

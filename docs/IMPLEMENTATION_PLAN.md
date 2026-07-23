@@ -466,12 +466,15 @@ one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
 permits. Granular engine work kinds and sealed unit specs derive checked
 base-plus-per-unit cost in O(1) from lengths/counts/cursors inside
 `AdmissionAttempt<'command>`, whose lifetime binds the exact command to one
-call. Atomic charge returns private linear `AdmissionWorkPermit`; a governed
-step consumes it, processes `0..=charged_units`, advances by actual rather than
-planned progress, and returns non-authoritative `AdmissionWorkReceipt`.
-Unprocessed charged units remain consumed. Charge precedes field-entry
-inspection; stale/cross-attempt/reused permits and receipts authorize no work.
-Atomic failure preserves both ledgers.
+call. Its checked non-wrapping generation is allocated before inspection/ledger
+mutation; exhaustion leaves both ledgers unchanged. Atomic charge returns
+private `AdmissionWorkPermit<'attempt, 'command>` structurally borrowing that
+attempt exclusively. Consuming it creates a bounded `ChargedWorkWindow`; bytes
+and entries expose only their charged prefix, while semantic/reservation work
+requires successful `take_unit()`. `finish()` derives progress internally,
+advances by that value, and returns a receipt with attempt generation and cursor
+kind/before/after. Unprocessed charged units remain consumed. Stale/cross-
+attempt/reused permits/windows and receipts authorize no work.
 Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/

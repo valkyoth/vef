@@ -356,18 +356,21 @@ remaining, consumed }`, initialized once and never reset across retries. A
 connection-lifetime `Http10AdmissionCumulativeLedger` is initialized once and
 never reset by later permits. Granular engine-only `AdmissionWorkKind` covers
 base, byte, field-entry, framing, semantic, output, and reservation units.
-Each call owns `AdmissionAttempt<'command>` whose cursors borrow the exact
-command. Sealed specs derive checked base-plus-per-unit cost in O(1) from that
-attempt's stored bounded lengths/counts and cursors; they never pre-traverse an
-iterator. Atomic charge updates both ledgers or neither and returns private
-linear `AdmissionWorkPermit`, which one governed step consumes. Finishing
-records actual `0..=charged` progress in non-authoritative
-`AdmissionWorkReceipt`, advances the cursor only by actual processed units, and
-leaves unused charged units consumed without authority. Each field entry is
-charged before inspection. Fragmentation retains cursors only within the call;
+Each call checked-allocates a non-wrapping generation before inspection/ledger
+mutation and owns `AdmissionAttempt<'command>` whose cursors borrow the exact
+command. Exhaustion closes locally with both ledgers unchanged. Sealed specs
+derive cost in O(1) from attempt metadata. Atomic charge returns
+`AdmissionWorkPermit<'attempt, 'command>` with an exclusive structural borrow of
+that attempt; its numeric generation is defense-in-depth only. Consuming it
+creates `ChargedWorkWindow`: byte/entry work sees only a bounded prefix, while
+other work must successfully `take_unit()` first. Original unbounded work is
+not simultaneously accessible. `finish()` accepts no progress count, derives
+actual progress from the window, advances the cursor, and emits a receipt with
+attempt generation and cursor kind/before/after. Unused charged units remain
+consumed without authority. Fragmentation retains cursors only within the call;
 reason-only return destroys every cursor and command borrow. Retry creates
 zeroed cursors and recharges all repeated work. Stale/cross-attempt/reused
-permits and diagnostic receipts authorize nothing.
+permits/windows and diagnostic receipts authorize nothing.
 `Http10SuccessorAdmissionOutcome` adds reason-only `RejectedLocalCommand` for
 malformed/illegal/semantic/conflicting client commands alongside
 `RetryableCapacity`. Both destroy the attempt before return, retain no caller

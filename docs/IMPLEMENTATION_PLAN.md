@@ -801,18 +801,23 @@ and committed downstream successes; each binds bridge/connection/leg/role/
 message/head generations and cannot substitute for another even when numeric
 stream identifiers match. HTTP/2 outbound fields use whole-block commitment,
 while received success requires compression synchronization, terminal semantic
-validity, final-2xx/generation/negotiation/stream-state validation. Only legal
-upstream success-following HTTP/1 101 over-read or HTTP/2 success-plus-DATA
-mints a transferable lease. Downstream request-following WebSocket bytes before
-full 101/2xx transport commitment are discarded as a terminal violation with
-no lease, reparse, Active, or later forwarding. Full acknowledgement plus input
-in one combined call is post-handshake; zero/short acknowledgement makes input
-premature, and invalid acknowledgement consumes none. Ordinary CONNECT keeps
-wait-or-close semantics and HTTP/1 CONNECT-UDP remains prohibited.
-HTTP/1 uses a generation-bound `PendingHttp1Transition` to own legal over-read
-plus the immutable first distinct TCP EOF, TLS close_notify/fatal-alert, reset,
-or cancellation cause through Active or one terminal cleanup; close_notify
-never fabricates TCP half-close. HTTP/2 reuses a linear PendingConnect/
+validity, final-2xx/generation/negotiation/stream-state validation. Sealed
+transition-input provenance permits lease minting for upstream success-following
+HTTP/1 101 over-read/HTTP/2 success-plus-DATA and for ordinary optimistic
+CONNECT: HTTP/1 only with proof that Connection: close was emitted directly or
+by configured close-after-exchange policy, and HTTP/2 through existing
+PendingConnect ownership. It forbids optimistic WebSocket and HTTP/1 CONNECT-UDP
+input. Forbidden bytes have one terminal discard with no lease, reparse,
+Active, or later forwarding. Full acknowledgement plus input in one combined
+call is post-handshake; zero/short acknowledgement makes input premature, and
+invalid acknowledgement consumes none. Ordinary CONNECT keeps wait-or-close
+semantics and HTTP/1 CONNECT-UDP remains prohibited.
+HTTP/1 uses a generation-bound `PendingHttp1Transition` with optional over-read
+to represent terminal-only, bytes-only, or combined transitions. It owns the
+immutable first distinct plain TCP EOF, TLS close_notify, TLS truncation EOF,
+fatal alert, transport reset, generic transport failure, or cancellation cause
+through Active or one terminal cleanup; close_notify never fabricates TCP
+half-close. HTTP/2 reuses a linear PendingConnect/
 ReceiveCredit lease without copying or early credit. After success validation
 the existing HTTP/2 owner becomes `AwaitingBridgeActivation`, retaining ordered
 ranges, padding/semantic charge, both credit owners, pending END_STREAM, and
@@ -822,6 +827,11 @@ END_STREAM fails the handshake; ordinary CONNECT preserves it for immediate
 publication or explicitly rejects it. Early failure stays HTTP-framed, partial
 downstream-success failure closes/aborts, and bytes cannot cross, release,
 parse, or be reinterpreted before activation.
+Premature RFC 8441 DATA is the exception to the generic pre-exposure HTTP
+failure path: after syntax/padding validation and full stream/connection window
+charge, select stream-local RST_STREAM(PROTOCOL_ERROR) with no HTTP response,
+discard only that stream, reclaim only through the existing v0.136 ledger, and
+continue unrelated same-buffer frames without HPACK desynchronization.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
 closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
 only full acknowledgement of its END_STREAM-carrying frame enters wire

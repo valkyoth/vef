@@ -116,22 +116,30 @@ downstream and aborts/resets upstream.
 Bridge input ownership is also protocol-specific. HTTP/1 contributes an exact
 `OverreadLease`; HTTP/2 contributes a linear `PendingConnectLease` referencing
 the existing PendingConnect ranges, stream generation, padding/semantic DATA
-accounting, and `ReceiveCredit`. A transferable lease is minted only for legal
-success-following input: upstream HTTP/1 101 plus over-read WebSocket bytes or
-upstream HTTP/2 success HEADERS plus DATA. Downstream WebSocket bytes following
-its request but preceding complete 101/2xx transport commitment are a terminal
-handshake violation, never a lease: discard once, never reparse, never activate,
-and never forward later. In the combined driver call, full success-head
+accounting, and `ReceiveCredit`. Sealed `TransitionInputProvenance` distinguishes
+`SuccessFollowingTransitionInput`, `PermittedOptimisticConnectInput`,
+`ForbiddenOptimisticWebSocketInput`, and
+`ForbiddenHttp1ConnectUdpInput`. Only the first two can mint a transferable
+lease. Success-following covers upstream HTTP/1 101 plus over-read WebSocket
+bytes and upstream HTTP/2 success HEADERS plus DATA. Permitted optimistic
+ordinary CONNECT covers HTTP/1 only with a generation-bound proof that
+`Connection: close` was emitted directly or by configured close-after-exchange
+policy, and HTTP/2 through the existing ordinary-CONNECT PendingConnect owner.
+Forbidden WebSocket/CONNECT-UDP input is discarded once, never reparsed, never
+activated, and never forwarded later. In the combined driver call, full success-head
 acknowledgement is applied before input and makes it post-handshake; zero or
 short acknowledgement leaves it premature; invalid acknowledgement leaves all
 input unconsumed. Ordinary CONNECT retains its RFC 9931 wait-or-close policy,
 and HTTP/1 CONNECT-UDP remains prohibited.
 
-For HTTP/1, `PendingHttp1Transition { overread, terminal, bridge_generation,
-leg, exchange_generation, transport_generation }` owns legal pre-Active
-over-read and at most one immutable `PreActiveTerminalCause` distinguishing
-plain TCP EOF, TLS `close_notify`, fatal TLS alert, transport reset, and
-cancellation. It disposes bytes and terminal ownership once. A WebSocket
+For HTTP/1, `PendingHttp1Transition { overread: Option<OverreadLease>,
+terminal: Option<PreActiveTerminalCause>, bridge_generation, leg,
+exchange_generation, transport_generation }` represents bytes-plus-terminal,
+bytes-only, and terminal-only transitions, including zero over-read after a
+valid success. Its immutable first cause distinguishes `PlainTcpEof`,
+`TlsCloseNotify`, `TlsTruncationEof`, `FatalTlsAlert`, `TransportReset`,
+`TransportFailure`, and `Cancellation`. It disposes optional bytes and terminal
+ownership once. A WebSocket
 terminal event before success exposure fails the handshake; after any exposure
 it closes/aborts without a replacement response. Ordinary CONNECT follows an
 explicit drain/close policy, and `close_notify` never creates TCP half-close
@@ -145,6 +153,12 @@ ordinary CONNECT preserves it for immediate Active publication or rejects it by
 explicit policy. Application acknowledgement or policy discard remains the sole
 HTTP/2 credit reclamation path, and pre-activation failure uses the existing
 non-2xx/reset cleanup exactly once.
+Premature downstream RFC 8441 DATA first undergoes normal syntax/padding checks
+and full stream/connection window charge, then selects stream-local
+`RST_STREAM(PROTOCOL_ERROR)` without an HTTP response. Only that stream's
+semantic DATA is discarded and reclaimed through the existing credit ledger;
+later unrelated frames in the same buffer continue unless independently
+connection-fatal, with HPACK synchronization preserved.
 
 ## Shared model
 

@@ -263,20 +263,27 @@ commitment; inbound validation never uses outbound `HpackCommitted`.
 `BridgeInputLease::{Http1(OverreadLease), Http2(PendingConnectLease)}` keeps
 HTTP/1 over-read storage separate from a linear reference to existing HTTP/2
 PendingConnect ranges, stream generation, padding accounting, and receive
-credit. Only success-following upstream HTTP/1 101 over-read or HTTP/2 success
-HEADERS plus DATA can mint a transferable lease. Downstream request-following
-WebSocket input before full 101/2xx transport commitment is terminally
-discarded once, never reparsed, never made Active, and never forwarded later.
+credit. Sealed `TransitionInputProvenance` classifies success-following,
+permitted optimistic ordinary CONNECT, forbidden optimistic WebSocket, and
+forbidden HTTP/1 CONNECT-UDP input. The transferable classes cover upstream
+HTTP/1 101 over-read or HTTP/2 success-plus-DATA, HTTP/1 ordinary CONNECT with
+generation-bound proof that `Connection: close` was emitted directly or by
+configured policy, and ordinary HTTP/2 CONNECT through existing PendingConnect.
+Forbidden classes are discarded once, never reparsed, never made Active, and
+never forwarded later.
 Full acknowledgement in the same combined call precedes and legalizes input;
 zero/short acknowledgement leaves it premature, while invalid acknowledgement
 leaves input wholly unconsumed. Ordinary CONNECT retains wait-or-close policy
 and HTTP/1 CONNECT-UDP remains prohibited.
 HTTP/1 legal over-read is held by a generation-bound
-`PendingHttp1Transition` with an immutable first `PreActiveTerminalCause` for
-plain TCP EOF, TLS close_notify, fatal alert, reset, or cancellation. It owns
-one byte/terminal cleanup; pre-exposure WebSocket termination fails the
-handshake, post-exposure termination closes/aborts without another response,
-and close_notify grants no TCP half-close authority. Once upstream HTTP/2
+`PendingHttp1Transition` whose optional over-read represents terminal-only,
+bytes-only, or combined transitions. Its immutable first
+`PreActiveTerminalCause` distinguishes plain TCP EOF, TLS close_notify, TLS
+truncation EOF, fatal alert, transport reset, generic transport failure, and
+cancellation. It owns one optional-byte/terminal cleanup; pre-exposure
+WebSocket termination fails the handshake, post-exposure termination
+closes/aborts without another response, and close_notify grants no TCP
+half-close authority. Once upstream HTTP/2
 success validates, the existing owner enters
 `AwaitingBridgeActivation { bridge_generation }` and preserves range order,
 semantic/padding charge, both credit owners, pending END_STREAM, and the first
@@ -284,6 +291,11 @@ reset/EOF/alert/failure cause until `ActiveTunnel`. Activation transfers once
 without copying/reclaiming credit; failure uses existing non-2xx/reset cleanup
 once. Pre-exposure WebSocket END_STREAM fails the handshake; ordinary CONNECT
 preserves it for immediate Active publication or rejects it by explicit policy.
+Premature RFC 8441 DATA is syntax/padding-validated and charged to both windows,
+then receives stream-local `RST_STREAM(PROTOCOL_ERROR)` without an HTTP
+response. Its stream alone is semantically discarded and v0.136-reclaimed;
+unrelated same-buffer frames and HPACK synchronization continue unless an
+independent connection-fatal error exists.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be

@@ -118,15 +118,21 @@ Bridge input ownership is also protocol-specific. HTTP/1 contributes an exact
 the existing PendingConnect ranges, stream generation, padding/semantic DATA
 accounting, and `ReceiveCredit`. Sealed `TransitionInputProvenance` distinguishes
 `SuccessFollowingTransitionInput`, `PermittedOptimisticConnectInput`,
+`UnpermittedOptimisticConnectInput { reason: MissingCommittedCloseProof }`,
 `ForbiddenOptimisticWebSocketInput`, and
 `ForbiddenHttp1ConnectUdpInput`. Only the first two can mint a transferable
 lease. Success-following covers upstream HTTP/1 101 plus over-read WebSocket
 bytes and upstream HTTP/2 success HEADERS plus DATA. Permitted optimistic
-ordinary CONNECT covers HTTP/1 only with a generation-bound proof that
-`Connection: close` was emitted directly or by configured close-after-exchange
-policy, and HTTP/2 through the existing ordinary-CONNECT PendingConnect owner.
-Forbidden WebSocket/CONNECT-UDP input is discarded once, never reparsed, never
-activated, and never forwarded later. In the combined driver call, full success-head
+ordinary CONNECT covers HTTP/1 only with
+`OptimisticConnectCloseProof::{ReceivedValidatedCloseOption,
+LocallyCommittedCloseHead}` bound to the exact request/exchange/head generation:
+received requests prove a validated close option in that head; generated
+requests prove the serialized close-bearing head was fully transport-committed.
+A configured intention without committed wire evidence grants no authority.
+HTTP/2 ordinary CONNECT uses its existing PendingConnect owner. Unpermitted
+ordinary CONNECT follows the strict policy: discard once, close, never reparse,
+and never promote even after 2xx. Forbidden WebSocket/CONNECT-UDP input follows
+the same nontransferable terminal rule. In the combined driver call, full success-head
 acknowledgement is applied before input and makes it post-handshake; zero or
 short acknowledgement leaves it premature; invalid acknowledgement leaves all
 input unconsumed. Ordinary CONNECT retains its RFC 9931 wait-or-close policy,
@@ -154,11 +160,22 @@ explicit policy. Application acknowledgement or policy discard remains the sole
 HTTP/2 credit reclamation path, and pre-activation failure uses the existing
 non-2xx/reset cleanup exactly once.
 Premature downstream RFC 8441 DATA first undergoes normal syntax/padding checks
-and full stream/connection window charge, then selects stream-local
-`RST_STREAM(PROTOCOL_ERROR)` without an HTTP response. Only that stream's
-semantic DATA is discarded and reclaimed through the existing credit ledger;
-later unrelated frames in the same buffer continue unless independently
-connection-fatal, with HPACK synchronization preserved.
+and full stream/connection window charge. If the downstream 2xx is still
+AcceptedPrivate and never exposed, supersede it and emit only stream-local
+`RST_STREAM(PROTOCOL_ERROR)`. If its HEADERS block is Frozen or
+FramingCommitted—even after exposure followed by zero acknowledgement—mark
+`FailedAfterDownstreamSuccessExposure`, finish the exact immutable
+HEADERS/CONTINUATION suffix through END_HEADERS, commit framing/HPACK normally,
+and then emit the reserved reset. Neither path activates or transfers bytes.
+Final success acknowledgement processed before input makes that input legal.
+Connection failure while finishing the suffix performs connection-owned
+cleanup without fabricated response/reset completion or Active. Only the
+offending stream's semantic DATA is discarded and ledger-reclaimed; unrelated
+same-buffer frames continue unless independently connection-fatal.
+`CommittedDownstreamSuccess` is wire evidence only. A private
+`BridgeActivationPermit` is minted at final commitment only while the exact
+bridge remains DownstreamSuccessFrozen and its premature-input failure latch is
+clear; Active consumes that permit, never raw wire evidence.
 
 ## Shared model
 

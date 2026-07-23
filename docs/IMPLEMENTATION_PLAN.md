@@ -803,12 +803,14 @@ stream identifiers match. HTTP/2 outbound fields use whole-block commitment,
 while received success requires compression synchronization, terminal semantic
 validity, final-2xx/generation/negotiation/stream-state validation. Sealed
 transition-input provenance permits lease minting for upstream success-following
-HTTP/1 101 over-read/HTTP/2 success-plus-DATA and for ordinary optimistic
-CONNECT: HTTP/1 only with proof that Connection: close was emitted directly or
-by configured close-after-exchange policy, and HTTP/2 through existing
-PendingConnect ownership. It forbids optimistic WebSocket and HTTP/1 CONNECT-UDP
-input. Forbidden bytes have one terminal discard with no lease, reparse,
-Active, or later forwarding. Full acknowledgement plus input in one combined
+HTTP/1 101 over-read/HTTP/2 success-plus-DATA and permitted ordinary optimistic
+CONNECT. HTTP/1 permission consumes exact request-bound proof: a received,
+validated Connection-close option or a locally generated close-bearing head
+that is fully transport-committed. Configuration intent alone is insufficient.
+HTTP/2 ordinary CONNECT reuses PendingConnect. Missing HTTP/1 close proof is a
+separate strict unpermitted provenance: discard, close, never reparse or promote
+after success. Optimistic WebSocket and HTTP/1 CONNECT-UDP are also
+nontransferable. Full acknowledgement plus input in one combined
 call is post-handshake; zero/short acknowledgement makes input premature, and
 invalid acknowledgement consumes none. Ordinary CONNECT keeps wait-or-close
 semantics and HTTP/1 CONNECT-UDP remains prohibited.
@@ -828,10 +830,17 @@ publication or explicitly rejects it. Early failure stays HTTP-framed, partial
 downstream-success failure closes/aborts, and bytes cannot cross, release,
 parse, or be reinterpreted before activation.
 Premature RFC 8441 DATA is the exception to the generic pre-exposure HTTP
-failure path: after syntax/padding validation and full stream/connection window
-charge, select stream-local RST_STREAM(PROTOCOL_ERROR) with no HTTP response,
-discard only that stream, reclaim only through the existing v0.136 ledger, and
-continue unrelated same-buffer frames without HPACK desynchronization.
+failure path. After syntax/padding validation and both window charges,
+AcceptedPrivate/unexposed 2xx is superseded and only stream-local
+RST_STREAM(PROTOCOL_ERROR) is emitted. Frozen/FramingCommitted output—including
+exposure followed by zero acknowledgement—marks post-exposure failure, finishes
+the immutable HEADERS/CONTINUATION block through END_HEADERS with normal HPACK
+commit, then emits the reserved reset. Final commitment processed first makes
+same-call input legal. Connection failure during suffix completion uses
+connection cleanup without invented completion/Active/reset. Discard/reclaim
+only the offending stream through v0.136 and continue unrelated frames.
+Committed downstream success records wire state only; Active requires an
+engine-minted BridgeActivationPermit proving no premature-input failure.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
 closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
 only full acknowledgement of its END_STREAM-carrying frame enters wire

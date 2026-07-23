@@ -249,18 +249,27 @@ Cross-protocol handoff uses an asymmetric ordered bridge transaction, not a
 per-leg symmetric barrier: pre-reservation precedes upstream request exposure,
 upstream request commitment precedes complete success validation, downstream
 success exposure follows validation, and byte crossing begins only after full
-downstream success commitment. `OutboundHeadCommit::{Http1(HeadCommitted),
-Http2(OutboundFieldBlockHpackCommitted)}` and
-`InboundHeadValidation::{Http1(ValidatedInboundHead),
-Http2(ValidatedInboundFieldSection)}` are sealed and direction-specific.
-Inbound HTTP/2 validation requires complete synchronization, terminal semantic
-validity, final-2xx/correlation/negotiation/stream-state checks and never
-outbound `HpackCommitted`.
+downstream success commitment. The sealed, non-interchangeable
+`ValidatedDownstreamRequest`, `CommittedUpstreamRequest`,
+`ValidatedUpstreamSuccess`, and `CommittedDownstreamSuccess` capabilities bind
+bridge generation, connection/leg, client/server role, request/response kind,
+exchange or stream generation, and exact head identity. Request validation
+proves request semantics, CONNECT form, authorization, advertisement,
+negotiation prerequisites, and legal inbound state. Success validation proves
+complete synchronization, terminal semantics, final 2xx, request correlation,
+negotiation, and legal tunnel state. Only committed-request/success capabilities
+carry final HTTP/1 head acknowledgement or outbound HTTP/2 whole-field-block
+commitment; inbound validation never uses outbound `HpackCommitted`.
 `BridgeInputLease::{Http1(OverreadLease), Http2(PendingConnectLease)}` keeps
 HTTP/1 over-read storage separate from a linear reference to existing HTTP/2
 PendingConnect ranges, stream generation, padding accounting, and receive
-credit. Activation transfers once without copying/reclaiming credit; failure
-uses existing non-2xx/reset cleanup once.
+credit. Once upstream success validates, the existing owner enters
+`AwaitingBridgeActivation { bridge_generation }` and preserves range order,
+semantic/padding charge, both credit owners, pending END_STREAM, and the first
+reset/EOF/alert/failure cause until `ActiveTunnel`. Activation transfers once
+without copying/reclaiming credit; failure uses existing non-2xx/reset cleanup
+once. Pre-exposure WebSocket END_STREAM fails the handshake; ordinary CONNECT
+preserves it for immediate Active publication or rejects it by explicit policy.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be

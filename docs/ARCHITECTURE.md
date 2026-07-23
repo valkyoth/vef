@@ -97,24 +97,36 @@ Cross-protocol proxy legs are asymmetric and use one ordered generation-bound
 transaction: reserve all barrier/over-read/failure resources, validate the
 downstream request, fully commit the upstream request, validate the complete
 upstream success, freeze the downstream success, and activate only after its
-full commitment. Directional sealed evidence prevents type confusion:
-`OutboundHeadCommit` is either HTTP/1 `HeadCommitted` or HTTP/2 outbound
-field-block commitment, while `InboundHeadValidation` is either a validated
-HTTP/1 head or validated HTTP/2 field section. Inbound HTTP/2 evidence requires
-complete compression synchronization, a sealed terminal field lease, every
-semantic stage, `TerminalValidation::Valid`, final-2xx classification, exact
-request/stream-generation correlation, negotiation validation, and legal
-stream state—never outbound commitment evidence. Failure before downstream
+full commitment. Four non-interchangeable sealed capabilities prevent phase,
+direction, role, and message-kind confusion: `ValidatedDownstreamRequest`,
+`CommittedUpstreamRequest`, `ValidatedUpstreamSuccess`, and
+`CommittedDownstreamSuccess`. Every capability binds the bridge generation,
+connection and leg, client/server role, request/response kind, exchange or
+stream generation, and exact HTTP/1 or HTTP/2 head identity. Downstream request
+validation proves request semantics, CONNECT form, authorization/advertisement/
+negotiation prerequisites, and legal inbound state. Upstream success validation
+additionally requires complete compression synchronization, a sealed terminal
+field lease, every semantic stage, `TerminalValidation::Valid`, final 2xx,
+exact request correlation, negotiation agreement, and legal tunnel state.
+Only the two committed capabilities can wrap final HTTP/1 head acknowledgement
+or outbound HTTP/2 whole-field-block commitment. Failure before downstream
 success exposure remains HTTP-framed; failure after partial exposure closes
 downstream and aborts/resets upstream.
 
 Bridge input ownership is also protocol-specific. HTTP/1 contributes an exact
 `OverreadLease`; HTTP/2 contributes a linear `PendingConnectLease` referencing
 the existing PendingConnect ranges, stream generation, padding/semantic DATA
-accounting, and `ReceiveCredit`. Activation transfers either lease once without
-copying or reclaiming credit. Application acknowledgement or policy discard
-remains the sole HTTP/2 credit reclamation path, and pre-activation failure uses
-the existing non-2xx/reset cleanup exactly once.
+accounting, and `ReceiveCredit`. After upstream success validation, that same
+owner moves from `AwaitingConnectOutcome` to
+`AwaitingBridgeActivation { bridge_generation }`; it retains exact range order,
+flow-credit ownership, pending END_STREAM/half-close, and first reset/EOF/alert/
+failure cause until `ActiveTunnel`. Activation transfers ranges and an allowed
+pending directional FIN once without copying or reclaiming credit. A WebSocket
+upstream END_STREAM before downstream success exposure fails the handshake;
+ordinary CONNECT preserves it for immediate Active publication or rejects it by
+explicit policy. Application acknowledgement or policy discard remains the sole
+HTTP/2 credit reclamation path, and pre-activation failure uses the existing
+non-2xx/reset cleanup exactly once.
 
 ## Shared model
 

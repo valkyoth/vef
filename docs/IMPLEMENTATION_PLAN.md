@@ -795,12 +795,21 @@ and a pre-reserved generation-bound bridge transaction advances only through
 downstream request validation, upstream request commitment, complete upstream
 success validation, downstream success freezing, and full downstream success
 commitment. v0.187.0 and v0.188.0 reuse that ordered transaction for
-Upgrade/CONNECT. Outbound commitment and inbound validation are distinct sealed
-evidence: HTTP/2 outbound fields use whole-block commitment, while received
-success requires compression synchronization, terminal semantic validity,
-final-2xx/generation/negotiation/stream-state validation. HTTP/1 over-read uses
-an owned lease; HTTP/2 reuses a linear PendingConnect/ReceiveCredit lease
-without copying or early credit. Early failure stays HTTP-framed, partial
+Upgrade/CONNECT. Four sealed, phase-specific capabilities distinguish validated
+downstream requests, committed upstream requests, validated upstream successes,
+and committed downstream successes; each binds bridge/connection/leg/role/
+message/head generations and cannot substitute for another even when numeric
+stream identifiers match. HTTP/2 outbound fields use whole-block commitment,
+while received success requires compression synchronization, terminal semantic
+validity, final-2xx/generation/negotiation/stream-state validation. HTTP/1
+over-read uses an owned lease; HTTP/2 reuses a linear PendingConnect/
+ReceiveCredit lease without copying or early credit. After success validation
+the existing HTTP/2 owner becomes `AwaitingBridgeActivation`, retaining ordered
+ranges, padding/semantic charge, both credit owners, pending END_STREAM, and
+first terminal cause for the exact bridge generation. Activation transfers
+ranges and any policy-allowed FIN exactly once. Pre-exposure WebSocket
+END_STREAM fails the handshake; ordinary CONNECT preserves it for immediate
+publication or explicitly rejects it. Early failure stays HTTP-framed, partial
 downstream-success failure closes/aborts, and bytes cannot cross, release,
 parse, or be reinterpreted before activation.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then

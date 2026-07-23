@@ -97,11 +97,14 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   output, and transaction/owner lifetime continues until the ninth ACK byte
   commits. Fatal or partial-output transport failure abandons the connection
   without dependent field exposure. HEADER_TABLE_SIZE uses
-  AwaitingSafeApply/AppliedAwaitingAckCommit/WireEnabled states with
-  smallest/final values and transaction references but no ACK authority.
-  Private rolls back and waits to re-encode; FramingCommitted drains/publishes;
-  only every-owner AckCommitted promotes WireEnabled and permits the next
-  HEADERS/PUSH_PROMISE block and its required size-update prefix.
+  AwaitingSafeApply/AppliedAwaitingAckCommit states with smallest/final values
+  and transaction references but no ACK authority. A separate linear
+  `EncoderTableUpdateDebt` retains the minimum and final values since the last
+  exposed field block. Every-owner AckCommitted merges a transition into debt
+  without clearing it. Private encoding leases the exact debt; rollback restores
+  it before newer settings merge. First non-empty exposure alone transfers the
+  debt into the guaranteed-to-finish FramingCommitted block; settings received
+  afterward accrue debt for the following HEADERS/PUSH_PROMISE block.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.

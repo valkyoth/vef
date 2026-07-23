@@ -132,9 +132,12 @@ reserve every slot/entry required to drain it using the checked minimum of
 16,384, local payload cap, and slot payload capacity plus its provisional HPACK
 transaction. Mandatory initial prefixes, maximum encoded field-block bytes,
 checked continuation division/count, and total arena/entry arithmetic are
-bounded; oversized local fields fail before exposure. A whole Private block may roll
-back with zero exposure; first exposure selects FramingCommitted, making every
-CONTINUATION non-supersedable through END_HEADERS despite later local exhaustion.
+bounded; oversized local fields fail before exposure. A Private block linearly
+leases any unsignaled encoder-table debt while materializing its update prefix.
+Whole-block rollback returns that exact lease with zero exposure; first exposure
+transfers it into FramingCommitted, making every CONTINUATION non-supersedable
+through END_HEADERS despite later local exhaustion. Connection debt then records
+only settings received after that exposure for the following field block.
 Reset, GOAWAY, required controls, and other streams wait. Full final-frame
 acknowledgement alone publishes HpackCommitted; transport failure abandons it
 only with the connection, while an initial HEADERS END_STREAM hook remains tied
@@ -163,9 +166,13 @@ transaction and owner references through offsets 0..=8, and only final-byte
 commitment produces AckCommitted; fatal or partial-output failure abandons the
 connection without dependent output. HEADER_TABLE_SIZE tracks smallest/final
 values plus owner references, never ACKs: no-active applies directly, Private
-rolls back, and FramingCommitted drains/publishes first, but both remain
-AppliedAwaitingAckCommit until every owner commits. Only WireEnabled permits the
-next HEADERS/PUSH_PROMISE block and its required size-update prefix.
+rolls back, and FramingCommitted drains/publishes first, while transitions remain
+AppliedAwaitingAckCommit until every owner commits. Committed transitions merge
+into a separate linear `EncoderTableUpdateDebt` and never replace its older
+minimum. Private encoding only leases this debt; rollback restores it exactly,
+and first non-empty initial-frame exposure alone transfers it to the
+guaranteed-to-finish block. New settings after exposure accrue debt for the next
+HEADERS/PUSH_PROMISE block.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

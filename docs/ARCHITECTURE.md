@@ -211,14 +211,21 @@ transport failure before byte nine abandons the connection without exposing
 dependent output, so no component can race or overstate an ACK.
 Peer HEADER_TABLE_SIZE uses
 `PendingEncoderTableSizeTransition::{None, AwaitingSafeApply { .. },
-AppliedAwaitingAckCommit { owners, smallest_seen, final_value }, WireEnabled {
-smallest_seen, final_value }}` and never owns ACK authority. No-active applies
-the transition; Private rolls back; FramingCommitted drains/publishes first.
-Applying it makes HPACK participants effective, but the next Private re-encode
-and every HEADERS/PUSH_PROMISE exposure wait until every owning transaction is
-AckCommitted. WireEnabled then emits one or smallest-then-final updates at the
-next block start. Partial ACK output, stale tokens, or transport failure cannot
-publish WireEnabled or a dependent field block.
+AppliedAwaitingAckCommit { owners, smallest_seen, final_value }}` and never owns
+ACK authority. Separately, linear `EncoderTableUpdateDebt {
+smallest_since_last_exposed_block, final_value }` preserves every unsignaled
+encoder-limit change. No-active applies the transition; Private first rolls
+back its provisional transaction and returns any exact debt lease;
+FramingCommitted drains/publishes first. Applying a transition makes HPACK
+participants effective, but its values merge into existing debt only after all
+owning ACKs commit, retaining the older minimum. ACK commitment never clears
+debt. Private encoding leases—rather than consumes—the exact debt and emits its
+one or smallest-then-final prefix. Rollback returns that lease before newer
+settings merge. First non-empty initial-frame exposure irreversibly transfers
+the debt to FramingCommitted, whose pre-reserved block must finish; settings
+received after exposure create debt for the following block. Partial ACK output,
+stale tokens, or transport failure cannot expose a dependent block, while
+connection abandonment is the only escape after debt transfer.
 Sensitive indexing uses typed directives and conservative defaults; received
 never-indexed fields cannot be downgraded, secret values do not participate in
 attacker-controlled indexing comparisons, and diagnostics remain redacted.

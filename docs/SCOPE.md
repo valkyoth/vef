@@ -317,9 +317,10 @@ releases all of it without visible mutation to the exact permit/deadline.
 retain no caller borrow, expose no bytes, and preserve permit/input/ledger/
 output/structural state for retry before the unchanged deadline. Bounded
 per-permit `Http10AdmissionAttemptBudget` and connection-lifetime cumulative
-ledger are charged only through atomic `try_charge_admission_work`: both
-preflight and mutate or neither changes and no governed work occurs. Its linear
-record is diagnostic only. Budgets never reset/refund; successful admission
+ledger are charged only from sealed engine `AdmissionWorkKind` through atomic
+`try_charge_admission_work`. Typed results distinguish each exhaustion and
+zero-cost/generation/invariant/overflow fault; every failure preserves both
+ledgers and performs no work. The charge is diagnostic only. Successful admission
 transfers rather than double-charges. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit
 local-invariant `PermitLedgerMismatch`. Admission consumes reservation/permit,
@@ -334,17 +335,21 @@ ledger. Client output and server input require admission. Same-call input requir
 byte. Transfer-Encoding, chunked coding, trailers, and close-delimited responses
 create no evidence, permit, or successor. Full acknowledgement of a nonfinal
 record remains premature. Admitted work never rolls back. No HTTP/1.0 path
-pipelines. Initial and successor construction both reserve an identically
-maximum-sized normal/cancellation terminal slot before Active publication.
+pipelines. Role-specific initial Client/Server and successor reservations all
+reserve an identically maximum-sized terminal slot before Active publication.
+Client failure retains no borrow/byte and unchanged output; server input remains
+unconsumed; neither publishes a generation and all tentative owners release once.
 Normal success enters `Completing` with Resolving, DecisionHeld, Reclaiming,
-and PublicationPending. Cancellation in every phase skips/replaces reuse,
-finishes only receipt-unreclaimed resources, or rewrites the held slot without
-new capacity. A linear
+and PublicationPending. Deadline, policy, transport, local-close, and
+cancellation interrupts use immutable first-valid-cause attribution and fixed
+same-call precedence. Stale bindings are neutral; equality expires. Every
+interrupt skips/replaces reuse, finishes receipt-unreclaimed resources, or
+rewrites held state without capacity/rerun. A linear
 `PendingHttp10TerminalPublication` retains the reserved event slot, encoded
 event, decision, receipts, and generation across backpressure. Only its
 infallible final consumption atomically publishes one event and constructs
-Reusable/closing state; cancellation before then rewrites held capacity,
-revokes provisional reuse, and stays Completing. Same-call input remains
+Reusable/closing state; any accepted interrupt before then revokes provisional
+reuse, rewrites held state as needed, and stays Completing. Same-call input remains
 unconsumed until Reusable is published. Other terminal paths use
 generation-bound cleanup. All paths release records, storage leases,
 and unused parser-work reserve exactly once, while reuse/count debits,

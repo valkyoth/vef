@@ -452,9 +452,10 @@ ownership and leaves permit/deadline/input/ledger/generation/output unchanged
 except bounded monotonic attempt work already charged. Each permit owns
 `Http10AdmissionAttemptBudget`, initialized once and retained across retries;
 one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
-permits. Atomic `try_charge_admission_work(cost)` preflights both ledgers and
-arithmetic, then updates both or neither; failure performs no governed work.
-Its linear `AdmissionWorkCharge` is diagnostic evidence, never authority.
+permits. Engine-only `AdmissionWorkKind` supplies a fixed positive cost.
+Atomic `try_charge_admission_work(kind)` returns distinct permit/connection
+exhaustion, zero-cost, generation, invariant, and overflow errors; all failures
+preserve both ledgers and perform no work. Its linear charge is diagnostic only.
 Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/
@@ -480,14 +481,17 @@ That immutable snapshot is diagnostic/binding metadata and never authorizes a
 later mint; only the ledger does. Admission never refunds and checked
 generation exhaustion closes without wrap. Client/proxy-upstream request
 acceptance/exposure and origin/server input consumption require admission.
-Initial construction and successor admission both reserve the largest normal/
-cancellation terminal slot before Active publication. Normal success enters
+Role-specific initial Client/Server reservations and successors reserve the
+largest terminal slot before Active publication. Client failure retains no
+borrow/byte and unchanged output; server input stays unconsumed; neither
+publishes a generation and both release tentative ownership once. Normal success enters
 `Completing` with Resolving, DecisionHeld, Reclaiming, and PublicationPending.
-Cancellation respectively skips resolution, revokes/replaces the decision,
-continues only receipt-unreclaimed items, or rewrites the pending slot/state.
-Every path uses reserved capacity, advances exactly once, and stays Completing
-through backpressure. Only infallible pending-publication consumption emits one
-event and constructs Reusable/close. Other terminal paths use
+Deadline, policy, transport, local-close, and cancellation interrupts share a
+sealed first-cause latch with deterministic same-call precedence. Stale
+bindings are neutral; deadline equality expires. Every interrupt skips
+resolution, revokes/replaces reuse, continues receipt-unreclaimed cleanup, or
+rewrites pending state according to phase, without new capacity or rerun. Only
+infallible pending-publication consumption emits one event/state. Other terminal paths use
 generation-bound cleanup. Reuse/request-count debits, transferred
 admission-attempt consumption, and consumed parser-work charges never refund.
 Stale cleanup cannot release a newer exchange; no-refund never leaks caller

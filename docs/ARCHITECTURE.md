@@ -340,10 +340,11 @@ monotonic attempt work already performed. Each provisional/published permit
 owns `Http10AdmissionAttemptBudget { permit_generation, configured_max,
 remaining, consumed }`, initialized once and never reset across retries. A
 connection-lifetime `Http10AdmissionCumulativeLedger` is initialized once and
-never reset by later permits. Atomic `try_charge_admission_work(cost)` preflights
-both counters, additions, generations, and ledger equations before mutating
-either. Failure changes neither and performs no governed work; success updates
-both once and returns linear diagnostic-only `AdmissionWorkCharge`.
+never reset by later permits. Engine-only `AdmissionWorkKind` maps each work
+class to a fixed positive cost. Atomic `try_charge_admission_work(kind)`
+preflights both ledgers and returns typed permit/connection exhaustion versus
+zero-cost/generation/invariant/arithmetic security faults. Every error changes
+neither ledger and performs no work; success returns diagnostic-only charge.
 `Http10SuccessorAdmissionOutcome` adds reason-only `RejectedLocalCommand` for
 malformed/illegal/semantic/conflicting client commands alongside
 `RetryableCapacity`. Both retain no caller borrow, accept/expose no byte, keep
@@ -364,16 +365,21 @@ remains fallible before exposure under the retained mode. The immutable
 `reuse_remaining_snapshot` is diagnostic and binding metadata, never a second
 authority, and the next mint reads only the ledger. Generation increment is
 checked and exhaustion closes without wrap.
-Initial and successor exchange reservations both acquire a largest-normal-or-
-cancellation terminal-event slot before Active publication. ActiveExchange
+Role-specific `Http10InitialExchangeReservation::{Client, Server}` and successor
+reservations both acquire a largest-terminal-event slot before Active
+publication. Client failure retains no borrow/byte and unchanged output; server
+failure leaves input unconsumed; both publish no generation and release all
+tentative owners once. ActiveExchange
 owns its exchange/correlation/evidence records and parser/event/output leases.
 Normal success enters `Completing` with
 `Http10CompletingPhase::{Resolving, DecisionHeld, Reclaiming,
-PublicationPending}`. Cancellation respectively skips resolution, revokes and
-replaces a decision, continues only receipt-unreclaimed items, or rewrites the
-pending slot/state. Every phase uses held capacity, advances exactly once, and
-remains Completing through backpressure. Only infallible pending-publication
-consumption atomically publishes one event and constructs Reusable/close.
+PublicationPending}`. Sealed `Http10CompletionInterrupt` covers deadline,
+policy, transport, local close, and cancellation. The first valid interrupt is
+latched immutably, with deterministic same-call precedence; stale bindings are
+neutral and deadline equality expires. Every interrupt respectively skips
+resolution, revokes/replaces reuse, continues receipt-unreclaimed items, or
+rewrites pending state. All use held capacity and remain Completing. Only
+infallible pending-publication consumption constructs Reusable/close.
 Non-normal terminal paths use generation-bound cleanup.
 Reuse/count debits, transferred admission-attempt consumption, and consumed parser work never refund; unused
 parser-work reserve returns exactly once. Stale cleanup cannot release later

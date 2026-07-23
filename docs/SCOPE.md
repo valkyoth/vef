@@ -119,6 +119,18 @@ and outbound caps are separate and unretained input drains. Partial failure
 at zero acknowledged bytes is NotVisible; a positive incomplete prefix leaves
 peer cutoff visibility unknown. Received cutoffs never increase: an
 increase retains the prior cutoff and produces typed connection PROTOCOL_ERROR.
+The connection scheduler has one total order: Frozen suffix, FramingCommitted
+continuation, fatal GOAWAY, PING ACK, SETTINGS ACK, graceful GOAWAY, RST_STREAM,
+WINDOW_UPDATE, ordinary output. Fatal GOAWAY is the explicit exception to PING
+priority; graceful GOAWAY ranks before resets. Classes are FIFO with
+generation-safe enqueue-ordinal ties. Positive per-record bypass bounds
+temporarily gate unexposed higher nonfatal classes, and an injected SETTINGS
+deadline closes that gate without reordering committed framing or fatal output.
+After fatal GOAWAY commits, every remaining unexposed required control receives
+typed AbandonedByConnectionFatal, no later frame is exposed, no ACK/debt,
+credit, reset, PING, or graceful-timer completion is fabricated, ownership
+releases once, and tokens become stale. Graceful GOAWAY leaves existing-stream
+controls operational.
 Malformed/abort release the section once; shutdown owns
 fatal cleanup with redaction and caller-scrub rules intact. Reset reason changes
 only before non-empty output exposure. Exposure freezes the exact 13-byte frame,
@@ -140,9 +152,9 @@ PINGs produce no reply; identical non-ACK payloads still produce distinct
 17-byte ACK records and are never coalesced. First exposure freezes the exact
 record, offsets through 16 retain it, and only byte 17 completes/releases its
 slot. Stale/cross-record acknowledgement and partial transport failure cannot
-release or substitute it. PING ACK is highest eligible output after an existing
-frozen suffix and mandatory CONTINUATION sequence; exhaustion selects bounded
-connection shutdown instead of silent loss or an input borrow. Locally
+release or substitute it. PING ACK follows the connection-wide order after an
+existing frozen suffix and mandatory CONTINUATION sequence; exhaustion selects
+bounded connection shutdown instead of silent loss or an input borrow. Locally
 originated PINGs use a monotonic connection-local `u64` opaque key that is never
 reissued within the connection, bounded live records, and bounded recent
 tombstones. Exact live-key lookup completes once in any arrival order and

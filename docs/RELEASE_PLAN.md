@@ -4881,6 +4881,18 @@ on v0.121.0 (HTTP/2 error scope, typed deltas, and isolated stream mutation) and
   immutable bytes and then reserve at most one non-increasing fatal successor,
   or abandon the connection if output is unusable. Never widen a frozen or
   committed cutoff.
+- Define the connection-owned terminal cleanup transaction and shared
+  `ControlDisposition::{Private, Frozen, Complete,
+  AbandonedByConnectionFatal { connection_generation }}`. A Frozen record or
+  FramingCommitted field block finishes before fatal GOAWAY while output remains
+  usable; unexposed controls may become Abandoned only through this typed
+  terminal transition. Full fatal GOAWAY commitment atomically abandons every
+  remaining Private SETTINGS ACK, PING ACK, RST_STREAM, WINDOW_UPDATE, and
+  graceful GOAWAY record, exposes no later frame, invalidates their tokens, and
+  releases each slot/transaction/tombstone/lease once. The cleanup runs no
+  settings acknowledgement/HPACK-debt merge, advertised-credit restoration,
+  local-reset completion, PING-response completion, or graceful-timer hook.
+  Graceful GOAWAY never invokes it and existing-stream controls remain live.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4892,7 +4904,7 @@ on v0.121.0 (HTTP/2 error scope, typed deltas, and isolated stream mutation) and
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Cross admission seal, intent, publication high-water, every graceful/fatal state, timer request/reservation/partial/full-commit boundaries, early/stale/wrong-generation events, and every fatal class/arrival order. Publish immediately before/after final first exposure; prove the former advances the snapshot, the latter is suppressed while HPACK/connection credit still synchronize. Prove one fatal winner, bounded secondary causes, no Frozen rewrite, at most one non-increasing successor, and deterministic abandonment.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Cross admission seal, intent, publication high-water, every graceful/fatal state, timer request/reservation/partial/full-commit boundaries, early/stale/wrong-generation events, and every fatal class/arrival order. Publish immediately before/after final first exposure; prove the former advances the snapshot, the latter is suppressed while HPACK/connection credit still synchronize. Prove one fatal winner, bounded secondary causes, no Frozen rewrite, at most one non-increasing successor, and deterministic abandonment. Model every ControlDisposition transition and prove only typed fatal cleanup abandons Private records, every Frozen/FramingCommitted obligation finishes first, no semantic hook runs, all ownership releases once, stale tokens are neutral, and graceful shutdown performs no terminal cleanup.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5610,6 +5622,12 @@ on v0.137.0 (HTTP/2 outbound per-stream message command lifecycle) and must be i
 
 - Acceptance contract: Emit at most one RST_STREAM and implement the exact v0.120.0 `ResetOutput` lifecycle. `Reserved` is mutable/suppressible with no non-empty exposure. On first exposure, construct and retain one generation-bound 13-byte `Frozen` record and token; `reason`, stream ID, length, type, flags, error code, and bytes never change even when acknowledgement is zero. Valid token acknowledgement consumes one offer and advances only its exact prefix; positive prefixes resume at the remaining suffix, while zero re-offers the same frozen bytes under a fresh generation token. Duplicate, oversized, stale, cross-stream/generation, or out-of-order acknowledgement returns `InvalidState` without mutation. `Complete` occurs only at acknowledged byte 13 and is the sole reset-output event permitted to request local wire closure.
 - Track reset output, terminal stage/section lease, RFC wire state, remote closure, and first-closure cause independently. Peer RST_STREAM or valid remote completion supersedes only unexposed `Reserved`; malformed semantics re-arms PolicyCancel as StreamError only there. Once `Frozen`, later peer reset, malformed evidence, END_STREAM, or GOAWAY cannot replace/suppress it or create a second reset. `Reserved` and `Frozen` at acknowledged offsets 0..=12 leave the wire state unchanged: reserved(remote) DATA is still connection PROTOCOL_ERROR, legal HEADERS may move it to half-closed(local), and peer RST_STREAM/END_STREAM can close it. On byte 13, apply local-reset closure once only if still non-Closed; otherwise retain the remote first cause and record only outbound completion. Continue any frozen suffix after remote closure while the connection remains usable. Stream-slot/tombstone reuse waits for the frozen record and every output token/prefix obligation. Connection failure invalidates the lease via connection-owned cleanup and records only `acknowledged`, never `offered`, `Complete`, or a local wire transition. Caller-sensitive storage remains redacted and caller-scrubbed after lease termination.
+- Adopt the v0.122.0 control disposition for reset output. A fatal intent waits
+  behind an already Frozen reset suffix while output remains usable. Full fatal
+  GOAWAY commitment moves every still-Private reset to
+  `AbandonedByConnectionFatal`, emits no RST_STREAM, runs no
+  `LocalResetComplete` hook or wire-state transition, releases its slot and
+  tombstone hold exactly once, and makes every outstanding reset token stale.
 - Arbitrate a newly required local reset against v0.137.0 ordinary output and `OutboundFieldBlock` before scheduling it. Supersede an unexposed Private field block or unrelated AcceptedPrivate frame in place, release its complete reserved slot/entry set, roll back provisional HPACK work, restore any exact `EncoderTableUpdateDebtLease` before a newer setting can merge, and release unexposed DATA reservations before queueing reset. Once the initial HEADERS/PUSH_PROMISE is exposed, its debt has transferred irreversibly and every remaining CONTINUATION is protected by the FramingCommitted block obligation even while AcceptedPrivate; complete the pre-reserved block through END_HEADERS before reset serialization, then publish HpackCommitted only on final-frame acknowledgement. Outside a framing-committed block, Frozen ordinary output—even with zero acknowledged—retains its slot/debit and finishes its exact frame before reset. Completed ordinary output runs its hook once; connection failure may abandon committed output/HPACK/transferred debt only by abandoning the connection and cannot inject GOAWAY or invent completion/refund.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
@@ -5622,7 +5640,7 @@ on v0.137.0 (HTTP/2 outbound per-stream message command lifecycle) and must be i
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. At every acknowledged offset 0..=13 inject every legal/illegal inbound frame, policy-to-error re-arm, peer reset, valid/malformed terminal evidence, END_STREAM/END_HEADERS, GOAWAY, connection failure, cancellation, and capacity. Inject stale, duplicate, oversized, cross-generation/out-of-order tokens, caller-buffer reuse, and stream-generation rollover. Prove exact reserved/half-closed/closed legality and credit at each offset, no premature DATA tolerance, immutable suffix continuation, one local close only at full acknowledgement, remote-first closure/cause preservation, state-neutral invalid acknowledgements, partial-failure cleanup without completion/closure, no duplicate reset, and no early record/slot/tombstone reuse. Cross each reset with Private debt lease, initial HEADERS prefixes/completion, every CONTINUATION boundary, final-CONTINUATION prefixes, settings arrival, ordinary Frozen/Complete, and initial END_STREAM hook; prove only whole unexposed blocks restore debt/supersede/release, first exposure prevents restoration, post-exposure changes remain following-block debt, and every committed block reaches END_HEADERS contiguously before reset with encoder/decoder equivalence.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. At every acknowledged offset 0..=13 inject every legal/illegal inbound frame, policy-to-error re-arm, peer reset, valid/malformed terminal evidence, END_STREAM/END_HEADERS, GOAWAY, connection failure, cancellation, and capacity. Inject stale, duplicate, oversized, cross-generation/out-of-order tokens, caller-buffer reuse, and stream-generation rollover. Prove exact reserved/half-closed/closed legality and credit at each offset, no premature DATA tolerance, immutable suffix continuation, one local close only at full acknowledgement, remote-first closure/cause preservation, state-neutral invalid acknowledgements, partial-failure cleanup without completion/closure, no duplicate reset, and no early record/slot/tombstone reuse. Cross fatal commitment with a Private reset and every Frozen offset; prove the Frozen suffix completes before fatal when usable, while Private abandonment produces no reset bytes, local-completion hook, wire transition, double release, or reusable token. Cross each reset with Private debt lease, initial HEADERS prefixes/completion, every CONTINUATION boundary, final-CONTINUATION prefixes, settings arrival, ordinary Frozen/Complete, and initial END_STREAM hook; prove only whole unexposed blocks restore debt/supersede/release, first exposure prevents restoration, post-exposure changes remain following-block debt, and every committed block reaches END_HEADERS contiguously before reset with encoder/decoder equivalence.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5650,6 +5668,12 @@ on v0.138.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and mus
 #### Deliverables
 
 - Acceptance contract: Track locally emitted SETTINGS frames in a bounded FIFO only after each complete frame's bytes commit; apply each received ACK to the oldest outstanding entry, reject unsolicited ACK with connection PROTOCOL_ERROR, support multiple outstanding entries, and generate timeout actions through injected monotonic time without hidden timers. Activate the v0.108.0 connection-wide `InboundSettingsTransaction` for received non-ACK frames: fully validate ordered entries; reserve its sole ACK before mutation; then attach HPACK, stream-window, MAX_FRAME_SIZE, admission/MAX_CONCURRENT_STREAMS, ENABLE_PUSH, known extension, and other enabled participant obligations to that frame generation. Apply entries in wire order without intervening frame processing. Every-participant Effective moves WaitingParticipants to AckEligible; first ACK exposure moves to AckFrozen, acknowledged offsets 0..=8 remain uncommitted, and only acknowledgement of all nine bytes moves to AckCommitted. Several eligible/frozen transactions retain receive order for both serialization and wire commitment; later transactions cannot overtake a partial earlier ACK. Retain each transaction and every dependent HPACK owner reference until AckCommitted. For an encoder-limit obligation, that exact event advances `peer_wire_acknowledged_ceiling` to the frame's stored received-ceiling snapshot and merges only its optional selected-capacity update into separate unsignaled debt; a raw ceiling increase neither selects capacity nor creates debt. Unknown settings attach no participant but remain covered by the same single ACK; duplicate entries never create another ACK. Any connection-fatal participant before exposure cancels pending transactions; stale/invalid output acknowledgement is state-neutral, while transport failure after partial ACK output atomically selects AbortedConnection for every uncommitted transaction and exposes no dependent field block. Rolled-back Private re-encoding is not a participant, begins only after the selected update merges, and cannot delay AckEligible or ACK output.
+- Full fatal GOAWAY commitment moves every AckEligible but still-Private
+  transaction to `AbandonedByConnectionFatal`, not AckCommitted: it emits no
+  ACK, advances no peer-wire-acknowledged ceiling, merges no selected delta or
+  HPACK debt, releases all participant/slot ownership exactly once, and makes
+  transaction and output tokens stale. An AckFrozen suffix still finishes
+  before fatal while output is usable.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5663,6 +5687,10 @@ on v0.138.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and mus
 
 - Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - Build combined SETTINGS frames spanning HEADER_TABLE_SIZE 0/4096/`u32::MAX`, INITIAL_WINDOW_SIZE, MAX_FRAME_SIZE, MAX_CONCURRENT_STREAMS, ENABLE_PUSH, duplicate and unknown entries. Cross every entry order, small physical arenas, selected policy, Private/FramingCommitted HPACK state, participant failure, ACK capacity/offsets, multiple queued transactions, cancellation, GOAWAY, stale tokens, transport failure, and generation reuse. Prove one frame ACK, FIFO snapshot commitment, acknowledged ceiling changes only at byte nine, selected-only debt, no automatic increase, retained owners through byte eight, no mutation before validation/reservation, and no dependent exposure after partial failure.
+- Cross fatal commitment with every transaction state and AckFrozen offset.
+  Prove Frozen completion precedes fatal when usable and Private abandonment
+  neither commits an ACK nor advances a ceiling/debt, releases every owner
+  once, and cannot be revived by a stale or reused-generation token.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5767,16 +5795,31 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
 
 #### Deliverables
 
-- Acceptance contract: Once HEADERS or PUSH_PROMISE begins without END_HEADERS, emit only CONTINUATION frames for that same stream until the block commits; flow-controlled DATA cannot block mandatory control output or runnable unrelated streams; reserve application-independent capacity for RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY; cancellation cannot strand a partially emitted HPACK block; deterministic tie-breaking and bounded starvation hold under continuous higher-priority arrivals; and SETTINGS frame-segmentation changes affect only uncommitted frames.
+- Acceptance contract: Once HEADERS or PUSH_PROMISE begins without END_HEADERS, emit only CONTINUATION frames for that same stream until the block commits; flow-controlled DATA cannot block mandatory control output or runnable unrelated streams; reserve application-independent capacity for RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY; cancellation cannot strand a partially emitted HPACK block; deterministic tie-breaking and bounded starvation hold under continuous higher-priority arrivals; and SETTINGS frame-segmentation changes affect only uncommitted frames. Use one connection-wide total order: (1) the outstanding Frozen frame suffix, (2) the next frame of an active FramingCommitted HEADERS/PUSH_PROMISE/CONTINUATION obligation, (3) fatal GOAWAY, (4) PING ACK, (5) SETTINGS ACK, (6) graceful GOAWAY, (7) RST_STREAM, (8) WINDOW_UPDATE, then (9) ordinary output. Graceful GOAWAY therefore precedes RST_STREAM, but unlike fatal GOAWAY leaves existing-stream controls operational.
 - Scheduling a frozen mandatory-control record never regenerates it from live stream state. An outstanding token owns its offered range; after acknowledgement, schedule exactly the frozen unacknowledged suffix before record reclamation. Stream/tombstone generation changes cannot retarget a queued/frozen frame.
-- Dispose the RFC 9113 PING priority SHOULD explicitly: after an
-  already-frozen frame suffix and the active FramingCommitted
-  HEADERS/PUSH_PROMISE/CONTINUATION obligation, choose the oldest eligible PING
-  ACK before any other not-yet-exposed output. First exposure freezes that
-  transaction's exact 17-byte frame; later identical PINGs, control demand,
-  correlation events, cancellation, or priority changes cannot replace or
-  deduplicate its suffix. At activation, rate/work ceilings bound starvation,
-  and deterministic FIFO order breaks ties between PING ACKs.
+- Dispose both RFC urgency rules explicitly. Fatal GOAWAY is the terminal
+  exception permitted ahead of PING ACK's priority SHOULD. PING ACK otherwise
+  precedes not-yet-exposed SETTINGS ACK, while SETTINGS "immediately" means FIFO
+  service at the first scheduler transaction allowed by committed framing,
+  fatal state, and the finite bypass gates below. First PING exposure freezes
+  its exact 17-byte frame; later identical PINGs, control demand, correlation
+  events, cancellation, or priority changes cannot replace or deduplicate it.
+- Preserve FIFO ordering within every class. Stamp each record with immutable
+  enqueue ordinal, class, connection generation, and record generation; these
+  fields deterministically break equivalent ties without caller clock input.
+  Within its class, choose the oldest eligible PING.
+  `ControlServiceProfile` provides positive `max_consecutive_ping_acks`,
+  positive per-waiting-record `max_control_bypass`, and a positive
+  `settings_ack_service_ticks`. Every completed higher nonfatal class increments
+  an older Private mandatory record's bypass count. At its bound, gate all
+  unexposed higher nonfatal classes until the oldest bound-reached record is
+  exposed; Frozen/FramingCommitted/fatal output is never gated. A SETTINGS ACK
+  deadline starts only at AckEligible. Injected monotonic expiry saturates its
+  bypass count and closes the same gate at the next scheduler transaction; it
+  cannot reorder a Frozen suffix, committed field block, or fatal GOAWAY, and a
+  local missed deadline is never blamed on the peer. Thus absent fatal cleanup,
+  each mandatory record is exposed after at most its configured number of
+  higher-class completions once eligible, even under continuous admitted PINGs.
 - This milestone defines and model-checks the ordering hook over finite eligible
   records but does not activate live PING ACK output. v0.153.0 activates it only
   after v0.147.0/v0.150.0 install the pre-mutation rate/work ceilings needed to
@@ -5795,8 +5838,8 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
   first non-empty exposure freezes stage, cutoff, error, owned debug bytes,
   total length, slot, and generation. No later stream publication, fatal cause,
   timer, PING/control demand, or shutdown request can rewrite that suffix.
-  After completion, a pending fatal successor is eligible before nonterminal
-  output and must carry a non-increasing cutoff.
+  After completion, a pending fatal successor occupies fatal-GOAWAY class ahead
+  of every nonterminal class and must carry a non-increasing cutoff.
 - Preserve each v0.137.0 END_STREAM frame's completion hook through scheduling and fragmentation: only acknowledgement of that frame's final byte can emit `LocalEndStreamComplete`. Priority changes, interleaved streams, CONTINUATION ownership, zero/short writes, cancellation, and connection failure cannot run the hook early or twice; command-level send sealing remains independent from wire-state transition.
 - Treat each unexposed DATA reservation as a linear scheduler capability bound to one stream generation, connection generation, immutable frame layout, and queue entry. Arbitration may revoke/release it before exposure; first exposure consumes it into a non-refundable debit. A Frozen ordinary frame owns connection framing until its suffix completes, so mandatory RST_STREAM waits behind that frame but ahead of later ordinary work. WINDOW_UPDATE or SETTINGS changes wake/revoke eligible reservations without allowing two streams to spend the same connection credit.
 - Make FramingCommitted `OutboundFieldBlock` the scheduler's highest framing obligation. Admission exposes its initial frame only after every worst-case-fragmented slot and queue entry through END_HEADERS is atomically reserved/materialized. From first initial-frame exposure through final-frame acknowledgement, select only its exact current suffix or next pre-reserved CONTINUATION; individual AcceptedPrivate disposition and later local capacity exhaustion cannot authorize supersession. All required control queues remain reserved but blocked behind that obligation. A connection-fatal protocol decision waits to emit GOAWAY until END_HEADERS if output remains usable; fatal transport failure abandons block, provisional HPACK transaction, and connection with no further bytes.
@@ -5847,6 +5890,13 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
   `17 + debug_len` split. Inject graceful timers, publication, and fatal causes
   at every boundary; prove no interleaving or rewrite, final-cutoff snapshot at
   exposure, and at most one eligible fatal successor after completion.
+- Make every pair and all five mandatory control classes eligible together.
+  Permute enqueue ordinals/generations, expire SETTINGS deadlines, and run
+  continuous budget-admitted PINGs through each positive bypass boundary.
+  Prove the exact total order, FIFO/tie stability, fatal-over-PING exception,
+  SETTINGS deadline gating without committed-byte reordering, and finite
+  service bounds for SETTINGS ACK, graceful GOAWAY, RST_STREAM, and
+  WINDOW_UPDATE.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6051,7 +6101,7 @@ on v0.146.0 (ALPN and cleartext prior-knowledge selection) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Maintain independent saturating budgets for streams opened/reset, SETTINGS frames and entries, PINGs, CONTINUATION frames and bytes, WINDOW_UPDATE churn, unknown frames and bytes, HPACK work, and generated control output; charge before the governed parse/mutation/admission work, refill deterministically only from the injected monotonic clock, classify exhaustion as a local policy/resource disposition rather than automatic peer PROTOCOL_ERROR, and invoke an optional caller-supplied shared admission/budget hook before connection-local admission so deployments can enforce identity/address/principal limits across reconnects and concurrent connections. For PING, separately charge syntax handling, local-correlation lookup, inbound transaction/payload copy, reply creation, scheduler wake, and output before mutating the FIFO/table or releasing input. Failed lookup, ACK-bearing input, identical payloads, and later shutdown do not refund completed work.
+- Acceptance contract: Maintain independent saturating budgets for streams opened/reset, SETTINGS frames and entries, PINGs, CONTINUATION frames and bytes, WINDOW_UPDATE churn, unknown frames and bytes, HPACK work, and generated control output; charge before the governed parse/mutation/admission work, refill deterministically only from the injected monotonic clock, classify exhaustion as a local policy/resource disposition rather than automatic peer PROTOCOL_ERROR, and invoke an optional caller-supplied shared admission/budget hook before connection-local admission so deployments can enforce identity/address/principal limits across reconnects and concurrent connections. For PING, separately charge syntax handling, local-correlation lookup, inbound transaction/payload copy, reply creation, scheduler wake, and output before mutating the FIFO/table or releasing input. Failed lookup, ACK-bearing input, identical payloads, and later shutdown do not refund completed work. Activate v0.142.0 `ControlServiceProfile` with positive checked `max_consecutive_ping_acks`, per-record `max_control_bypass`, and `settings_ack_service_ticks`. Saturate bypass/age counters; a completed higher nonfatal control charges every older eligible lower mandatory record once, while Frozen, FramingCommitted, fatal, backpressured/no-progress, and abandoned records do not fabricate completions. SETTINGS deadline time comes only from injected monotonic input and closes eligibility gates without changing immutable class/enqueue/generation order.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6063,7 +6113,7 @@ on v0.146.0 (ALPN and cleartext prior-knowledge selection) and must be independe
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Exhaust each PING parse/lookup/copy/reply/output charge independently before mutation and prove deterministic refill, no partial FIFO/correlation insertion, no retained caller borrow, no refund, and policy/resource rather than fabricated protocol error.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Exhaust each PING parse/lookup/copy/reply/output charge independently before mutation and prove deterministic refill, no partial FIFO/correlation insertion, no retained caller borrow, no refund, and policy/resource rather than fabricated protocol error. Test service-profile values one, typical, and maximum; saturate each bypass/deadline counter; inject early/equal/late/stale time; and prove finite completed-record bounds, no clock-based tie reorder, no count on backpressure/abandonment, and no peer blame for a local missed SETTINGS service deadline.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6169,6 +6219,12 @@ on v0.149.0 (SETTINGS amplification defenses) and must be independently trustwor
 #### Deliverables
 
 - Acceptance contract: Charge every inbound PING, local correlation lookup, opaque payload copy/comparison, transaction/ACK reservation, scheduler wake, and outbound PING before work, including ACK-bearing frames, with saturating counters and deterministic injected-time refill; a valid non-ACK PING cannot be ignored when ACK capacity is exhausted, so atomically reserve its distinct transaction and ACK or commit exactly one bounded shutdown action. Never coalesce or deduplicate replies, including identical payloads. ACK-bearing PING produces no reply. Queue/rate exhaustion cannot silently drop an obligation, mutate correlation, or pin caller input; classify exhaustion as policy/resource unless the frame itself violates RFC syntax. Reordered exact live-key ACKs complete their own record; unsolicited, duplicate, and stale correlations remain state-neutral and do not refund lookup work.
+- Full fatal GOAWAY commitment moves every still-Private reply to
+  `AbandonedByConnectionFatal`, records no response-sent/Complete outcome,
+  releases its copied payload and slot exactly once, and invalidates its token;
+  a Frozen reply completes before fatal while output remains usable. Typed
+  terminal abandonment is the only admitted non-reply outcome and never queues
+  another fatal action.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6180,7 +6236,7 @@ on v0.149.0 (SETTINGS amplification defenses) and must be independently trustwor
 
 #### Verification
 
-- Test PING flood defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Flood distinct and identical non-ACK PINGs, ACK-bearing PINGs, and matching/unsolicited/duplicate/reordered/stale local ACKs through each queue/rate boundary. Prove one owned FIFO obligation per accepted non-ACK frame, zero replies for ACK-bearing frames, exact pre-mutation charges, bounded shutdown instead of loss/pinning, and no peer protocol error for correlation mismatch.
+- Test PING flood defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Flood distinct and identical non-ACK PINGs, ACK-bearing PINGs, and matching/unsolicited/duplicate/reordered/stale local ACKs through each queue/rate boundary. Cross fatal commitment with every Private record and Frozen offset; prove Frozen-first completion, typed Private abandonment, no response-sent hook, no duplicate fatal output, exact-once release, and stale-token neutrality. Prove one owned FIFO obligation per accepted non-ACK frame, zero replies for ACK-bearing frames, exact pre-mutation charges, bounded shutdown instead of loss/pinning, and no peer protocol error for correlation mismatch.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6247,6 +6303,10 @@ on v0.151.0 (CONTINUATION bomb defenses) and must be independently trustworthy b
 #### Deliverables
 
 - Acceptance contract: Charge every WINDOW_UPDATE frame, checked increment, target lookup, scheduler wake, and coalesced emitted update before mutation; use saturating frame/work/output counters with deterministic injected-time refill, never refund churn because a stream closes, preserve valid zero/nonzero and overflow RFC dispositions, and treat budget exhaustion as local policy/resource followed by one bounded shutdown action rather than automatic peer PROTOCOL_ERROR. Outbound coalescing is permitted only while Private and only for the same target and generation. Select an increment with checked arithmetic satisfying `advertised_remaining + increment <= 2^31 - 1`; budget exhaustion may delay a private update but cannot merge targets, alter Frozen bytes, count reclaimed credit as advertised, or strand independent connection credit when a stream closes.
+- Full fatal GOAWAY commitment moves every still-Private update to
+  `AbandonedByConnectionFatal`, restores no advertised credit, releases its
+  target/generation ownership exactly once, and invalidates its token; a Frozen
+  update completes before fatal while output remains usable.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6258,7 +6318,7 @@ on v0.151.0 (CONTINUATION bomb defenses) and must be independently trustworthy b
 
 #### Verification
 
-- Test WINDOW_UPDATE churn defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Exercise tiny acknowledgements and padding-only DATA around threshold/rate/amplification limits, checked same-target coalescing before exposure, reclamation after exposure, maximum-window arithmetic, stream closure, and independent connection progress; Frozen target/increment/bytes never change.
+- Test WINDOW_UPDATE churn defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Exercise tiny acknowledgements and padding-only DATA around threshold/rate/amplification limits, checked same-target coalescing before exposure, reclamation after exposure, maximum-window arithmetic, stream closure, and independent connection progress; Frozen target/increment/bytes never change. Cross fatal commitment with every Private stream/connection record and Frozen offset; prove Frozen-first completion, no advertised-credit restoration for abandonment, exact-once release, and stale-token neutrality.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6329,6 +6389,27 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
   Frozen graceful completion with pending
   fatal intent reserves exactly one non-increasing successor or abandons the
   connection; duplicate fatal causes never multiply queue entries.
+- Activate the v0.142.0 connection scheduler over these reserved owners. Its
+  eligible order is Frozen suffix, FramingCommitted field-block frame, fatal
+  GOAWAY, PING ACK, SETTINGS ACK, graceful GOAWAY, RST_STREAM, WINDOW_UPDATE,
+  then ordinary output; FIFO within a class uses immutable enqueue ordinal,
+  connection generation, and record generation. Fatal GOAWAY is the explicit
+  exception ahead of the PING priority SHOULD. Positive v0.147.0 bypass limits,
+  the consecutive-PING bound, and AckEligible SETTINGS deadline close only
+  nonfatal eligibility gates; they never reorder Frozen/FramingCommitted output
+  or fatal GOAWAY.
+- On full fatal GOAWAY commitment, atomically transition every remaining
+  Private mandatory control to
+  `AbandonedByConnectionFatal { connection_generation }` before another
+  output offer can be made. This typed terminal outcome is the only exception
+  to delivering an accepted valid required reply and is never a silent drop:
+  SETTINGS performs no ACK commitment, ceiling advance, or HPACK-debt merge;
+  WINDOW_UPDATE restores no advertised credit; RST_STREAM runs no local reset
+  completion; PING records no response sent; and graceful GOAWAY arms no timer.
+  Release every slot, copied payload, participant, target, tombstone hold, and
+  queue entry exactly once; reject every outstanding token as stale. Graceful
+  GOAWAY performs none of this cleanup and existing-stream controls remain
+  schedulable.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6340,7 +6421,7 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 
 #### Verification
 
-- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For GOAWAY, overwrite caller debug after command acceptance and exhaust every acknowledged offset 0..=`17 + debug_len` for zero/maximum debug, graceful initial/final/fatal stages, early/stale/correct timers, fatal escalation at each Frozen prefix, minimum-slot-only exhaustion, duplicate causes, stale/cross-slot tokens, and transport failure. Prove byte-for-byte immutability, final-byte-only cutoff/timer commitment, zero-prefix NotVisible versus positive-prefix UnknownAfterPartial, non-increasing successor, and optional debug never blocking shutdown. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK and releases only at byte 17. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
+- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Exercise every pair of scheduler classes, every same-class arrival/generation tie, all mandatory controls simultaneously, continuous admitted PING, SETTINGS deadlines, bypass values one/typical/maximum, and capacity-triggered shutdown with replies already queued; prove the exact total order, finite service bounds, and no clock-based committed-frame reorder. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For GOAWAY, overwrite caller debug after command acceptance and exhaust every acknowledged offset 0..=`17 + debug_len` for zero/maximum debug, graceful initial/final/fatal stages, early/stale/correct timers, fatal escalation at each Frozen prefix, minimum-slot-only exhaustion, duplicate causes, stale/cross-slot tokens, and transport failure. Enter fatal shutdown while each mandatory control is Private and at every Frozen offset, both singly and all at once; prove committed framing finishes first, full fatal GOAWAY commitment atomically abandons only Private records, no later frame is offered, every owner releases once, all tokens become stale across generation reuse, and no ACK/debt, advertised-credit, reset-completion, PING-response, or graceful-timer hook is fabricated. Prove graceful shutdown performs no terminal cleanup. Prove byte-for-byte immutability, final-byte-only cutoff/timer commitment, zero-prefix NotVisible versus positive-prefix UnknownAfterPartial, non-increasing successor, and optional debug never blocking shutdown. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK unless the typed fatal-abandonment terminal outcome wins before exposure and releases only at byte 17 otherwise. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6401,6 +6482,15 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
   precedence, immutable Frozen bytes, no post-final higher-stream publication,
   one non-increasing successor at most, default redaction, and no replay
   authority from cutoff classification.
+- Audit the connection-wide scheduler across every pair and simultaneous set of
+  Frozen framing, fatal/graceful GOAWAY, PING ACK, SETTINGS ACK, RST_STREAM,
+  WINDOW_UPDATE, and ordinary output. Require immutable FIFO/generation ties,
+  finite configured bypass/deadline service, fatal-before-PING exception, and
+  graceful-before-reset placement. At every Private state and Frozen byte
+  offset, require fatal commitment to abandon only unexposed controls, expose
+  nothing afterward, release ownership exactly once, reject stale tokens, and
+  fabricate no SETTINGS/debt, credit, reset, PING, or timer completion; require
+  graceful shutdown to preserve all existing-stream control obligations.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8310,6 +8400,12 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   and acknowledge one offered suffix, but cannot choose the final processed
   cutoff, forge publication, arm/fire a timer, rank fatal causes, rewrite Frozen
   bytes, commit a prefix, claim peer visibility, or derive retry authority.
+- Keep scheduler class, enqueue ordinal, bypass/deadline counters,
+  `ControlServiceProfile`, `ControlDisposition`, and fatal-cleanup promotion
+  engine-owned and non-constructible. Callers may supply checked positive
+  service-policy values and monotonic time, but cannot rank or reorder records,
+  close a service gate, forge age/deadline expiry, abandon a control, run a
+  semantic completion hook, or revive ownership after fatal cleanup.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8411,6 +8507,12 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
   peer-visibility known/unknown. Never expose debug contents, report a prefix as
   sent, arm the timer early, treat parsed/allocated as processed, replace Frozen
   cause/bytes, widen an increasing received cutoff, or imply replay authority.
+- For the connection scheduler, report redacted class, FIFO/enqueue ordinal,
+  connection/record generation, bypass count, deadline state, and
+  `ControlDisposition`, including fatal-abandonment generation. Never expose
+  PING payload/debug contents, diagnose a service gate as wire commitment,
+  report abandoned work as sent/ACKed/credited/reset-complete, or emit more
+  than one terminal cleanup event for an owner.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8557,6 +8659,14 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   cutoff/timer commitment, monotonic ledgers, unknown partial visibility,
   deterministic single fatal successor, owned/redacted debug, and no
   cutoff-derived replay permit.
+- Add the global scheduler and fatal-cleanup product: generate every pair and
+  simultaneous set of mandatory controls, same-class FIFO/generation ties,
+  continuous PING bursts, bypass/deadline boundaries, capacity shutdown, fatal
+  arrival in every Private state and Frozen byte offset, and stale tokens after
+  generation reuse. Assert the exact total order, finite configured service,
+  no caller-clock reorder of committed work, Frozen-first completion, atomic
+  Private-only abandonment after fatal commitment, no later output, exact-once
+  release, and no fabricated ACK/debt, credit, reset, response, or timer hook.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8619,6 +8729,12 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
   stage/cutoff/error/debug substitution, increasing-cutoff acceptance, duplicate
   terminal output, early timer arm, forged peer visibility, and cutoff converted
   into replay permission.
+- Reject construction or mutation of `ControlServiceProfile` after validation,
+  scheduler class/enqueue/generation keys, bypass/deadline state,
+  `ControlDisposition`, and fatal-cleanup authority. Reject zero service bounds,
+  caller-selected eligibility/ranking, caller time before AckEligible, direct
+  Complete/Abandoned promotion, semantic hooks for abandoned records, duplicate
+  release, stale-token revival, and any output offer after fatal commitment.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -9192,6 +9308,13 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
   `17 + debug_len` arithmetic, maximum-prefix ownership, optional-debug
   exhaustion fallback, constant-bounded precedence work, no duplicate terminal
   amplification, and profile-bounded cleanup on 32- and 64-bit targets.
+- Size the global scheduler's fixed class heads, FIFO ordinals/generations,
+  positive saturating consecutive-PING/bypass/deadline counters, and
+  `ControlDisposition` cleanup metadata for every mandatory queue. Prove the
+  configured service bound requires no peer-sized heap or timer structure,
+  simultaneous fatal cleanup is linear in fixed admitted capacity, counters
+  cannot wrap into priority changes, and every owner is released once within
+  the existing profile-bound storage.
 - Preserve the phase invariant: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

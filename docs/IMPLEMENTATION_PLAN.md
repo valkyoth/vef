@@ -152,6 +152,25 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   the prior value and returns typed connection PROTOCOL_ERROR. Partial transport
   failure never claims a sent cutoff: zero acknowledged bytes are NotVisible,
   while a positive incomplete prefix has unknown peer visibility.
+- Use one connection scheduler key:
+  Frozen suffix → FramingCommitted continuation → fatal GOAWAY → PING ACK →
+  SETTINGS ACK → graceful GOAWAY → RST_STREAM → WINDOW_UPDATE → ordinary.
+  This explicitly makes fatal GOAWAY the terminal exception to PING's priority
+  SHOULD and places graceful GOAWAY before resets. Preserve FIFO within each
+  class and break equivalent ties with immutable enqueue ordinal plus
+  connection/record generation. Each mandatory record carries a positive
+  profile `max_control_bypass`; reaching it temporarily gates unexposed higher
+  nonfatal classes until the oldest bound record is served. SETTINGS deadline
+  expiry from injected monotonic time closes that gate immediately at the next
+  scheduler transaction but cannot reorder Frozen bytes, FramingCommitted
+  output, or fatal GOAWAY. Represent every required control as
+  `ControlDisposition::{Private, Frozen, Complete,
+  AbandonedByConnectionFatal { connection_generation }}`. Full fatal GOAWAY
+  commitment atomically abandons all remaining unexposed controls, exposes no
+  later frame, runs no settings/debt, receive-credit, reset, PING, or graceful
+  timer completion hook, releases every slot/transaction/tombstone/lease once,
+  and makes all tokens stale. Graceful GOAWAY keeps existing-stream controls
+  live and never triggers terminal cleanup.
 - Copy every validated non-ACK PING payload into its own bounded FIFO
   transaction before releasing caller input. Reserve reply capacity and charge
   lookup/creation before mutation; ACK-bearing PINGs allocate no reply.
@@ -161,9 +180,10 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   it. Identical peer payloads are distinct and cannot be coalesced. Stale,
   duplicate, cross-record, or overlong acknowledgement changes nothing, and
   partial transport failure abandons the connection without early reclamation.
-  Schedule PING ACK as the highest eligible output after any already-frozen
-  suffix and mandatory CONTINUATION obligation; capacity/budget exhaustion
-  selects bounded shutdown rather than dropping the ACK or pinning input.
+  Schedule PING ACK through the connection-wide total order and bounded service
+  gates after any already-frozen suffix and mandatory CONTINUATION obligation.
+  Capacity/budget exhaustion selects bounded shutdown rather than dropping the
+  ACK or pinning input.
   Locally originated PINGs own bounded generation-checked live records and
   recent-completion tombstones. Encode a monotonic connection-local `u64` wire
   key, never reissue it during the connection, and return typed backpressure on

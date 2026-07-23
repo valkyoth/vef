@@ -447,6 +447,24 @@ retained/outbound bytes are owned and redacted by default, and optional debug
 capacity never prevents the reserved minimum frame. Received cutoffs only
 decrease; an increase preserves the prior cutoff and yields a typed connection
 PROTOCOL_ERROR disposition.
+One connection-wide scheduler orders every eligible record:
+an already-Frozen suffix; the next frame of a FramingCommitted field block;
+fatal GOAWAY; PING ACK; SETTINGS ACK; graceful GOAWAY; RST_STREAM;
+WINDOW_UPDATE; then ordinary output. Fatal GOAWAY is the documented terminal
+exception to RFC 9113's PING priority SHOULD. Each class is FIFO; an immutable
+enqueue ordinal plus connection/record generation breaks equivalent ties.
+Positive profile `max_control_bypass` bounds gate unexposed higher nonfatal
+classes after they bypass an older mandatory record that many times, so
+continuous admitted PINGs cannot starve settings acknowledgement, reset, receive
+credit, or graceful shutdown. An injected SETTINGS deadline can close the same
+gate but never reorder Frozen bytes, a committed field block, or fatal GOAWAY.
+After fatal GOAWAY fully commits, one terminal cleanup transaction changes every
+remaining unexposed mandatory record from Private to
+`AbandonedByConnectionFatal { connection_generation }`; no later frame is
+exposed. It runs no SETTINGS/debt, WINDOW_UPDATE/credit, reset-completion,
+PING-response, or graceful-timer hook. Slots, transactions, tombstones, and
+leases release once, and their tokens become stale. Graceful GOAWAY does not
+invoke this cleanup; existing-stream controls remain schedulable.
 Terminal stream validation can replace an uncommitted policy reset but cannot
 alter partially committed bytes; connection-fatal compression errors override
 future stream actions without rolling back HPACK or wire state.
@@ -462,9 +480,10 @@ create no reply. Identical payloads remain distinct obligations and are never
 coalesced or deduplicated. First exposure freezes the exact 17-byte PING ACK;
 acknowledged offsets 0 through 16 retain its generation-bound slot, and byte 17
 alone completes and releases it. An already-frozen suffix and mandatory
-CONTINUATION contiguity remain earlier framing obligations; otherwise a PING ACK
-is the highest eligible output, in FIFO order. Exhaustion chooses bounded
-connection shutdown rather than dropping a reply or retaining caller input.
+CONTINUATION contiguity remain earlier framing obligations; otherwise the
+connection-wide control order and service gates select it. Exhaustion chooses
+bounded connection shutdown rather than dropping a reply or retaining caller
+input.
 Locally originated PINGs use bounded generation-checked live correlation records
 and recent-completion tombstones. The engine encodes a monotonic connection-local
 `u64` wire key and never reissues it during that connection; exhaustion/wrap

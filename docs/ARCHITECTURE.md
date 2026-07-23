@@ -303,26 +303,45 @@ with close. After `Frozen`, output remains immutable, every successor is
 prohibited, and the current message finishes only when possible before close;
 a client receiving a response without keep-alive emits no next request.
 One connection/hop `Http10ReuseLedger` starts at configured 0/1/N and is the
-sole mutable authorization count; it never increases, resets, or refunds.
-Permit minting and successor admission are separate phases.
+sole mutable authorization count; `remaining` is the number of future
+successor admissions, excluding the active exchange, and never increases,
+resets, or refunds. Configured zero applies the `AcceptedPrivate` close rule to
+the initial local head and creates no local keep-alive signal. A one-to-zero
+admission is legal, but the new exchange's local head is generated or rewritten
+and revalidated with close before exposure; its zero snapshot cannot create
+`CommittedHttp10KeepAliveHead`, even when the peer requests keep-alive.
+Permit minting and successor admission are separate, exactly-once phases.
 `Http10PermitMintOutcome::{Minted, CloseWithoutReuse { reason }}` owns
 zero-allowance, ledger-exhaustion, negotiation, framing, policy,
 deadline-arithmetic, and correlation failures before `Reusable` exists.
-`Minted` creates the non-Copy permit directly inside engine-owned
-`Reusable { permit }` without decrementing the ledger. Mint failure creates no
-permit, consumes no successor input, closes locally, and never blames the peer.
+`Minted` consumes both signals and creates the non-Copy permit directly inside
+engine-owned `Reusable { permit }` without decrementing the ledger. Duplicate
+acknowledgements/hooks and cancellation races are serialized: at most one mint
+outcome and permit exist, cancellation before mint creates none, cancellation
+after mint revokes that permit once, and admission prevents recreation of
+`Reusable`. Mint failure creates no permit, consumes no successor input, closes
+locally, and never blames the peer.
 The only successor edge atomically moves `Reusable { permit }` to
 `ActiveExchange { next_exchange_generation, reuse_remaining_snapshot }`.
+Before it, an internal linear `Http10NextExchangeReservation` acquires the
+exchange/correlation records, parser/event/output leases, count debit,
+transition-work charge, minimum parser-work reserve, deadline owner, and
+checked generation all-or-nothing. One-short failure releases everything and
+leaves permit/input/ledgers/budgets/generation unchanged.
 `Http10SuccessorAdmissionOutcome::RetryableCapacity` carries only a freely
 constructible reason: state exclusively retains the permit, ledger, input, and
 `Reusable`. Admission terminal reasons cover request-count/work exhaustion,
 policy revocation, idle-deadline equality, permit-ledger mismatch, correlation
 failure, and checked generation exhaustion. They revoke the permit, consume no
 input, close locally without a peer error, and do not decrement.
-`PermitLedgerMismatch` is a local invariant failure. Admission alone decrements
-the ledger once; the immutable `reuse_remaining_snapshot` is diagnostic and
-binding metadata, never a second authority, and the next mint reads only the
-ledger. Generation increment is checked and exhaustion closes without wrap.
+`PermitLedgerMismatch` is a local invariant failure. Admission indivisibly
+consumes the complete reservation, permit, and deadline; commits every lease,
+count/work debit and parser reserve; decrements the ledger once; installs the
+generation, snapshot, and last-allowance private-head close; then publishes
+ActiveExchange. No fallible initialization follows publication. The immutable
+`reuse_remaining_snapshot` is diagnostic and binding metadata, never a second
+authority, and the next mint reads only the ledger. Generation increment is
+checked and exhaustion closes without wrap.
 Client request acceptance/exposure and server input consumption cannot precede
 admission. Same-call input is eligible only when acknowledgement enters
 `MessageCommitted`: an exact fixed-length final body byte or a semantically

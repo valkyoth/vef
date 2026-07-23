@@ -293,20 +293,29 @@ oldest matching HeadCommitted request, then revokes unmatched signals;
 ambiguity closes. Persistence loss rewrites only private heads; after exposure
 it preserves immutable output, prohibits successors, and closes. Reuse alone
 does not admit work. One per-hop ledger is the sole mutable authorization count
-and never resets/refunds. `Http10PermitMintOutcome` handles zero allowance,
-ledger exhaustion, missing negotiation, non-reusable framing, policy,
+of future successor admissions and never resets/refunds. Zero closes the
+initial private local head; a one-to-zero admission permits that successor but
+closes its new private head before exposure, and its zero snapshot cannot mint
+a local signal. `Http10PermitMintOutcome` handles zero allowance, ledger
+exhaustion, missing negotiation, non-reusable framing, policy,
 deadline-add overflow, and correlation failure before `Reusable`; failure
 creates no permit or successor. A minted permit is installed only in
-engine-owned `Reusable` without decrementing. The separate atomic
-`Reusable -> ActiveExchange` transition preflights storage, correlation,
-count/work/policy/idle deadline, ledger consistency, and checked generation.
+engine-owned `Reusable` without decrementing. Duplicate acknowledgement/hook
+and cancellation races yield at most one mint/permit and cannot recreate
+Reusable after admission. The separate atomic `Reusable -> ActiveExchange`
+transition first assembles an internal linear `Http10NextExchangeReservation`
+with all exchange/correlation records, parser/event/output leases, count/work
+charges, parser-work reserve, deadline, and generation; one-short failure
+releases all of it without visible mutation.
 Capacity returns a freely constructible reason only, with permit/input/ledger
 retained exclusively in `Reusable`. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit
-local-invariant `PermitLedgerMismatch`. Admission alone decrements the ledger
-and stores an immutable, non-authoritative `reuse_remaining_snapshot`; future
-minting reads only the ledger. Client output and server input require
-admission. Same-call input requires the exact transition into
+local-invariant `PermitLedgerMismatch`. Admission indivisibly consumes the
+complete reservation/permit/deadline, commits every resource and budget,
+decrements the ledger, installs the generation/snapshot/last-allowance close,
+and only then publishes ActiveExchange; no fallible initialization follows.
+The snapshot is immutable and non-authoritative; future minting reads only the
+ledger. Client output and server input require admission. Same-call input requires the exact transition into
 `MessageCommitted` at a semantically bodyless head or exact fixed-length final
 byte. Transfer-Encoding, chunked coding, trailers, and close-delimited responses
 create no evidence, permit, or successor. Full acknowledgement of a nonfinal

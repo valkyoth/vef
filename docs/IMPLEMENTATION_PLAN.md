@@ -801,8 +801,18 @@ and committed downstream successes; each binds bridge/connection/leg/role/
 message/head generations and cannot substitute for another even when numeric
 stream identifiers match. HTTP/2 outbound fields use whole-block commitment,
 while received success requires compression synchronization, terminal semantic
-validity, final-2xx/generation/negotiation/stream-state validation. HTTP/1
-over-read uses an owned lease; HTTP/2 reuses a linear PendingConnect/
+validity, final-2xx/generation/negotiation/stream-state validation. Only legal
+upstream success-following HTTP/1 101 over-read or HTTP/2 success-plus-DATA
+mints a transferable lease. Downstream request-following WebSocket bytes before
+full 101/2xx transport commitment are discarded as a terminal violation with
+no lease, reparse, Active, or later forwarding. Full acknowledgement plus input
+in one combined call is post-handshake; zero/short acknowledgement makes input
+premature, and invalid acknowledgement consumes none. Ordinary CONNECT keeps
+wait-or-close semantics and HTTP/1 CONNECT-UDP remains prohibited.
+HTTP/1 uses a generation-bound `PendingHttp1Transition` to own legal over-read
+plus the immutable first distinct TCP EOF, TLS close_notify/fatal-alert, reset,
+or cancellation cause through Active or one terminal cleanup; close_notify
+never fabricates TCP half-close. HTTP/2 reuses a linear PendingConnect/
 ReceiveCredit lease without copying or early credit. After success validation
 the existing HTTP/2 owner becomes `AwaitingBridgeActivation`, retaining ordered
 ranges, padding/semantic charge, both credit owners, pending END_STREAM, and

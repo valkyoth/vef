@@ -116,8 +116,26 @@ downstream and aborts/resets upstream.
 Bridge input ownership is also protocol-specific. HTTP/1 contributes an exact
 `OverreadLease`; HTTP/2 contributes a linear `PendingConnectLease` referencing
 the existing PendingConnect ranges, stream generation, padding/semantic DATA
-accounting, and `ReceiveCredit`. After upstream success validation, that same
-owner moves from `AwaitingConnectOutcome` to
+accounting, and `ReceiveCredit`. A transferable lease is minted only for legal
+success-following input: upstream HTTP/1 101 plus over-read WebSocket bytes or
+upstream HTTP/2 success HEADERS plus DATA. Downstream WebSocket bytes following
+its request but preceding complete 101/2xx transport commitment are a terminal
+handshake violation, never a lease: discard once, never reparse, never activate,
+and never forward later. In the combined driver call, full success-head
+acknowledgement is applied before input and makes it post-handshake; zero or
+short acknowledgement leaves it premature; invalid acknowledgement leaves all
+input unconsumed. Ordinary CONNECT retains its RFC 9931 wait-or-close policy,
+and HTTP/1 CONNECT-UDP remains prohibited.
+
+For HTTP/1, `PendingHttp1Transition { overread, terminal, bridge_generation,
+leg, exchange_generation, transport_generation }` owns legal pre-Active
+over-read and at most one immutable `PreActiveTerminalCause` distinguishing
+plain TCP EOF, TLS `close_notify`, fatal TLS alert, transport reset, and
+cancellation. It disposes bytes and terminal ownership once. A WebSocket
+terminal event before success exposure fails the handshake; after any exposure
+it closes/aborts without a replacement response. Ordinary CONNECT follows an
+explicit drain/close policy, and `close_notify` never creates TCP half-close
+authority. For HTTP/2, the existing owner moves from `AwaitingConnectOutcome` to
 `AwaitingBridgeActivation { bridge_generation }`; it retains exact range order,
 flow-credit ownership, pending END_STREAM/half-close, and first reset/EOF/alert/
 failure cause until `ActiveTunnel`. Activation transfers ranges and an allowed

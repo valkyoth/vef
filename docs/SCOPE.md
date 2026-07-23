@@ -263,7 +263,21 @@ commitment; inbound validation never uses outbound `HpackCommitted`.
 `BridgeInputLease::{Http1(OverreadLease), Http2(PendingConnectLease)}` keeps
 HTTP/1 over-read storage separate from a linear reference to existing HTTP/2
 PendingConnect ranges, stream generation, padding accounting, and receive
-credit. Once upstream success validates, the existing owner enters
+credit. Only success-following upstream HTTP/1 101 over-read or HTTP/2 success
+HEADERS plus DATA can mint a transferable lease. Downstream request-following
+WebSocket input before full 101/2xx transport commitment is terminally
+discarded once, never reparsed, never made Active, and never forwarded later.
+Full acknowledgement in the same combined call precedes and legalizes input;
+zero/short acknowledgement leaves it premature, while invalid acknowledgement
+leaves input wholly unconsumed. Ordinary CONNECT retains wait-or-close policy
+and HTTP/1 CONNECT-UDP remains prohibited.
+HTTP/1 legal over-read is held by a generation-bound
+`PendingHttp1Transition` with an immutable first `PreActiveTerminalCause` for
+plain TCP EOF, TLS close_notify, fatal alert, reset, or cancellation. It owns
+one byte/terminal cleanup; pre-exposure WebSocket termination fails the
+handshake, post-exposure termination closes/aborts without another response,
+and close_notify grants no TCP half-close authority. Once upstream HTTP/2
+success validates, the existing owner enters
 `AwaitingBridgeActivation { bridge_generation }` and preserves range order,
 semantic/padding charge, both credit owners, pending END_STREAM, and the first
 reset/EOF/alert/failure cause until `ActiveTunnel`. Activation transfers once

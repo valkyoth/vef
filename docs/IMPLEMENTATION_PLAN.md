@@ -111,6 +111,23 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   it before newer settings merge. First non-empty exposure alone transfers the
   debt into the guaranteed-to-finish FramingCommitted block; settings received
   afterward accrue debt for the following HEADERS/PUSH_PROMISE block.
+- Model each locally emitted non-ACK SETTINGS frame as
+  `OutboundSettingsTransaction::{ReservedPrivate, Frozen,
+  CommittedAwaitingAck, PeerAcked, AbandonedBeforeExposure,
+  AbandonedConnection}`. Before accepting the command, prevalidate its complete
+  local-effect plan and atomically reserve checked `9 + 6 * entry_count` frame
+  bytes, one queue entry, a future outstanding-ACK FIFO slot, timeout state, and
+  every snapshot the final-byte transaction needs. First exposure freezes
+  ordered entries and bytes; prefixes activate no advertised effect or timeout.
+  Full acknowledgement applies the commit plan, promotes the reserved FIFO slot
+  in wire order, and starts its generation-bound deadline. An ACK consumes only
+  the oldest committed transaction and never reapplies its effects. If adapter
+  input arrives before the matching Frozen output acknowledgement, retain one
+  bounded `EarlyPeerAckPending` classification and consume it only after local
+  commitment; do not fabricate peer fault. Client activation reserves the
+  initial transaction before exposing its first preface byte, server activation
+  before its first SETTINGS byte, and no other frame becomes eligible before
+  initial SETTINGS commitment.
 - Outbound DATA atomically reserves exact payload/padding credit—not its frame
   header—from the signed stream and nonnegative connection ledgers before
   exposure.
@@ -154,7 +171,8 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   while a positive incomplete prefix has unknown peer visibility.
 - Use one connection scheduler key:
   Frozen suffix → FramingCommitted continuation → fatal GOAWAY → PING ACK →
-  SETTINGS ACK → graceful GOAWAY → RST_STREAM → WINDOW_UPDATE → ordinary.
+  SETTINGS ACK → graceful GOAWAY → RST_STREAM → WINDOW_UPDATE → outbound
+  non-ACK SETTINGS → ordinary.
   This explicitly makes fatal GOAWAY the terminal exception to PING's priority
   SHOULD and places graceful GOAWAY before resets. Preserve FIFO within each
   class and break equivalent ties with immutable enqueue ordinal plus
@@ -171,6 +189,12 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   timer completion hook, releases every slot/transaction/tombstone/lease once,
   and makes all tokens stale. Graceful GOAWAY keeps existing-stream controls
   live and never triggers terminal cleanup.
+  Later accepted outbound SETTINGS records receive the same positive bypass
+  service bound as mandatory records. Fatal intent abandons one before exposure
+  without effects; a Frozen record finishes and commits before fatal output
+  while transport remains usable; a committed transaction awaiting peer ACK is
+  released on terminal connection cleanup without rolling back peer-visible
+  effects.
 - Copy every validated non-ACK PING payload into its own bounded FIFO
   transaction before releasing caller input. Reserve reply capacity and charge
   lookup/creation before mutation; ACK-bearing PINGs allocate no reply.

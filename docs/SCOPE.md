@@ -121,11 +121,14 @@ peer cutoff visibility unknown. Received cutoffs never increase: an
 increase retains the prior cutoff and produces typed connection PROTOCOL_ERROR.
 The connection scheduler has one total order: Frozen suffix, FramingCommitted
 continuation, fatal GOAWAY, PING ACK, SETTINGS ACK, graceful GOAWAY, RST_STREAM,
-WINDOW_UPDATE, ordinary output. Fatal GOAWAY is the explicit exception to PING
-priority; graceful GOAWAY ranks before resets. Classes are FIFO with
+WINDOW_UPDATE, outbound non-ACK SETTINGS, ordinary output. Fatal GOAWAY is the
+explicit exception to PING priority; graceful GOAWAY ranks before resets.
+Classes are FIFO with
 generation-safe enqueue-ordinal ties. Positive per-record bypass bounds
 temporarily gate unexposed higher nonfatal classes, and an injected SETTINGS
 deadline closes that gate without reordering committed framing or fatal output.
+Later outbound SETTINGS receives the same finite bypass service; initial
+SETTINGS is a hard activation prerequisite before any other frame.
 After fatal GOAWAY commits, every remaining unexposed required control receives
 typed AbandonedByConnectionFatal, no later frame is exposed, no ACK/debt,
 credit, reset, PING, or graceful-timer completion is fabricated, ownership
@@ -231,6 +234,19 @@ for its older minimum. Private encoding only leases this debt; rollback restores
 and first non-empty initial-frame exposure alone transfers it to the
 guaranteed-to-finish block. New settings after exposure accrue debt for the next
 HEADERS/PUSH_PROMISE block.
+Each locally emitted non-ACK SETTINGS command separately prevalidates a
+generation-bound commit plan and atomically reserves exact
+`9 + 6 * entry_count` bytes, an output entry, future outstanding-ACK FIFO slot,
+and timeout state before acceptance. Its outbound transaction is
+ReservedPrivate, Frozen, CommittedAwaitingAck, PeerAcked,
+AbandonedBeforeExposure, or AbandonedConnection. Exposure freezes ordered
+entries and bytes; prefixes change no local advertisement. Full-frame
+acknowledgement applies all local effects, promotes the pre-reserved FIFO slot in
+wire order, and starts its timeout. Peer ACK consumes the oldest committed
+record without reapplication. A bounded early ACK observed while its possible
+match is Frozen waits for local commitment rather than becoming an automatic
+peer fault. Client preface byte zero and the server's first SETTINGS byte both
+require the complete initial transaction already reserved.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

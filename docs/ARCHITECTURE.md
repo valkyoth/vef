@@ -209,6 +209,24 @@ Transactions and dependent owner references remain live through that boundary,
 with FIFO serialization and commitment across received frames. Fatal or
 transport failure before byte nine abandons the connection without exposing
 dependent output, so no component can race or overstate an ACK.
+Every locally generated non-ACK SETTINGS frame separately owns an
+`OutboundSettingsTransaction`: ReservedPrivate, Frozen, CommittedAwaitingAck,
+PeerAcked, AbandonedBeforeExposure, or AbandonedConnection. Command acceptance
+atomically reserves checked `9 + 6 * entry_count` bytes, one output entry, its
+future outstanding-ACK FIFO slot, timeout generation, ordered entries, and a
+prevalidated local-effect commit plan. First exposure freezes those bytes;
+prefix acknowledgement activates nothing. Full-frame acknowledgement atomically
+applies the plan, promotes the already reserved FIFO slot in committed wire
+order, and starts its generation-bound deadline. Peer ACK consumes the oldest
+committed transaction without reapplying effects. Keep `locally_requested`,
+`frozen_on_wire`, `locally_advertised_committed`, and `peer_acknowledged` state
+distinct. An ACK observed while its only possible match is still Frozen is
+retained as bounded `EarlyPeerAckPending`, not blamed on the peer; local
+full-frame commitment applies effects first and then consumes it. Failure before
+full commitment records unknown visibility without claiming advertisement.
+Client activation reserves this whole transaction before the first connection-
+preface byte; server activation does so before its first SETTINGS byte.
+Thereafter the initial SETTINGS is the sole eligible frame until committed.
 Encoder capacity is explicit:
 `EncoderTableLimits { peer_received_ceiling: u32,
 peer_wire_acknowledged_ceiling: u32, selected_capacity: u32,
@@ -450,14 +468,18 @@ PROTOCOL_ERROR disposition.
 One connection-wide scheduler orders every eligible record:
 an already-Frozen suffix; the next frame of a FramingCommitted field block;
 fatal GOAWAY; PING ACK; SETTINGS ACK; graceful GOAWAY; RST_STREAM;
-WINDOW_UPDATE; then ordinary output. Fatal GOAWAY is the documented terminal
-exception to RFC 9113's PING priority SHOULD. Each class is FIFO; an immutable
-enqueue ordinal plus connection/record generation breaks equivalent ties.
+WINDOW_UPDATE; outbound non-ACK SETTINGS; then ordinary output. Fatal GOAWAY is
+the documented terminal exception to RFC 9113's PING priority SHOULD. Each
+class is FIFO; an immutable enqueue ordinal plus connection/record generation
+breaks equivalent ties.
 Positive profile `max_control_bypass` bounds gate unexposed higher nonfatal
 classes after they bypass an older mandatory record that many times, so
 continuous admitted PINGs cannot starve settings acknowledgement, reset, receive
 credit, or graceful shutdown. An injected SETTINGS deadline can close the same
 gate but never reorder Frozen bytes, a committed field block, or fatal GOAWAY.
+Later outbound SETTINGS uses the same positive bypass bound so ordinary traffic
+cannot starve an accepted transaction; the initial SETTINGS instead remains a
+hard activation prerequisite.
 After fatal GOAWAY fully commits, one terminal cleanup transaction changes every
 remaining unexposed mandatory record from Private to
 `AbandonedByConnectionFatal { connection_generation }`; no later frame is

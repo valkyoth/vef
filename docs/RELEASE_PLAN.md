@@ -814,6 +814,15 @@ on v0.19.0 (Role, profile, and policy types) and must be independently trustwort
 
 - Acceptance contract: Define short reads/writes, zero-length calls, clean versus truncated EOF, temporary starvation, scalar fallback, alignment requirements, non-reentrancy, and optional vectored/scatter-gather progress without owning sockets. One engine offer and acknowledgement covers exactly one immutable protocol-record suffix; an adapter may map that suffix to scalar or vectored OS buffers but cannot combine multiple records under one acknowledgement.
 - Treat bytes offered by a Sans-I/O engine separately from bytes the caller acknowledges as written. A zero-length or short write advances only the acknowledged prefix; it never permits regeneration of already exposed output from changed protocol state. Exact lease/token rules and the irrevocable exposure boundary are fixed at v0.25.0.
+- Define the per-connection causal driver invariant: acknowledgement of an
+  outbound written prefix must be delivered to the protocol engine before input
+  whose existence or interpretation could depend on that prefix is consumed.
+  Peer input never proves output commitment. A combined operation processes
+  output acknowledgement before input; an independent reversed call refuses all
+  input consumption and returns typed local `DriverCommitOrderViolation`
+  without protocol mutation. Apply the rule to SETTINGS ACK, locally originated
+  PING ACK, responses on locally initiated streams, frames enabled by locally
+  advertised extensions/features, GOAWAY, and every later causal state change.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -825,7 +834,7 @@ on v0.19.0 (Role, profile, and policy types) and must be independently trustwort
 
 #### Verification
 
-- Test Minimal synchronous I/O contracts and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test Minimal synchronous I/O contracts and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cross independent and combined calls with zero/short/full output commitment and causally dependent/independent input; prove acknowledgement-first ordering, zero input consumption/mutation on `DriverCommitOrderViolation`, and no peer-input-derived output commitment.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -971,6 +980,11 @@ on v0.23.0 (Cancellation, close, and bounded-backpressure contracts) and must be
 
 - Acceptance contract: The Deterministic fake transport and driver harness outcome must name its representation and ownership invariants, valid and invalid construction paths, publication/commit point, typed policy/capacity failures, bounded work/storage, portability evidence, and deterministic tests; no later milestone may be required to make this foundation safe.
 - Model output exposure and transport acknowledgement independently. Interleave zero/short/full writes, stale/duplicate/out-of-order tokens, cancellation, connection failure, and caller-buffer reuse; retain the exact offered bytes until the acknowledgement/revocation contract resolves them.
+- Model causality independently from byte arrival. Permute offered bytes,
+  acknowledged prefixes, adapter reads, engine input delivery, combined
+  acknowledgement-plus-input, connection failure, and retry. Dependent input
+  delivered before its write acknowledgement produces only
+  `DriverCommitOrderViolation`; combined delivery commits output first.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -982,7 +996,7 @@ on v0.23.0 (Cancellation, close, and bounded-backpressure contracts) and must be
 
 #### Verification
 
-- Test Deterministic fake transport and driver harness and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test Deterministic fake transport and driver harness and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Include deterministic SETTINGS/PING ACK, locally initiated response HEADERS, advertised-extension frame, and GOAWAY-dependent input traces at every output prefix and both call orders.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1012,6 +1026,14 @@ on v0.24.0 (Deterministic fake transport and driver harness) and must be indepen
 - Acceptance contract: Choose one generation-bound outstanding-event/output-lease model; define acknowledgements, command acceptance, reentrancy prohibition, input/output ownership, cancellation aftermath, publication barriers, and capacity reserved for mandatory responses. Returning a non-empty output slice is the irrevocable byte-exposure boundary: VEF must first freeze the exact bytes and their semantic identity in private bounded storage. Private encoding before exposure remains replaceable; later transport acknowledgement controls only prefix progress/reclamation and never permits mutation of exposed bytes. A zero-capacity poll returns NeedOutput and creates no lease/exposure.
 - Each non-empty offer returns a sealed `OutputToken { generation, record, start, offered_end }` bound to exactly one outstanding immutable protocol-record suffix. Acknowledgement consumes that token exactly once and reports a delta in `0..=offered_end-start`; it cannot cross into a later record, batch completion hooks, or release another slot. Zero is a valid no-progress write that leaves the cursor unchanged but invalidates that offer token. Duplicate, oversized—including an acknowledgement extending beyond this record—stale-generation, cross-record/output, or out-of-order acknowledgement returns `InvalidState` without cursor/state mutation. The caller certifies that the unacknowledged suffix from a consumed lease will not later be written; VEF may re-offer it under a fresh token from the unchanged frozen record.
 - While a token is outstanding, prohibit reentrant offers, mutation/replacement of its frozen record, caller-buffer reuse through the safe borrow, and owning stream/record reclamation. Connection failure consumes or invalidates the token through connection-owned cleanup and records only the acknowledged prefix. Require every later semantic-validation layer to preserve independent engine-only validation slots and head storage that application response work cannot consume, with one deterministic close/shutdown action and zero partial response output if even the reserve cannot proceed.
+- Expose a combined causal operation conceptually equivalent to
+  `advance_io(output_ack, input)` and process its optional output token/delta
+  completely before parsing one input byte. An input-only operation is legal
+  only when no unreported outbound commitment can causally enable that input;
+  otherwise return `DriverCommitOrderViolation` with the input wholly
+  unconsumed, outstanding token/cursor unchanged, and no protocol event,
+  timeout, feature, correlation, cutoff, or stream transition. Never accept
+  peer input as implicit acknowledgement.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1023,7 +1045,7 @@ on v0.24.0 (Deterministic fake transport and driver harness) and must be indepen
 
 #### Verification
 
-- Test Engine event, command, acknowledgement, and publication contract and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cover private encoding before exposure, first non-empty exposure, zero-length and every short acknowledgement, exact one-record completion, attempted acknowledgement across a record boundary, stale/duplicate/oversized/cross-record/out-of-order tokens, failure with an outstanding lease, caller-buffer reuse attempts, and generation rollover; prove only acknowledged prefixes count as written, every exposed byte remains immutable, and no token completes or releases another record.
+- Test Engine event, command, acknowledgement, and publication contract and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cover private encoding before exposure, first non-empty exposure, zero-length and every short acknowledgement, exact one-record completion, attempted acknowledgement across a record boundary, stale/duplicate/oversized/cross-record/out-of-order tokens, failure with an outstanding lease, caller-buffer reuse attempts, and generation rollover; prove only acknowledged prefixes count as written, every exposed byte remains immutable, and no token completes or releases another record. Cross output-only/input-only/combined calls at every prefix; prove combined acknowledgement precedes parsing and reversed dependent input is wholly state-neutral local failure.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1091,6 +1113,10 @@ on v0.26.0 (Requirement, applicability, and errata evidence system) and must be 
 
 - Acceptance contract: The Foundation Kani campaign, audit, and pentest outcome must name its representation and ownership invariants, valid and invalid construction paths, publication/commit point, typed policy/capacity failures, bounded work/storage, portability evidence, and deterministic tests; no later milestone may be required to make this foundation safe.
 - Model-check the v0.25.0 output lease/token state machine: no frozen byte changes after exposure, acknowledgements advance one exact prefix at most once, zero writes preserve the cursor, invalid tokens are state-neutral, and record/generation reuse is impossible with an outstanding lease or acknowledged-prefix obligation.
+- Model-check driver causality over offered/acknowledged/input permutations:
+  dependent input is consumed only after the enabling prefix commits, combined
+  calls commit first, reversed calls preserve every byte/state/token, and no
+  peer-controlled input can select an output-completion transition.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4339,6 +4365,12 @@ on v0.108.0 (SETTINGS syntax, role, directional values, and ACK rules) and must 
   unsolicited. All nonmatches are state-neutral and never automatic RFC
   connection errors. Caller metadata remains out-of-band and cannot replace the
   wire key.
+- A local correlation becomes ACK-matchable only after full acknowledgement of
+  its exact outbound PING frame. ReservedPrivate/Frozen correlation state cannot
+  complete from peer input. Reversed adapter delivery is rejected by the
+  v0.20.0/v0.25.0 driver causality boundary; if an ACK nevertheless reaches the
+  protocol layer without a committed live record, it is unsolicited and
+  state-neutral, never implicit output commitment.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4350,7 +4382,7 @@ on v0.108.0 (SETTINGS syntax, role, directional values, and ACK rules) and must 
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Overwrite caller input immediately after parsing and prove every non-ACK transaction retained its own exact bytes. Cover ACK-bearing no-reply, distinct/identical inbound PINGs, FIFO/correlation capacity, unique local keys, matching/unsolicited/duplicate/reordered/stale ACKs, generation wrap/reuse, and exact 17-byte encoding without claiming later partial-output scheduling.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Overwrite caller input immediately after parsing and prove every non-ACK transaction retained its own exact bytes. Cover ACK-bearing no-reply, distinct/identical inbound PINGs, FIFO/correlation capacity, unique local keys, matching/unsolicited/duplicate/reordered/stale ACKs, generation wrap/reuse, and exact 17-byte encoding without claiming later partial-output scheduling. Inject a matching ACK while its local PING is Private/Frozen and at every output prefix; prove no correlation completion, input-derived commitment, or retained ACK, plus acknowledgement-first success through the combined driver call.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -4871,6 +4903,11 @@ on v0.121.0 (HTTP/2 error scope, typed deltas, and isolated stream mutation) and
   `PublishedPeerStreamHighWater` only at first non-empty exposure. From that
   boundary, higher peer streams may finish required HPACK synchronization and
   connection flow-control accounting but cannot publish any application event.
+- Apply the foundational driver causality rule to every input whose
+  classification depends on a committed local GOAWAY stage/cutoff/timer:
+  combined calls acknowledge the GOAWAY prefix first, while reversed independent
+  delivery returns `DriverCommitOrderViolation` without consuming input or
+  advancing shutdown state.
 - A fatal decision replaces an unexposed graceful record but never a Frozen
   frame. Fatal causes enter a closed `FatalCauseClass` order:
   CompressionSynchronization (COMPRESSION_ERROR), ProtocolState
@@ -5555,6 +5592,12 @@ on v0.136.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release)
 - Use one caller-provided fixed-capacity `OutboundFrameArena` with exclusive generation-checked byte slots and a separate bounded queue-entry table. Require `slot_capacity >= checked_add(9, ResourceProfile::max_outbound_frame_payload)` at configuration; overflow or shortage is typed local capacity failure. Copy each exact encoded DATA frame—nine-byte header, immutable payload, optional Pad Length, and zeroed padding—into one slot before it reaches AcceptedPrivate. The source payload may be released after the copy, but callers cannot access, mutate, or reuse the staged slot until SupersededBeforeExposure, full acknowledgement, or connection-owned cleanup releases it. `ResourceProfile::max_outbound_frame_payload` is checked, nonzero, independent of peer MAX_FRAME_SIZE, and no larger than representable arena/queue-byte capacity. Exhausted byte capacity returns typed local `OutboundFrameStorageCapacity` backpressure, never a peer protocol error; queue byte capacity and queue-entry capacity are measured and exhausted independently.
 - Track `OutboundFieldBlock::{Private { stream, generation, hpack: HpackEncoderTransaction, table_update_debt: Option<EncoderTableUpdateDebtLease>, initial, continuations }, FramingCommitted { stream, generation, hpack: HpackEncoderTransaction, transmitted_table_update: Option<EncoderTableUpdateDebt>, remaining_continuations }, HpackCommitted, AbandonedWithConnection}` at connection scope. Define `field_fragment_cap = min(16_384, ResourceProfile::max_outbound_frame_payload, checked_sub(slot_capacity, 9))`; reject zero/overflow and require it to fit the enabled initial frame's mandatory payload prefix (four promised-stream-ID octets for PUSH_PROMISE and five priority octets only when that HEADERS form is enabled). Check `ResourceProfile::max_outbound_field_block_bytes` before encoding. Compute initial fragment capacity after its prefix, then compute `continuation_count = checked_ceil_div(remaining_encoded_block_bytes, field_fragment_cap)` and require it not exceed `ResourceProfile::max_outbound_continuations_per_block`. Before any initial HEADERS/PUSH_PROMISE exposure, linearly lease the exact connection `EncoderTableUpdateDebt`, fully encode its required one or smallest-then-final prefix plus the bounded block, and atomically reserve/materialize the exact initial slot, every CONTINUATION slot, total checked arena bytes, and `checked_add(1, continuation_count)` queue entries. This actual local cap is no larger than the minimum legal peer MAX_FRAME_SIZE, so a valid peer reduction cannot require resegmentation; shortage or oversized locally generated fields returns typed local `OutboundFieldBlockCapacity`/validation failure with zero exposure and restores the debt lease exactly. The whole Private block may be superseded, returning that lease before any newer setting merges and releasing all slots plus provisional HPACK mutations together. First non-empty initial-frame exposure atomically transfers the lease into FramingCommitted and clears only the connection-side debt; the pre-reserved block is then guaranteed to finish and every remaining CONTINUATION is non-supersedable. SETTINGS_HEADER_TABLE_SIZE received after that boundary cannot alter the transferred prefix and accrues debt for the following block after its own ACK commits. No later field block encodes against the provisional transaction or an unresolved transition. Full acknowledgement of the frame carrying END_HEADERS atomically publishes `HpackCommitted` and releases block resources in order. No RST_STREAM, GOAWAY, PING ACK, SETTINGS ACK, WINDOW_UPDATE, or other-stream output can interleave. Fatal transport failure may abandon transferred debt and the transaction/block only with the entire connection. An END_STREAM completion hook on initial HEADERS still runs when that frame is fully acknowledged, independently of final HPACK commit. v0.145.0 applies the same lifecycle to PUSH_PROMISE.
 - Each `OutputToken` offered by HTTP/2 owns exactly one frame-slot suffix. Scalar and vectored adapters may expose that suffix but cannot combine it with another slot; a short acknowledgement advances only this slot, exact completion runs only this frame's hook, and an acknowledgement extending into the next frame is `InvalidState` without mutation.
+- A response or dependent frame on a locally initiated stream cannot be consumed
+  until the request HEADERS prefix that causally permits it is acknowledged
+  committed. The combined driver call commits that output first; reversed
+  independent input returns `DriverCommitOrderViolation` without parsing,
+  publishing, changing HPACK/stream state, or using the response as request
+  commitment evidence.
 - Before a DATA frame becomes exposable, use checked arithmetic for `payload = data + optional_pad_length_octet + padding`, require payload to fit the peer limit, local cap, both flow-control windows, remaining source, and `slot_capacity - 9` simultaneously, then atomically reserve that entire flow-controlled payload against both ledgers; the nine-byte frame header is not charged. Derive data length only after subtracting checked padding overhead. If requested padding alone cannot fit, follow the configured deterministic padding-reduction policy or return typed local capacity/backpressure; never truncate source data silently or overflow. First exposure atomically commits/debits the reservation before returning bytes. Insufficient/negative credit or stale generation leaves the frame unexposed. Zero-length DATA carrying END_STREAM reserves/debits zero credit but follows the ordinary output and completion lifecycle.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
@@ -5581,7 +5624,11 @@ on v0.136.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release)
   private-encoded, Frozen-with-zero-acknowledgement, every partial prefix, and
   Complete with peer reset, completed local reset, cancellation, and failure;
   prove pre-exposure supersession/release, frozen suffix priority, no reset
-  interleaving, and one completion hook. For DATA, vary payload/padding charge,
+  interleaving, and one completion hook. Cross Frozen and Complete request
+  HEADERS against response input before/with/after output acknowledgement; prove
+  reversed input is wholly unconsumed local DriverCommitOrderViolation and the
+  combined call commits request output before parsing/publishing the response.
+  For DATA, vary payload/padding charge,
   zero-length END_STREAM, stream/connection last credit, concurrent contenders,
   stale generations, WINDOW_UPDATE, and SETTINGS reduction before exposure.
   Exhaust caller-provided frame bytes separately from queue entries; mutate and
@@ -5700,23 +5747,23 @@ on v0.138.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and mus
   committed wire order, and starts its injected-monotonic generation-bound
   timeout. Peer ACK consumes the oldest CommittedAwaitingAck record exactly once
   without reapplying effects; multiple local frames preserve commitment order,
-  and only an ACK with neither a committed nor possible Frozen match is
-  unsolicited connection PROTOCOL_ERROR. Track `locally_requested`,
+  and any ACK with no committed transaction is unsolicited connection
+  PROTOCOL_ERROR even when a ReservedPrivate/Frozen transaction exists. Track `locally_requested`,
   `frozen_on_wire`, `locally_advertised_committed`, and `peer_acknowledged`
   separately.
-- If adapter input delivers an ACK while the only possible matching local
-  SETTINGS remains Frozen, retain one bounded generation-bound
-  `EarlyPeerAckPending` indication on that oldest transaction rather than
-  blaming the peer or prematurely committing it. Exact local full-frame
-  acknowledgement first applies the commit plan and promotes the FIFO slot,
-  then immediately consumes that pending ACK and cancels its just-created
-  deadline; partial transport failure discards the pending indication, records
-  unknown peer visibility, and abandons the connection without claiming local
-  commitment. Fatal GOAWAY before exposure selects AbandonedBeforeExposure and
-  applies nothing. Fatal intent while Frozen waits for its exact suffix and
-  commitment before GOAWAY when output remains usable. Terminal shutdown after
-  CommittedAwaitingAck releases timeout/FIFO ownership without rolling back
-  possibly peer-visible effects.
+- Never retain, defer, or later consume an ACK received without a
+  CommittedAwaitingAck owner. It cannot cancel a timeout, set
+  `peer_acknowledged`, enable an ACK-gated setting/extension, or act as evidence
+  of output commitment. v0.20.0/v0.25.0 require the driver to report the complete
+  SETTINGS output acknowledgement before feeding a causally possible ACK; a
+  reversed independent call returns local `DriverCommitOrderViolation` before
+  protocol parsing, while a peer ACK that legitimately reaches this protocol
+  state with no committed owner selects connection PROTOCOL_ERROR. Fatal GOAWAY
+  before exposure selects AbandonedBeforeExposure and applies nothing. Fatal
+  intent while Frozen waits for its exact suffix and commitment before GOAWAY
+  when output remains usable. Terminal shutdown after CommittedAwaitingAck
+  releases timeout/FIFO ownership without rolling back possibly peer-visible
+  effects.
 - Committed records enter the bounded FIFO only after each complete frame's bytes commit;
   their capacity is nevertheless reserved before exposure and cannot fail at
   promotion.
@@ -5751,13 +5798,15 @@ on v0.138.0 (HTTP/2 body cancellation, reset, and flow-credit lifecycle) and mus
 - For outbound transactions, exhaust frame/queue/future-ACK/timeout/commit-plan
   capacity independently, including one-slot-short outstanding FIFOs; cross
   empty/single/multiple/duplicate/unknown entries, every exact frame offset,
-  several committed frames, ACK ordering, early ACK input, timeout generations,
+  several committed frames, ACK ordering, speculative ACK input, timeout generations,
   fatal shutdown at every lifecycle state, partial failure, stale tokens, and
   generation reuse. Prove zero exposure on reservation failure, immutable
   ordered bytes, final-byte-only effect activation/FIFO promotion/deadline,
-  one oldest-record ACK with no effect reapplication, bounded early-ACK
-  deferral, unknown visibility on partial failure, and no rollback after
-  commitment.
+  one oldest-record ACK with no effect reapplication, PROTOCOL_ERROR for every
+  ReservedPrivate/Frozen offset and after full offer before acknowledgement,
+  no timeout/peer-acknowledged/feature mutation, acknowledgement-first combined
+  processing, state-neutral local driver-order failure, unknown visibility on
+  partial failure, and no rollback after commitment.
 - Cross fatal commitment with every transaction state and AckFrozen offset.
   Prove Frozen completion precedes fatal when usable and Private abandonment
   neither commits an ACK nor advances a ceiling/debt, releases every owner
@@ -6054,6 +6103,10 @@ on v0.143.0 (SETTINGS max-frame-size outbound integration) and must be independe
 #### Deliverables
 
 - Acceptance contract: Record received and fully wire-committed sent GOAWAY cutoffs in separate ledgers, both monotonically non-increasing. Requested, ReservedPrivate, Frozen, and partially acknowledged local values do not mutate `SentGoawayCutoff`; only the exact completion event from v0.153.0 may do so. On partial transport failure record `PeerVisibleCutoff::UnknownAfterPartial` without inventing a sent cutoff. Classify locally initiated streams above the peer's received cutoff as possibly unprocessed and those at/below separately, reject new streams after the cutoff, and never equate cutoff classification with replay authorization or duplicate terminal events. A received cutoff above the prior value retains the prior lower cutoff and yields typed `ReceivedGoawayCutoffIncrease` connection PROTOCOL_ERROR rather than widening admission/retry state.
+- Never use received GOAWAY or later peer input as evidence that a local GOAWAY
+  prefix committed. When interpretation depends on the local committed cutoff,
+  apply the v0.25.0 acknowledgement-first combined call or reject reversed
+  driver delivery locally before cutoff/retry mutation.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6323,7 +6376,7 @@ on v0.149.0 (SETTINGS amplification defenses) and must be independently trustwor
 
 #### Verification
 
-- Test PING flood defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Flood distinct and identical non-ACK PINGs, ACK-bearing PINGs, and matching/unsolicited/duplicate/reordered/stale local ACKs through each queue/rate boundary. Cross fatal commitment with every Private record and Frozen offset; prove Frozen-first completion, typed Private abandonment, no response-sent hook, no duplicate fatal output, exact-once release, and stale-token neutrality. Prove one owned FIFO obligation per accepted non-ACK frame, zero replies for ACK-bearing frames, exact pre-mutation charges, bounded shutdown instead of loss/pinning, and no peer protocol error for correlation mismatch.
+- Test PING flood defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Flood distinct and identical non-ACK PINGs, ACK-bearing PINGs, and matching/unsolicited/duplicate/reordered/stale local ACKs through each queue/rate boundary. At every locally originated PING output prefix, cross speculative ACK input, reversed independent delivery, and combined acknowledgement-plus-input; prove no uncommitted match/retention, state-neutral local driver violation, and commitment-before-correlation. Cross fatal commitment with every Private record and Frozen offset; prove Frozen-first completion, typed Private abandonment, no response-sent hook, no duplicate fatal output, exact-once release, and stale-token neutrality. Prove one owned FIFO obligation per accepted non-ACK frame, zero replies for ACK-bearing frames, exact pre-mutation charges, bounded shutdown instead of loss/pinning, and no peer protocol error for correlation mismatch.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6436,7 +6489,7 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 - Reserve independent fixed-capacity ownership for each outbound non-ACK
   SETTINGS transaction: checked exact frame bytes/queue entry, a future
   outstanding-ACK FIFO slot, timeout generation, commit-plan snapshots, and one
-  bounded early-ACK indication are one atomic admission unit. The future slot is
+  immutable FIFO commitment plan are one atomic admission unit. The future slot is
   unavailable to later commands while ReservedPrivate/Frozen and is promoted
   in place at final-byte commitment; no allocator or fallible capacity step
   remains at that boundary. Initial activation reserves this unit before client
@@ -6518,7 +6571,7 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 
 #### Verification
 
-- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one inbound transaction-owned ACK slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Exhaust outbound SETTINGS frame, queue, future-ACK FIFO, timeout, commit-plan, and early-ACK capacity independently at one slot short; prove atomic pre-exposure backpressure and no fallible final-byte step. Exercise every pair of scheduler classes, every same-class arrival/generation tie, all mandatory controls plus later outbound SETTINGS simultaneously, continuous admitted PING, SETTINGS deadlines, bypass values one/typical/maximum, and capacity-triggered shutdown with replies already queued; prove the exact total order, finite service bounds, and no clock-based committed-frame reorder. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For GOAWAY, overwrite caller debug after command acceptance and exhaust every acknowledged offset 0..=`17 + debug_len` for zero/maximum debug, graceful initial/final/fatal stages, early/stale/correct timers, fatal escalation at each Frozen prefix, minimum-slot-only exhaustion, duplicate causes, stale/cross-slot tokens, and transport failure. Enter fatal shutdown while each mandatory control and outbound SETTINGS is Private, Frozen, or committed-awaiting-ACK; prove committed framing/Frozen settings finish first, full fatal GOAWAY commitment atomically abandons only Private records, no later frame is offered, every owner releases once, all tokens become stale across generation reuse, peer-visible setting effects never roll back, and no ACK/debt, advertised-credit, reset-completion, PING-response, or graceful-timer hook is fabricated. Prove graceful shutdown performs no terminal cleanup. Prove byte-for-byte immutability, final-byte-only cutoff/timer commitment, zero-prefix NotVisible versus positive-prefix UnknownAfterPartial, non-increasing successor, and optional debug never blocking shutdown. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK unless the typed fatal-abandonment terminal outcome wins before exposure and releases only at byte 17 otherwise. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
+- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one inbound transaction-owned ACK slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Exhaust outbound SETTINGS frame, queue, future-ACK FIFO, timeout, and commit-plan capacity independently at one slot short; prove atomic pre-exposure backpressure and no fallible final-byte step. Inject speculative SETTINGS ACK at every ReservedPrivate/Frozen offset, after full offer before acknowledgement, and among multiple committed/frozen records; prove no banking, timeout cancellation, peer-acknowledged mutation, or feature activation, strict committed FIFO matching, acknowledgement-first combined processing, and local driver-order failure before protocol parsing. Exercise every pair of scheduler classes, every same-class arrival/generation tie, all mandatory controls plus later outbound SETTINGS simultaneously, continuous admitted PING, SETTINGS deadlines, bypass values one/typical/maximum, and capacity-triggered shutdown with replies already queued; prove the exact total order, finite service bounds, and no clock-based committed-frame reorder. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For GOAWAY, overwrite caller debug after command acceptance and exhaust every acknowledged offset 0..=`17 + debug_len` for zero/maximum debug, graceful initial/final/fatal stages, early/stale/correct timers, fatal escalation at each Frozen prefix, minimum-slot-only exhaustion, duplicate causes, stale/cross-slot tokens, and transport failure. Enter fatal shutdown while each mandatory control and outbound SETTINGS is Private, Frozen, or committed-awaiting-ACK; prove committed framing/Frozen settings finish first, full fatal GOAWAY commitment atomically abandons only Private records, no later frame is offered, every owner releases once, all tokens become stale across generation reuse, peer-visible setting effects never roll back, and no ACK/debt, advertised-credit, reset-completion, PING-response, or graceful-timer hook is fabricated. Prove graceful shutdown performs no terminal cleanup. Prove byte-for-byte immutability, final-byte-only cutoff/timer commitment, zero-prefix NotVisible versus positive-prefix UnknownAfterPartial, non-increasing successor, and optional debug never blocking shutdown. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK unless the typed fatal-abandonment terminal outcome wins before exposure and releases only at byte 17 otherwise. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6549,13 +6602,15 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
 - Audit combined-entry `InboundSettingsTransaction` products spanning HEADER_TABLE_SIZE, INITIAL_WINDOW_SIZE, MAX_FRAME_SIZE, MAX_CONCURRENT_STREAMS, ENABLE_PUSH, duplicates, unknowns, and enabled extensions in every wire order. Require one frame-wide ACK; generation-bound participants; FIFO ACK states; separate peer-received/peer-wire-acknowledged/selected/physical limits; per-frame ceiling snapshots and optional selected deltas; immediate reduction clamp/eviction; no automatic increase; selected-only debt for peer clamps, local policy changes, and initial-below-4096; safe decoder advertisement/activation; exact 0→4096 and 4096→0→4096 debt history across Private/exposure/CONTINUATION boundaries; stale-token neutrality; failure cleanup; and encoder/decoder table equivalence with no physical eviction lacking matching wire debt.
 - Audit `OutboundSettingsTransaction` across initial/later, client/server,
   empty/mixed/duplicate/unknown/extension entries, every byte offset, all
-  independent reservation ceilings, multiple commitment/ACK orders, early ACK,
+  independent reservation ceilings, multiple commitment/ACK orders, speculative ACK,
   injected deadlines, fatal shutdown, partial failure, stale tokens, and
   generation reuse. Require complete pre-reservation before preface/first frame
   or command acceptance, immutable bytes, final-byte-only commit-plan
   activation/FIFO promotion/deadline, oldest committed ACK without
-  reapplication, bounded early-ACK deferral, unknown partial visibility, and no
-  rollback of committed local advertisements.
+  reapplication, no ACK banking at any uncommitted offset, exact unsolicited
+  error versus local driver-order classification, no speculative timeout/feature
+  effect, unknown partial visibility, and no rollback of committed local
+  advertisements.
 - Audit stream and connection `ReceiveCredit` independently across DATA
   validation, application acknowledgement, padding/policy discard, private
   coalescing, first exposure, every WINDOW_UPDATE offset 0..=13, new
@@ -6597,6 +6652,14 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
   nothing afterward, release ownership exactly once, reject stale tokens, and
   fabricate no SETTINGS/debt, credit, reset, PING, or timer completion; require
   graceful shutdown to preserve all existing-stream control obligations.
+- Audit Sans-I/O causality for SETTINGS ACK, locally originated PING ACK,
+  response HEADERS on locally initiated streams, locally advertised
+  ENABLE_PUSH/ENABLE_CONNECT_PROTOCOL/extension-dependent frames, and GOAWAY
+  state. At every output prefix, cross output-only, input-only, and combined
+  calls; require acknowledgement-first combined processing, wholly unconsumed
+  reversed input with local `DriverCommitOrderViolation`, strict protocol
+  classification after commitment, and no input-derived completion, timeout
+  cancellation, feature activation, stream publication, or cutoff mutation.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7089,6 +7152,9 @@ on v0.161.0 (CONNECT translation across HTTP versions) and must be independently
 #### Deliverables
 
 - Acceptance contract: Accept only SETTINGS_ENABLE_CONNECT_PROTOCOL values 0 and 1 and track peer_enabled_outbound_connect separately from local_advertised_inbound_connect; only a client receiving peer value 1 may initiate outbound extended CONNECT, while receipt by a server has no effect; inbound extended CONNECT is accepted only after the local server's SETTINGS value 1 bytes commit, not when queued, otherwise return stream PROTOCOL_ERROR with no request publication; after either side sends value 1 it can never send 0 on that connection, mapping peer 0-after-1 to connection PROTOCOL_ERROR and a local attempt to InvalidState; a proxy/gateway advertises 1 only with an available native endpoint or fully configured bridge/entropy capability, and later transient endpoint, nonce, or capacity failure becomes a bounded HTTP failure without SETTINGS rollback; enforce :protocol plus extended :scheme/:path/:authority, distinguish ordinary CONNECT, reject 101 semantics, and publish no transition before final response and byte handoff succeed.
+- Driver delivery of an inbound extended CONNECT while its enabling local
+  SETTINGS remains unacknowledged is rejected at the v0.25.0 causality boundary
+  without consuming the frame; peer input cannot commit the advertisement.
 - Prevalidate the local ENABLE_CONNECT_PROTOCOL monotonicity/capability snapshot
   inside the v0.139.0 outbound commit plan. Full SETTINGS acknowledgement alone
   changes `local_advertised_inbound_connect`; Frozen prefixes and peer ACK do
@@ -8494,9 +8560,15 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 #### Deliverables
 
 - Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator. Expose `OutboundFrameArena` only from exclusive caller storage, with generation-checked `OutboundFrameSlot`/`FrozenOutboundFrameSlot` ownership, independent queue-byte/entry sizing, nonzero `ResourceProfile::max_outbound_frame_payload`, and typed `OutboundFrameStorageCapacity`; no API sizes storage directly from peer MAX_FRAME_SIZE or permits caller access/reuse before supersession, full acknowledgement, or connection cleanup. `PartialDeliveryPreference`, `RequestedOverlapBudget`, `AssemblyInvalidationCapacity`, `PushedAssemblyProvenanceCapacity`, `StreamTrackingUnavailable`, `PushRejectionTrackingUnavailable`, `LeaseHeld`, and ordinary error values are freely constructible and confer no authority; caller-provided `VariantIdentityStorage` is constructible only from exclusive slices/sealed slots. Expose civil-time evidence, PendingConditionalRequest, CurrentRepresentationEvidence, WouldBe200Snapshot, request content/execution permits, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, and PartialCombinationPlan only with the sealed generation/lifetime constraints appropriate to authority-bearing evidence. The invalidation handle and pushed provenance remain non-Copy/non-Clone, exact promised-correlation-bound, independently leased from associated-stream storage, held through reserved push and terminal backpressure, and exactly-once released; no public operation duplicates, rebinds, substitutes peer identity, crosses associated requests, borrows recyclable associated-stream storage, or releases either early. Semantic invalidation is observable only as rejection and cannot shorten a lease or authorize physical reclamation. Expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` consumed whole by the selected engine, preserve the mandatory reserve, and keep raw request/response serializers and separable capability/data pairings non-public.
+- Stabilize `advance_io(output_ack, input)` so output acknowledgement is applied
+  before any input borrow is consumed. Independent input APIs expose a checked
+  causal precondition and return typed `DriverCommitOrderViolation` with the
+  entire input borrow and all engine state unchanged; no convenience/alloc
+  facade may reorder the two phases, buffer a rejected dependent frame for later
+  acceptance, or synthesize commitment from input.
 - Public constructors reject overflow in `checked_add(9, max_outbound_frame_payload)`, zero/undersized `field_fragment_cap`, enabled mandatory-prefix shortage, inconsistent block/continuation capacity, ambiguous padding, and HPACK layouts whose checked logical physical capacity exceeds exclusive caller storage. `EncoderTableLimits`, received/acknowledged ceiling transitions, selected-capacity mutation, decoder advertisement proof, `InboundSettingsTransaction`, `PendingEncoderTableSizeTransition`, `EncoderTableUpdateDebt`, leases, AckCommitted promotion, debt merge/restore/transfer, and HPACK promotion remain engine-owned and non-constructible. Callers provide storage and policy preferences but cannot forge a larger physical capacity, select outside limits, acknowledge a peer ceiling, advertise unsafe decoder capacity, or expose ACK/debt authority. Public output acknowledgement accepts only one token-bound suffix.
 - Keep `OutboundSettingsTransaction`, ordered frozen entries, future-ACK FIFO
-  reservation, commit plan/snapshot, timeout generation, early-ACK indication,
+  reservation, commit plan/snapshot, timeout generation, strict committed FIFO,
   and every requested/frozen/committed/peer-ACK promotion engine-owned and
   non-constructible. Callers may request validated local settings and provide
   fixed storage/time, but cannot accept a command without its atomic reservation,
@@ -8606,14 +8678,19 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
 #### Deliverables
 
 - Acceptance contract: Assign stable non-secret diagnostic codes to syntax, protocol scope/code, policy, capacity, cancellation, timeout, transport, and peer/local role; include bounded offsets/counters and generation identifiers, redact field/credential/compression/section contents, and emit each event once. Distinguish local `AssemblyInvalidationCapacity`, `PushedAssemblyProvenanceCapacity`, `StreamTrackingUnavailable`, `PushRejectionTrackingUnavailable`, and `OutboundFrameStorageCapacity`. For reset and ordinary output, separately record AcceptedPrivate/Frozen/Complete/SupersededBeforeExposure disposition, Private/FramingCommitted/HpackCommitted/AbandonedWithConnection field-block disposition, stream/block/slot generation, remaining CONTINUATION count, command/local-send seal, exposure, offered/acknowledged counts, outstanding token, completion hook, directional transition, remote/reset records, and immutable first-wire-closure cause. For DATA, record bounded arena/queue bytes and entries, local payload cap, staged slot length, stream/connection available, reserved-unexposed, committed-debited charge, and reservation generation without payload contents. Never report released reservation as debit, freed arena capacity as still owned, refund frozen debit, offered-but-unacknowledged bytes as written, partial/failing output as half-closed/closed, RemoteEndStream as a closure cause when it only produced HalfClosedRemote, or later completion as replacing a peer-first close. Record terminal/section/workspace dispositions without raw contents and preserve redaction/caller-scrub rules.
+- Report `DriverCommitOrderViolation` as a local adapter defect with redacted
+  connection/output generation, acknowledged cursor, and dependent-input class;
+  never consume/log input contents, attribute it to peer protocol misconduct,
+  or emit a protocol transition/event for the rejected call.
 - Distinguish Private/FramingCommitted/HpackCommitted/AbandonedWithConnection, transition/debt ownership, and SETTINGS disposition; separately report bounded peer-received ceiling, peer-wire-acknowledged ceiling, selected capacity, checked physical capacity, active profile cap, per-frame snapshot/selected-delta presence, ACK offset, debt smallest/final values, and decoder advertised/effective capacity without settings/header contents or raw storage addresses. Never conflate a ceiling with selection/debt, report an increase as selected, overstate physical storage, attribute ACK ownership to debt, report AckEligible/offset eight as committed, diagnose Private encoding as debt consumption, or hide eviction lacking a selected wire update.
 - For outbound SETTINGS, separately report redacted transaction/generation,
   requested/Frozen/CommittedAwaitingAck/PeerAcked/abandoned disposition, entry
   count, total/acknowledged bytes, future/FIFO slot state, commit-plan effect
-  classes, deadline generation/state, early-ACK classification, and peer
+  classes, deadline generation/state, speculative-ACK/driver-order classification, and peer
   visibility. Never expose setting contents unnecessarily, report a prefix as
-  locally advertised, report peer ACK as effect application, treat a possible
-  Frozen match as unsolicited, or diagnose terminal cleanup as rollback.
+  locally advertised, report peer ACK as effect application, retain an
+  uncommitted ACK for later, hide DriverCommitOrderViolation as peer fault, or
+  diagnose terminal cleanup as rollback.
 - For stream and connection receive flow control, separately report bounded
   advertised remaining, reclaimed-unadvertised, update-in-flight, update target
   kind/generation, Private/Frozen disposition, and acknowledged offset 0..=13.
@@ -8763,12 +8840,13 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
 - Add stateful outbound SETTINGS transactions across client/server initial
   activation, later commands, exact `9 + 6 * entry_count` capacity, every frame
   offset, future-ACK/timeout/commit-plan reservation, all setting-effect owners,
-  several committed frames, early/ordered/unsolicited ACK, deadline
+  several committed frames, speculative/ordered/unsolicited ACK, deadline
   generations, fatal GOAWAY, partial failure, stale tokens, and connection reuse.
   Assert preface/first-frame coupling, zero-exposure capacity failure,
   immutable bytes, final-byte-only effect/FIFO/deadline commitment, no effect
-  reapplication, oldest-committed ACK, bounded early-ACK deferral, unknown
-  partial visibility, and no committed-effect rollback.
+  reapplication, oldest-committed ACK, no uncommitted ACK retention,
+  acknowledgement-first combined calls, state-neutral driver-order failure,
+  unknown partial visibility, and no committed-effect rollback.
 - Add stateful `ReceiveCredit × WindowUpdateOutput` transitions for both target
   kinds. Generate DATA/padding/acknowledgement/discard, checked private
   coalescing, first exposure, all output offsets 0..=13, further reclamation,
@@ -8805,6 +8883,13 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   no caller-clock reorder of committed work, Frozen-first completion, atomic
   Private-only abandonment after fatal commitment, no later output, exact-once
   release, and no fabricated ACK/debt, credit, reset, response, or timer hook.
+- Fuzz the v0.25.0 causal call product over offered bytes, every acknowledged
+  prefix, outstanding token generations, independent/combined delivery, inbound
+  SETTINGS/PING ACK, locally initiated response frames, extension-dependent
+  frames, GOAWAY, failure, and retry. Assert output commitment always precedes
+  dependent parsing, reversed delivery consumes nothing and returns only
+  `DriverCommitOrderViolation`, and peer input never completes output or is
+  retained for later.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8844,10 +8929,15 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 #### Deliverables
 
 - Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse/rebind civil-time evidence, `OutputToken`, `OutboundFrameSlot`, `FrozenOutboundFrameSlot`, CurrentRepresentationEvidence, WouldBe200Snapshot, RequestContentPermit, MethodExecutionPermit, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, PartialCombinationPlan, or `ResponseEmissionPermit`; prove callers can construct preferences/requested budgets/ordinary errors without authority and create `OutboundFrameArena`/VariantIdentityStorage only from exclusive slice/sealed-slot inputs; reject duplicate/stale/cross-generation output acknowledgement, access/mutation/reuse of staged arena bytes while AcceptedPrivate/Frozen/offered, slot duplication/rebinding, frozen-frame/reset substitution, early stream/tombstone reuse, invalidation-handle/provenance Copy/Clone/duplication/rebinding/early or double release/retry reuse, ordinary-to-pushed or cross-associated-request rebinding, peer-derived principal/partition/tenant/navigation substitution, associated-stream-borrowed provenance or reuse after associated-stream teardown, promised publication without atomic slot/handle/provenance/rejection-tracking reservation, tombstone release before cancellation/classification horizon, caller storage traits/trust constructors, alias/mutate/recycle/reissue while leased, semantic invalidation used to end a borrow or authorize slot reuse, unfenced DMA mutation, identity release then assembly admission, active-budget reset/enlargement/replacement, frozen-data substitution, wrong generation/domain/principal use, trailer decision changes, and fabricated outcomes.
+- Reject APIs or call patterns that alias the same input/output storage across
+  causal phases, forge output-commit evidence from input, reorder the combined
+  operation, or let the engine retain rejected dependent input. The caller
+  regains the wholly unconsumed input and may resubmit it only after supplying
+  the required output acknowledgement.
 - Reject construction/rebinding of `EncoderTableLimits`, peer-ceiling snapshots, acknowledged-ceiling evidence, selected-capacity transitions, decoder-advertisement proof, `HpackEncoderTransaction`, SETTINGS/ACK transactions, `EncoderTableUpdateDebt`, or its lease. Reject selected > received/profile/physical, increases > wire-acknowledged ceiling, raw peer ceiling inserted as debt, automatic selection increase, eviction without selected update, unsafe decoder advertisement, AckCommitted before byte nine, duplicate/cross-block debt lease, rollback without exact restoration, early clearing/transfer, caller HpackCommitted, bound bypass, and cross-record acknowledgement.
 - Reject construction, cloning, copying, rebinding, or direct promotion of
   `OutboundSettingsTransaction`, future-ACK slot, commit plan/snapshot, timeout
-  generation, and early-ACK indication. Reject unreserved preface/SETTINGS
+  generation, and committed-FIFO evidence. Reject unreserved preface/SETTINGS
   exposure, checked-length overflow, entry mutation after exposure,
   locally-advertised promotion before full acknowledgement, caller FIFO/deadline
   promotion, peer-ACK effect reapplication, cross-generation ACK/timeout,
@@ -9435,10 +9525,14 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
 - Independently size outbound SETTINGS ordered-entry storage, checked
   `9 + 6 * entry_count` frame slots, queue entries, ReservedPrivate/Frozen
   records, pre-reserved future-ACK FIFO slots, commit-plan snapshots, timeout
-  generations, and bounded early-ACK indications. Prove initial activation and
+  generations, and strict committed FIFO metadata. Prove initial activation and
   the configured number of later transactions need no allocation at final-byte
   commitment, all multiplication/addition is checked on 32-/64-bit targets,
   and terminal cleanup releases each reserved/committed owner exactly once.
+- Prove the causal combined operation requires no hidden input buffering:
+  reversed dependent input remains caller-owned and wholly unconsumed, so
+  enforcing `DriverCommitOrderViolation` adds only fixed token/generation/class
+  metadata within existing connection profiles.
 - Size one connection and the configured maximum stream `ReceiveCredit`
   ledgers, independent bounded private/frozen WINDOW_UPDATE records, their
   exact 13-byte storage, generations, counters, and reserved queue entries.

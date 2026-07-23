@@ -61,6 +61,16 @@ token; invalid or replayed tokens are state-neutral. Acknowledgement governs
 only suffix progress and reclamation—never byte mutation. Outstanding tokens
 pin their record and owning protocol generation; connection failure records only
 the acknowledged prefix.
+Per connection, transport commitment is causally ordered before dependent
+input. The adapter must report an outbound written prefix to the engine before
+the engine consumes input whose existence or meaning could depend on that
+prefix. The combined I/O operation applies `output_ack` before `input`; an
+independent input call with an unreported causal commitment returns typed local
+`DriverCommitOrderViolation` without consuming bytes or mutating protocol
+state. Peer input can never stand in for an output acknowledgement. This rule
+covers SETTINGS and locally originated PING ACKs, responses on locally initiated
+streams, frames enabled by local extension advertisements, and GOAWAY-dependent
+state.
 
 ## Shared model
 
@@ -221,9 +231,13 @@ order, and starts its generation-bound deadline. Peer ACK consumes the oldest
 committed transaction without reapplying effects. Keep `locally_requested`,
 `frozen_on_wire`, `locally_advertised_committed`, and `peer_acknowledged` state
 distinct. An ACK observed while its only possible match is still Frozen is
-retained as bounded `EarlyPeerAckPending`, not blamed on the peer; local
-full-frame commitment applies effects first and then consumes it. Failure before
-full commitment records unknown visibility without claiming advertisement.
+never retained or used as commitment evidence. At the protocol layer, SETTINGS
+ACK consumes only the oldest CommittedAwaitingAck transaction; when none exists,
+ReservedPrivate/Frozen notwithstanding, it is unsolicited connection
+PROTOCOL_ERROR and cannot cancel a deadline or satisfy a feature gate. The I/O
+layer prevents driver callback reversal from reaching this classification as
+input by requiring output commitment first. Failure before full commitment
+records unknown visibility without claiming advertisement.
 Client activation reserves this whole transaction before the first connection-
 preface byte; server activation does so before its first SETTINGS byte.
 Thereafter the initial SETTINGS is the sole eligible frame until committed.

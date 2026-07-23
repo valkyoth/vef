@@ -60,6 +60,12 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   measured as each hostile surface lands.
 - Successful incremental calls make non-zero observable progress; input,
   output, event, transition, and blocked states remain distinguishable.
+- Enforce per-connection Sans-I/O causality: acknowledge every written outbound
+  prefix before consuming input that could depend on it. A combined
+  `advance_io(output_ack, input)` applies acknowledgement first; independent
+  reversed input returns local `DriverCommitOrderViolation` without consuming
+  bytes or changing protocol state. Never infer output commitment from peer
+  input.
 - Applications receive no request before framing/routing control data is
   complete and validated.
 - Conditional origin requests expose only a read-only selection view until
@@ -121,10 +127,11 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   ordered entries and bytes; prefixes activate no advertised effect or timeout.
   Full acknowledgement applies the commit plan, promotes the reserved FIFO slot
   in wire order, and starts its generation-bound deadline. An ACK consumes only
-  the oldest committed transaction and never reapplies its effects. If adapter
-  input arrives before the matching Frozen output acknowledgement, retain one
-  bounded `EarlyPeerAckPending` classification and consume it only after local
-  commitment; do not fabricate peer fault. Client activation reserves the
+  the oldest committed transaction and never reapplies its effects. If none is
+  committed, an ACK is unsolicited connection PROTOCOL_ERROR even when a
+  ReservedPrivate/Frozen transaction exists; never retain it, cancel a timeout,
+  or satisfy a feature gate. The vef-io causal contract catches reversed driver
+  delivery before protocol input consumption. Client activation reserves the
   initial transaction before exposing its first preface byte, server activation
   before its first SETTINGS byte, and no other frame becomes eligible before
   initial SETTINGS commitment.

@@ -215,6 +215,12 @@ acknowledgement, negative stream windows block new DATA, and zero-length
 END_STREAM DATA charges zero.
 Each scalar or vectored output token owns one frame-slot suffix; acknowledgement
 cannot cross a slot boundary, release several records, or batch hooks.
+For each connection, the driver reports outbound prefix commitment before VEF
+consumes input causally dependent on that prefix. Combined I/O applies output
+acknowledgement first. Independent reversed delivery returns typed local
+DriverCommitOrderViolation without consuming bytes or mutating state; peer
+input never proves output commitment. Apply this to SETTINGS/PING ACKs, locally
+initiated responses, advertised extensions, and GOAWAY-dependent interpretation.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be
@@ -242,11 +248,12 @@ ReservedPrivate, Frozen, CommittedAwaitingAck, PeerAcked,
 AbandonedBeforeExposure, or AbandonedConnection. Exposure freezes ordered
 entries and bytes; prefixes change no local advertisement. Full-frame
 acknowledgement applies all local effects, promotes the pre-reserved FIFO slot in
-wire order, and starts its timeout. Peer ACK consumes the oldest committed
-record without reapplication. A bounded early ACK observed while its possible
-match is Frozen waits for local commitment rather than becoming an automatic
-peer fault. Client preface byte zero and the server's first SETTINGS byte both
-require the complete initial transaction already reserved.
+wire order, and starts its timeout. Peer ACK consumes only the oldest committed
+record without reapplication. With no committed record it is unsolicited
+connection PROTOCOL_ERROR even if a ReservedPrivate/Frozen transaction exists;
+it is never banked, never cancels a timeout, and never enables a feature. Client
+preface byte zero and the server's first SETTINGS byte both require the complete
+initial transaction already reserved.
 Locally reset associated streams retain bounded tombstones that decode in-flight PUSH_PROMISE/
 CONTINUATION and track/reject the promised ID without recreating application or
 assembly authority; illegal IDs and malformed HPACK retain connection scope.

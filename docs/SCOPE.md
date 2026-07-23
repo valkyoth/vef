@@ -276,7 +276,7 @@ from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
 lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`/
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReuseLedger`/`Http10ReusePermit`/`Http10PermitMintOutcome`/
+`Http10ReuseLedger`/`Http10ReusePermit`/`Http10ReuseResolutionOutcome`/
 `Http10SuccessorAdmissionOutcome`, and
 either-version
 stripping consume that evidence with no cross-version authority.
@@ -296,25 +296,30 @@ does not admit work. One per-hop ledger is the sole mutable authorization count
 of future successor admissions and never resets/refunds. Zero closes the
 initial exchange through immutable `Http10LocalPersistenceMode::LastUseMustClose`;
 a one-to-zero admission installs that mode without requiring a server response.
-Client requests and later server responses apply it before exposure; existing
-client command/head state participates in admission, while the server mode
-persists until a response is supplied. Existing private heads are rewritten and
+Client requests and later server responses apply it before exposure; a client
+command becomes sealed `PendingHttp10SuccessorRequest` only after exact syntax,
+framing, semantic, Connection, output, and generation validation, while the
+server mode persists until a response is supplied. Existing private heads are rewritten and
 absent heads retain the mode. It cannot mint a local signal.
-`Http10PermitMintOutcome` handles zero allowance, ledger
-exhaustion, missing negotiation, non-reusable framing, policy,
-deadline-add overflow, and correlation failure before `Reusable`; failure
+Total `Http10ReuseResolutionOutcome` handles correlation, policy, framing,
+configured-zero, ledger-exhaustion, missing-negotiation, and deadline-add
+outcomes after both lifecycles terminate, even when evidence is absent; close
 creates no permit or successor. A minted permit is installed only in
 engine-owned `Reusable` without decrementing and is the sole idle-deadline
 owner. Duplicate acknowledgement/hook and cancellation races yield at most one
 mint/permit and cannot recreate Reusable after admission. The separate atomic
 `Reusable -> ActiveExchange`
-transition first assembles an internal linear `Http10NextExchangeReservation`
-with all exchange/correlation records, parser/event/output leases, count/work
-charges, parser-work reserve, deadline snapshot, selected persistence mode, and
-generation; the reservation never owns the deadline, and one-short failure
+transition first assembles a role-specific internal linear
+`Http10NextExchangeReservation::{Client { request, private_output, ... },
+Server { parser, local_persistence_mode, ... }}` with all shared records,
+leases, count/parser-work reserve, deadline snapshot, and generation; it never
+owns the deadline, and one-short failure
 releases all of it without visible mutation to the exact permit/deadline.
-Capacity returns a freely constructible reason only, with permit/input/ledger
-retained exclusively in `Reusable`. Admission terminal reasons revoke the
+`RejectedLocalCommand` and capacity return freely constructible reasons only,
+retain no caller borrow, expose no bytes, and preserve permit/input/ledger/
+output/structural state for retry before the unchanged deadline. Bounded
+`Http10AdmissionAttemptWork` is charged monotonically as validation/preflight
+occurs and never refunded; pre-inspection exhaustion closes. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit
 local-invariant `PermitLedgerMismatch`. Admission indivisibly consumes the
 complete reservation and permit including its deadline, commits every resource
@@ -328,7 +333,12 @@ ledger. Client output and server input require admission. Same-call input requir
 byte. Transfer-Encoding, chunked coding, trailers, and close-delimited responses
 create no evidence, permit, or successor. Full acknowledgement of a nonfinal
 record remains premature. Admitted work never rolls back. No HTTP/1.0 path
-pipelines. Generation-bound terminal cleanup releases records, storage leases,
+pipelines. Normal success keeps correlation/evidence owned inside one
+`Http10NormalCompletionTransaction` through resolution, transfer, release, and
+atomic terminal event/state publication; cancellation before publication
+revokes provisional reuse, duplicate hooks are neutral, and same-call input
+remains unconsumed until `Reusable` is published. Other terminal paths use
+generation-bound cleanup. All paths release records, storage leases,
 and unused parser-work reserve exactly once, while ledger/count/admission-work
 and consumed parser-work accounting never refunds. Stale cleanup cannot affect
 later generations, and no-refund never leaks caller storage. HTTP/1.0

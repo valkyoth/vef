@@ -272,7 +272,7 @@ HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
 pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`,
 `ValidatedHttp10KeepAlive`, `CommittedHttp10KeepAliveHead`, and
 `CorrelatedHttp10KeepAliveRequest`, `Http10ReuseLedger`,
-`Http10ReusePermit`, `Http10PermitMintOutcome`, and
+`Http10ReusePermit`, `Http10ReuseResolutionOutcome`, and
 `Http10SuccessorAdmissionOutcome`; and
 either-version intermediary stripping consume that same evidence. None reparses
 or renormalizes raw fields, and no semantic refinement crosses versions.
@@ -302,42 +302,50 @@ while a head is `AcceptedPrivate` rewrites and revalidates that current head
 with close. After `Frozen`, output remains immutable, every successor is
 prohibited, and the current message finishes only when possible before close;
 a client receiving a response without keep-alive emits no next request.
-One connection/hop `Http10ReuseLedger` starts at configured 0/1/N and is the
-sole mutable authorization count; `remaining` is the number of future
+One connection/hop `Http10ReuseLedger` stores immutable `configured_max` and
+mutable `remaining`; the latter is the sole authorization count for future
 successor admissions, excluding the active exchange, and never increases,
-resets, or refunds. Every exchange stores immutable
+resets, or refunds. The former makes configured zero distinguishable from later
+exhaustion. Every exchange stores immutable
 `Http10LocalPersistenceMode::{Negotiable, LastUseMustClose}`. Configured zero
 uses `LastUseMustClose` initially; a one-to-zero admission installs it in the
 successor without requiring a server response to exist. Client request and
 later server response builders inject/validate close before exposure; the
-client command/head participates in admission, while the server mode persists
+client command becomes a sealed `PendingHttp10SuccessorRequest` only after its
+method, target, ordered fields, framing, semantics, mandatory close injection,
+output capacity, and generation bindings validate; the server mode persists
 until a response is later supplied. An existing private head is
 rewritten/revalidated; absent heads retain the mode until construction. The
 mode forbids `CommittedHttp10KeepAliveHead`.
-Permit minting and successor admission are separate, exactly-once phases.
-`Http10PermitMintOutcome::{Minted, CloseWithoutReuse { reason }}` owns
-zero-allowance, ledger-exhaustion, negotiation, framing, policy,
-deadline-arithmetic, and correlation failures before `Reusable` exists.
-`Minted` consumes both signals and creates the non-Copy permit directly inside
-engine-owned `Reusable { permit }` without decrementing the ledger. Duplicate
-acknowledgements/hooks and cancellation races are serialized: at most one mint
-outcome and permit exist, cancellation before mint creates none, cancellation
-after mint revokes that permit once, and admission prevents recreation of
-`Reusable`. The permit is the sole owner of its generation-bound idle deadline.
-Mint failure creates no permit, consumes no successor input, closes locally,
-and never blames the peer.
+Reuse resolution and successor admission are separate, exactly-once phases.
+Total `Http10ReuseResolutionOutcome::{Minted, CloseWithoutReuse { reason }}`
+runs after both lifecycles are terminal over optional owned evidence. Its fixed
+precedence is correlation integrity, policy, framing, configured zero,
+exhausted ledger, unavailable exact negotiation, and deadline arithmetic.
+Only `Minted` requires and consumes both signals and creates the non-Copy
+permit directly inside engine-owned `Reusable { permit }` without decrementing
+the ledger. Duplicate acknowledgements/hooks and cancellation races are
+serialized by the normal-completion transaction: at most one resolution,
+terminal publication, and permit exist. The permit is the sole owner of its
+generation-bound idle deadline. Close creates no permit, consumes no successor
+input, closes locally, and never blames the peer.
 The only successor edge atomically moves `Reusable { permit }` to
 `ActiveExchange { next_exchange_generation, reuse_remaining_snapshot,
 local_persistence_mode }`.
-Before it, an internal linear `Http10NextExchangeReservation` acquires the
-exchange/correlation records, parser/event/output leases, count debit,
-transition-work charge, minimum parser-work reserve, checked deadline snapshot,
-selected persistence mode, and checked generation all-or-nothing. It never owns
-the deadline. One-short failure releases everything and leaves the exact permit
-with deadline, input, ledgers, budgets, and generation unchanged.
-`Http10SuccessorAdmissionOutcome::RetryableCapacity` carries only a freely
-constructible reason: state exclusively retains the permit, ledger, input, and
-`Reusable`. Admission terminal reasons cover request-count/work exhaustion,
+Before it, internal linear
+`Http10NextExchangeReservation::{Client { request, private_output, ... },
+Server { parser, local_persistence_mode, ... }}` acquires all role-specific and
+shared exchange/correlation records, storage leases, count debit, parser-work
+reserve, checked deadline snapshot, and generation all-or-nothing. It never
+owns the deadline. One-short failure releases everything and leaves permit,
+deadline, input, ledger, generation, and output unchanged except bounded
+monotonic `Http10AdmissionAttemptWork` already performed.
+`Http10SuccessorAdmissionOutcome` adds reason-only `RejectedLocalCommand` for
+malformed/illegal/semantic/conflicting client commands alongside
+`RetryableCapacity`. Both retain no caller borrow, accept/expose no byte, keep
+`Reusable`, and allow retry before the unchanged deadline. Validation/preflight
+work is charged as performed and never refunded; exhaustion before inspection
+closes with an uninspected command. Admission terminal reasons cover request-count/work exhaustion,
 policy revocation, idle-deadline equality, permit-ledger mismatch, correlation
 failure, and checked generation exhaustion. They revoke the permit, consume no
 input, close locally without a peer error, and do not decrement.
@@ -351,17 +359,23 @@ remains fallible before exposure under the retained mode. The immutable
 `reuse_remaining_snapshot` is diagnostic and binding metadata, never a second
 authority, and the next mint reads only the ledger. Generation increment is
 checked and exhaustion closes without wrap.
-ActiveExchange exclusively owns its exchange/correlation records and
-parser/event/output leases. Generation-bound cleanup releases each exactly once
-on success, cancellation, parse/transport failure, or connection close.
+ActiveExchange exclusively owns its exchange/correlation/evidence records and
+parser/event/output leases. Normal success uses one linear
+`Http10NormalCompletionTransaction`: verify both lifecycles, resolve reuse
+while evidence remains owned, transfer consumed evidence into provisional
+permit/close state, release all non-transferred leases, then atomically publish
+one terminal event plus connection state. No intermediate is visible; a
+cancellation winner revokes provisional authority and never exposes
+`Reusable`. Non-normal terminal paths use generation-bound cleanup.
 Ledger/count/admission-work debits and consumed parser work never refund; unused
 parser-work reserve returns exactly once. Stale cleanup cannot release later
 generations. No-refund never means caller-storage leakage.
 Client request acceptance/exposure and server input consumption cannot precede
 admission. Same-call input is eligible only when acknowledgement enters
 `MessageCommitted`: an exact fixed-length final body byte or a semantically
-bodyless final head. Earlier full-record/zero/short acknowledgement is premature
-and unconsumed. Transfer-Encoding, chunked coding, trailers, and HTTP/1.1
+bodyless final head. Same-call input remains unconsumed until completion
+atomically publishes `Reusable`; earlier full-record/zero/short acknowledgement
+is premature and unconsumed. Transfer-Encoding, chunked coding, trailers, and HTTP/1.1
 transfer semantics remain rejected; a valid close-delimited HTTP/1.0 response
 finishes only by closure and cannot mint evidence, a permit, or a successor.
 Cancellation after admission never refunds, and admitted work never rolls back

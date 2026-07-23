@@ -274,13 +274,28 @@ evidence, and ordinary HTTP/2 CONNECT through existing PendingConnect. Mere
 configured intent grants no permit. Received-close evidence is refined only
 from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
 lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
-default-close/`ValidatedHttp10KeepAlive`, and either-version stripping consume
-that evidence with no cross-version authority. HTTP/1.0 CONNECT is unsupported:
-local builders return zero-output `UnsupportedVersionMethod`; receivers select
-role-specific `UnsupportedHttp10ConnectDisposition`, bounded 501 plus mandatory
-close, no publication/resolution/forwarding, one optimistic-byte discard, and
-the existing zero-partial close fallback. Partial 501 failure creates no
-completion, successor, or tunnel. Missing committed close proof is strict:
+default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`, and
+either-version stripping consume that evidence with no cross-version authority.
+HTTP/1.0 persistence is bound to the current received message and exact
+role/direction: origin requests, client responses, and intermediary upstream
+responses are distinct candidates; intermediary downstream requests and
+invalid pairs always close. Default-close endpoints emit `Connection: close`
+on the request or response they own, newer received messages revoke older
+evidence, and no HTTP/1.0 path pipelines. HTTP/1.0 CONNECT is unsupported:
+malformed start lines preserve parse errors, invalid targets/fields/framing use
+bounded 400-and-close, and only fully valid authority-form requests reach the
+typed rejection. Local builders return zero-output
+`UnsupportedVersionMethod`; receivers select role-specific
+`UnsupportedHttp10ConnectDisposition`, atomically reserve the exact fixed
+70-byte `HTTP/1.0 501 Not Implemented` response plus mandatory close, expose no
+body/transfer coding/trailers/variable fields, publish/resolve/forward nothing,
+and discard same-buffer optimistic bytes once. Offsets 0 through 69 retain the
+immutable response; byte 70 alone commits it and close remains mandatory. Later
+input accompanying invalid/zero/partial/full acknowledgement stays wholly
+unconsumed and requests immediate close, with no parsing, retention, queue,
+publication, or input-backpressure state. Reserve failure uses the existing
+zero-partial close fallback; partial failure creates no completion, successor,
+or tunnel. Missing committed close proof is strict:
 discard once, close, never reparse, and never promote after later success.
 Forbidden WebSocket/CONNECT-UDP classes are likewise never transferable.
 Full acknowledgement in the same combined call precedes and legalizes input;

@@ -133,12 +133,22 @@ from reparsing raw fields. A configured intention without committed wire
 evidence grants no authority. HTTP/1.0 CONNECT is unsupported; default-close,
 explicit close, keep-alive, and fallback-close state cannot construct or
 substitute either HTTP/1.1 proof variant. Local builders return zero-output
-`UnsupportedVersionMethod`. Receivers select role-specific
-`UnsupportedHttp10ConnectDisposition`: server, proxy, intermediary, and gateway
-reserve a bounded 501 plus mandatory close, never publish/resolve/forward, and
-discard same-buffer optimistic bytes once. Partial 501 failure closes without
-fabricated completion; mandatory-response reserve failure uses the existing
-zero-partial-output close action.
+`UnsupportedVersionMethod`. Only a completely validated HTTP/1.0 CONNECT with
+authority-form target can mint role-specific
+`UnsupportedHttp10ConnectDisposition`; malformed start lines retain their parse
+error and malformed targets, fields, or framing retain bounded 400-and-close.
+Receiving servers, proxies, intermediaries, and gateways atomically reserve the
+fixed 70-byte `HTTP/1.0 501 Not Implemented` response and mandatory close before
+publishing the disposition. That response contains only `Connection: close`
+and `Content-Length: 0`: it has no body, transfer coding, trailers, or variable
+fields. Acknowledgements 0 through 69 retain the immutable response; byte 70
+alone commits it, without revoking close. Same-buffer optimistic bytes are
+discarded once. Input supplied after rejection, including alongside
+invalid/zero/partial/full response acknowledgement, remains wholly unconsumed
+and requests immediate transport close; it is never parsed, retained, queued,
+published, or converted into input backpressure. Partial 501 failure closes
+without fabricated completion; mandatory-response reserve failure uses the
+existing zero-partial-output close action.
 HTTP/2 ordinary CONNECT uses its existing PendingConnect owner. Unpermitted
 ordinary CONNECT follows the strict policy: discard once, close, never reparse,
 and never promote even after 2xx. Forbidden WebSocket/CONNECT-UDP input follows
@@ -250,13 +260,23 @@ HTTP/1 `Connection` fields have one bounded version-neutral parser. It produces
 sealed `ValidatedConnectionOptions` bound to the exact ordered fields, exact
 HTTP version, role, message/request generation, and connection generation.
 HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
-pairing; HTTP/1.0 default-close and `ValidatedHttp10KeepAlive`; and
+pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`, and
+`ValidatedHttp10KeepAlive`; and
 either-version intermediary stripping consume that same evidence. None reparses
 or renormalizes raw fields, and no semantic refinement crosses versions.
 Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
 elements, and close-over-keep-alive precedence are decided once. Malformed,
 quoted/substr-like close values and `Proxy-Connection` produce no close
-evidence.
+evidence. HTTP/1.0 persistence is also role-, direction-, and current-received-
+message-bound. Origin requests, client responses, and intermediary upstream
+responses have distinct candidate dispositions; proxy/gateway downstream
+requests are always close and invalid role/direction pairs are rejected.
+Default-close clients emit `Connection: close` on requests and default-close
+servers/intermediaries emit it on responses. Admission of a newer received
+message atomically invalidates every older disposition and keep-alive permit.
+Only a matching current candidate with explicit validated keep-alive, complete
+self-delimiting framing, configured support, and available budgets may refine
+to persistence. HTTP/1.0 never pipelines.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
 when the target URI has no authority, but syntax alone is non-routable. Before
 application publication, role policy authorizes target form and derives an

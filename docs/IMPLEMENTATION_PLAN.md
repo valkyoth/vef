@@ -400,15 +400,32 @@ raw `vef-core` request or response.
 Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
 `ValidatedConnectionOptions` retaining the exact HTTP version. HTTP/1.1
 persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
-default-close/`ValidatedHttp10KeepAlive`, and either-version intermediary
-stripping consume that one result. Later consumers neither reparse nor
-renormalize raw fields or substitute semantic authority across versions.
+default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`, and
+either-version intermediary stripping consume that one result. HTTP/1.0
+persistence candidates are distinct for origin-received requests,
+client-received responses, and proxy/gateway-received upstream responses;
+proxy/gateway downstream requests always close, invalid role/direction pairs
+fail, and endpoints emit `Connection: close` on the request or response they
+own while default-close. A newly admitted received message atomically revokes
+older persistence evidence. Keep-alive requires the exact current candidate,
+validated option, complete self-delimited framing, configured support, and
+budgets, and never permits HTTP/1.0 pipelining. Later consumers neither reparse
+nor renormalize raw fields or substitute semantic authority across versions,
+roles, directions, or generations.
 The HTTP/1.0 profile rejects CONNECT before publication through
-`UnsupportedHttp10ConnectDisposition`: local builders return zero-output
-`UnsupportedVersionMethod`; receivers reserve bounded 501-and-close, suppress
-publication/resolution/forwarding, discard optimistic bytes once, and use the
-existing zero-partial close when mandatory response capacity is unavailable.
-Partial 501 failure never fabricates completion or permits a successor/tunnel.
+`UnsupportedHttp10ConnectDisposition`. Error precedence first preserves
+malformed-start-line parse errors and bounded 400-and-close for invalid targets,
+fields, or framing; only a fully valid authority-form HTTP/1.0 CONNECT reaches
+the typed rejection. Local builders return zero-output
+`UnsupportedVersionMethod`. Receivers atomically reserve the exact fixed
+70-byte `HTTP/1.0 501 Not Implemented` response and mandatory close, suppress
+publication/resolution/forwarding, and discard same-buffer optimistic bytes
+once. Offsets 0 through 69 retain the response; byte 70 alone commits it, and
+close remains mandatory. Later input supplied with invalid, zero, partial, or
+full acknowledgement is wholly unconsumed and requests immediate close; it is
+never parsed, retained, enqueued, published, or backpressured. Mandatory reserve
+failure uses the existing zero-partial close. Partial 501 failure never
+fabricates completion or permits a successor/tunnel.
 
 ### `vef-http09` (planned at `0.76.0`)
 
@@ -821,8 +838,12 @@ validated Connection-close option or a locally generated close-bearing head
 that is fully transport-committed. Received proof refines only the exact
 v0.56.0 HTTP/1.1-bound `ValidatedConnectionOptions`, never raw fields.
 Configuration intent alone is insufficient. HTTP/1.0
-`ValidatedConnectionOptions` may refine only to `ValidatedHttp10KeepAlive`; it
-grants no close-proof, optimistic-CONNECT, or HTTP/1.1 Upgrade authority.
+`ValidatedConnectionOptions` may refine only through the matching current
+role/direction-bound `Http10PersistenceDisposition` to
+`ValidatedHttp10KeepAlive`; a newer received message revokes both. Proxy/gateway
+downstream request disposition and invalid role/direction pairs never refine,
+and no HTTP/1.0 permit authorizes pipelining. It grants no close-proof,
+optimistic-CONNECT, or HTTP/1.1 Upgrade authority.
 HTTP/2 ordinary CONNECT reuses PendingConnect. Missing HTTP/1 close proof is a
 separate strict unpermitted provenance: discard, close, never reparse or promote
 after success. Optimistic WebSocket and HTTP/1 CONNECT-UDP are also

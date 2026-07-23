@@ -356,20 +356,25 @@ remaining, consumed }`, initialized once and never reset across retries. A
 connection-lifetime `Http10AdmissionCumulativeLedger` is initialized once and
 never reset by later permits. Granular engine-only `AdmissionWorkKind` covers
 base, byte, field-entry, framing, semantic, output, and reservation units.
-Sealed specs derive checked base-plus-per-unit cost in O(1) from stored bounded
-lengths/counts and monotonic cursors; they never pre-traverse an iterator. Each
-field entry is charged before inspection. A step charges `n`, processes at most
-`n`, and advances once. Fragmentation retains cursors; early rejection never
-refunds; charges are single-use; every retry/rescan charges again without cursor
-rewind.
-Atomic charge returns typed exhaustion/invariant errors and updates both ledgers
-or neither.
+Each call owns `AdmissionAttempt<'command>` whose cursors borrow the exact
+command. Sealed specs derive checked base-plus-per-unit cost in O(1) from that
+attempt's stored bounded lengths/counts and cursors; they never pre-traverse an
+iterator. Atomic charge updates both ledgers or neither and returns private
+linear `AdmissionWorkPermit`, which one governed step consumes. Finishing
+records actual `0..=charged` progress in non-authoritative
+`AdmissionWorkReceipt`, advances the cursor only by actual processed units, and
+leaves unused charged units consumed without authority. Each field entry is
+charged before inspection. Fragmentation retains cursors only within the call;
+reason-only return destroys every cursor and command borrow. Retry creates
+zeroed cursors and recharges all repeated work. Stale/cross-attempt/reused
+permits and diagnostic receipts authorize nothing.
 `Http10SuccessorAdmissionOutcome` adds reason-only `RejectedLocalCommand` for
 malformed/illegal/semantic/conflicting client commands alongside
-`RetryableCapacity`. Both retain no caller borrow, accept/expose no byte, keep
-`Reusable`, and allow retry before the unchanged deadline. Validation/preflight
-work is charged as performed and never refunded; exhaustion before inspection
-closes with an uninspected command. Admission terminal reasons cover request-count/work exhaustion,
+`RetryableCapacity`. Both destroy the attempt before return, retain no caller
+borrow/cursor, accept/expose no byte, keep `Reusable`, and allow a fully
+revalidated retry before the unchanged deadline. Validation/preflight work is
+charged as performed and never refunded; exhaustion before inspection closes
+with an uninspected command. Admission terminal reasons cover request-count/work exhaustion,
 policy revocation, idle-deadline equality, permit-ledger mismatch, correlation
 failure, and checked generation exhaustion. They revoke the permit, consume no
 input, close locally without a peer error, and do not decrement.

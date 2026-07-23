@@ -464,19 +464,24 @@ except bounded monotonic attempt work already charged. Each permit owns
 `Http10AdmissionAttemptBudget`, initialized once and retained across retries;
 one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
 permits. Granular engine work kinds and sealed unit specs derive checked
-base-plus-per-unit cost in O(1) from stored bounded lengths/counts and monotonic
-cursors, never iterator traversal. Charge precedes each field-entry inspection;
-a bounded step charges `n`, processes at most `n`, and advances once. Early
-rejection never refunds, charge evidence is single-use, and retry cannot reuse a
-charge or rewind its cursor. Atomic charge returns distinct typed errors,
-preserves both ledgers on failure, and yields diagnostic-only evidence.
+base-plus-per-unit cost in O(1) from lengths/counts/cursors inside
+`AdmissionAttempt<'command>`, whose lifetime binds the exact command to one
+call. Atomic charge returns private linear `AdmissionWorkPermit`; a governed
+step consumes it, processes `0..=charged_units`, advances by actual rather than
+planned progress, and returns non-authoritative `AdmissionWorkReceipt`.
+Unprocessed charged units remain consumed. Charge precedes field-entry
+inspection; stale/cross-attempt/reused permits and receipts authorize no work.
+Atomic failure preserves both ledgers.
 Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/
 conflicting client commands retain no caller borrow and expose no bytes;
-capacity failure behaves likewise. Either may retry before the unchanged
-deadline, but validation/preflight work never refunds. Work exhaustion before
-inspection closes with the command uninspected. Admission
+capacity failure behaves likewise. Both destroy every cursor and command borrow
+before returning. A retry before the unchanged deadline starts from zero and
+recharges all repeated work, even for a mutated reuse of the same buffer;
+validation/preflight work never refunds. Cross-call progress is legal only with
+an engine-owned immutable command copy, which this reason-only path retains
+none. Work exhaustion before inspection closes with the command uninspected. Admission
 terminal reasons are request-count exhaustion, work exhaustion, policy
 revocation, idle-deadline equality, `PermitLedgerMismatch`, correlation
 invariant failure, and generation exhaustion; each consumes no input, revokes

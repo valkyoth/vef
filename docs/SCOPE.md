@@ -330,11 +330,16 @@ retain no caller borrow, expose no bytes, and preserve permit/input/ledger/
 output/structural state for retry before the unchanged deadline. Bounded
 per-permit `Http10AdmissionAttemptBudget` and connection-lifetime cumulative
 ledger are charged from granular engine work kinds plus sealed bounded units.
-Checked base-plus-per-unit pricing derives units in O(1) from stored bounded
-lengths/counts and monotonic cursors, never iterator traversal. Entry inspection
-follows its charge; each step charges `n`, processes at most `n`, and advances
-once. Early rejection never refunds, charges are single-use, and retries cannot
-reuse them or rewind cursors. Typed atomic failure preserves both ledgers.
+Each call owns `AdmissionAttempt<'command>` cursors tied to its exact command
+borrow. Checked base-plus-per-unit pricing derives units in O(1) from that
+attempt's bounded lengths/counts/cursors, never iterator traversal. Atomic
+charge returns private linear `AdmissionWorkPermit`; one governed step consumes
+it and emits diagnostic-only `AdmissionWorkReceipt`. Entry inspection follows
+its permit; actual `0..=charged` progress alone advances the cursor. Unused
+charged units remain consumed and confer no later work authority. Reason-only
+rejection/capacity destroys all cursors and the borrow; retry starts at zero,
+recharges repeated work, and cannot use stale/cross-attempt permits or receipts.
+Typed atomic failure preserves both ledgers.
 Successful admission
 transfers rather than double-charges. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit

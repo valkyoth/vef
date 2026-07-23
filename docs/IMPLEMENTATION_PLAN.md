@@ -469,8 +469,10 @@ base-plus-per-unit cost in O(1) from lengths/counts/cursors inside
 and exposes no raw getter. Its generation is allocated before inspection/ledger
 mutation. Cursor kind and maximum advancement are preflighted before charge, so
 receipt arithmetic cannot fail. Private `with_charged_window` owns the
-structurally borrowed permit/guard and uses a higher-ranked callback whose
-generic `R`/`E` cannot borrow the window. Normal Ok and error/abort return exact
+structurally borrowed permit/guard: `'attempt` binds the window to the attempt,
+while distinct higher-ranked `'scope` is only the callback's temporary mutable
+reborrow. Generic `R`/`E` cannot contain `'scope`, and the implementation must
+not conflate it with `'attempt`. Normal Ok and error/abort return exact
 `AdmissionWindowOutcome<R,E>` variants that inseparably contain one receipt;
 drop/forget of the borrowed reference cannot skip finalization. Poison is a
 separate terminal error with no receipt. Bytes/entries expose only their prefix

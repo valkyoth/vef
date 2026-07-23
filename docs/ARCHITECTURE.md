@@ -363,9 +363,11 @@ unbounded view. Exhaustion closes locally with both ledgers unchanged. Before
 charging, cursor selection and `before + charged` are preflighted, making later
 advancement/receipt arithmetic infallible. The scoped
 `with_charged_window` method owns the structurally borrowed permit/window and
-uses a higher-ranked callback, so generic success/error payloads cannot borrow
-the window. Early error, abort, dropping, or forgetting the borrowed reference
-cannot bypass owner finalization. Byte/entry work sees only a bounded prefix;
+uses `'attempt` to bind that window to the attempt and a distinct higher-ranked
+`'scope` only for the callback's temporary mutable reborrow. Generic
+success/error payloads cannot contain `'scope`, and it must not be conflated
+with `'attempt`. Early error, abort, dropping, or forgetting the borrowed
+reference cannot bypass owner finalization. Byte/entry work sees only a bounded prefix;
 other work must `take_unit()`. Exact `AdmissionWindowOutcome<R,E>` couples
 Completed value or Aborted error with one receipt. Poison is a separate terminal
 error with none. Impossible guard corruption poisons the attempt, burns the

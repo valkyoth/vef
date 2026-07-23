@@ -334,8 +334,10 @@ Each call owns `AdmissionAttempt<'command>` with the sole private engine
 `&Command`, cursors, and checked generation; no raw command getter or parallel
 validation view exists. Cursor kind and maximum advancement preflight before
 charge. Scoped `with_charged_window` retains permit/guard ownership and passes
-the bounded mutable window through a higher-ranked lifetime that cannot escape
-in generic `R`/`E`. Exact Completed/Aborted variants inseparably carry value or
+the bounded mutable window through structural `'attempt`, while distinct
+higher-ranked `'scope` is only the temporary closure reborrow. Generic `R`/`E`
+cannot contain `'scope`, and the lifetimes cannot be conflated. Exact
+Completed/Aborted variants inseparably carry value or
 error plus one receipt despite early return/drop/forget. Bytes/entries expose
 only their prefix and other work requires `take_unit()`. Poison is a separate
 terminal error with no receipt. Production panics abort; optional unwind-test

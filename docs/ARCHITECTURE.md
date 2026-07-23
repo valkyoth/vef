@@ -434,7 +434,23 @@ PROTOCOL_ERROR, and HEADERS self-dependency is stream PROTOCOL_ERROR.
 
 Unknown frames are bounded, incrementally drained, and state-neutral unless an
 enabled extension owns their type; they cannot interleave an active field
-block. Each stream and the connection own independent
+block. Every validated non-ACK PING first consumes reply capacity and copies its
+eight opaque bytes into a distinct bounded FIFO transaction; ACK-bearing PINGs
+create no reply. Identical payloads remain distinct obligations and are never
+coalesced or deduplicated. First exposure freezes the exact 17-byte PING ACK;
+acknowledged offsets 0 through 16 retain its generation-bound slot, and byte 17
+alone completes and releases it. An already-frozen suffix and mandatory
+CONTINUATION contiguity remain earlier framing obligations; otherwise a PING ACK
+is the highest eligible output, in FIFO order. Exhaustion chooses bounded
+connection shutdown rather than dropping a reply or retaining caller input.
+Locally originated PINGs use bounded generation-checked live correlation records
+and recent-completion tombstones. The engine encodes a monotonic connection-local
+`u64` wire key and never reissues it during that connection; exhaustion/wrap
+returns typed local backpressure. Exact live-key lookup completes once regardless
+of ACK arrival order and records an in-order or reordered match. A recent
+tombstone classifies duplicate/stale ACKs; after bounded tombstone eviction the
+same ACK becomes unsolicited, still state-neutral rather than an RFC connection
+error. Each stream and the connection own independent
 `ReceiveCredit { advertised_remaining, reclaimed_unadvertised,
 update_in_flight }` ledgers. DATA, including its Pad Length and padding,
 immediately decrements both advertised windows. Application acknowledgement,

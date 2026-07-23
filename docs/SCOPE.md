@@ -118,7 +118,21 @@ half-closed(remote), so a later completed local reset performs the close and own
 its cause. Connection failure records only acknowledged bytes and no incomplete
 local-reset transition; tolerated DATA
 after actual closure reclaims only connection credit without stream
-WINDOW_UPDATE. Reclaimed receive credit is never the advertised receive window:
+WINDOW_UPDATE. Each valid non-ACK PING owns a separate bounded transaction that
+copies its eight opaque bytes before caller input can be recycled. ACK-bearing
+PINGs produce no reply; identical non-ACK payloads still produce distinct
+17-byte ACK records and are never coalesced. First exposure freezes the exact
+record, offsets through 16 retain it, and only byte 17 completes/releases its
+slot. Stale/cross-record acknowledgement and partial transport failure cannot
+release or substitute it. PING ACK is highest eligible output after an existing
+frozen suffix and mandatory CONTINUATION sequence; exhaustion selects bounded
+connection shutdown instead of silent loss or an input borrow. Locally
+originated PINGs use a monotonic connection-local `u64` opaque key that is never
+reissued within the connection, bounded live records, and bounded recent
+tombstones. Exact live-key lookup completes once in any arrival order and
+classifies in-order/reordered match. Recent duplicate/stale ACKs hit tombstones;
+evicted/unknown keys are unsolicited and remain state-neutral rather than RFC
+errors. Reclaimed receive credit is never the advertised receive window:
 each stream and the connection separately track advertised remaining,
 reclaimed-unadvertised, and update-in-flight credit. DATA including padding
 decrements advertised remaining immediately. Acknowledgement or discard changes

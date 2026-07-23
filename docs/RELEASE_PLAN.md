@@ -4323,7 +4323,17 @@ on v0.108.0 (SETTINGS syntax, role, directional values, and ACK rules) and must 
 
 #### Deliverables
 
-- Acceptance contract: Require stream zero and exactly eight payload bytes, recognize ACK while ignoring unknown flags, preserve the opaque bytes exactly, emit reserved bits as zero, and map a nonzero stream to connection PROTOCOL_ERROR or a non-eight-byte payload to connection FRAME_SIZE_ERROR.
+- Acceptance contract: Require stream zero and exactly eight payload bytes, recognize ACK while ignoring unknown flags, preserve the opaque bytes exactly, emit reserved bits as zero, and map a nonzero stream to connection PROTOCOL_ERROR or a non-eight-byte payload to connection FRAME_SIZE_ERROR. After syntax and capacity preflight, every non-ACK PING copies its payload into a distinct bounded FIFO `InboundPingTransaction` before caller input is released; ACK-bearing PINGs create no reply transaction. Identical payloads remain separate one-for-one RFC obligations and cannot be coalesced or deduplicated. Define the exact 17-byte ACK encoding and `PingAckOutput::{ReservedPrivate { transaction_generation, opaque: [u8; 8] }, Frozen { transaction_generation, frame: [u8; 17], acknowledged: 0..=16 }, Complete}` for later scheduler/reserved-output activation. At this codec stop, missing caller capacity returns typed `PingReplyCapacity` without accepting a transaction or retaining input; v0.150.0 maps that condition on an active connection to bounded shutdown, and v0.153.0 activates partial ACK output.
+- Locally originated PINGs use bounded generation-checked
+  `LocalPingCorrelation` live records plus bounded recent-completion tombstones.
+  Encode a monotonic connection-local `u64` as the exact opaque wire key. A wire
+  key is never reissued during the connection; exhaustion or wrap returns typed
+  local backpressure. Exact live-key lookup completes one record regardless of
+  ACK arrival order and classifies an in-order or reordered match. A tombstone
+  classifies a recent duplicate/stale ACK; after eviction the unknown key is
+  unsolicited. All nonmatches are state-neutral and never automatic RFC
+  connection errors. Caller metadata remains out-of-band and cannot replace the
+  wire key.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4335,7 +4345,7 @@ on v0.108.0 (SETTINGS syntax, role, directional values, and ACK rules) and must 
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Overwrite caller input immediately after parsing and prove every non-ACK transaction retained its own exact bytes. Cover ACK-bearing no-reply, distinct/identical inbound PINGs, FIFO/correlation capacity, unique local keys, matching/unsolicited/duplicate/reordered/stale ACKs, generation wrap/reuse, and exact 17-byte encoding without claiming later partial-output scheduling.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5725,6 +5735,19 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
 
 - Acceptance contract: Once HEADERS or PUSH_PROMISE begins without END_HEADERS, emit only CONTINUATION frames for that same stream until the block commits; flow-controlled DATA cannot block mandatory control output or runnable unrelated streams; reserve application-independent capacity for RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY; cancellation cannot strand a partially emitted HPACK block; deterministic tie-breaking and bounded starvation hold under continuous higher-priority arrivals; and SETTINGS frame-segmentation changes affect only uncommitted frames.
 - Scheduling a frozen mandatory-control record never regenerates it from live stream state. An outstanding token owns its offered range; after acknowledgement, schedule exactly the frozen unacknowledged suffix before record reclamation. Stream/tombstone generation changes cannot retarget a queued/frozen frame.
+- Dispose the RFC 9113 PING priority SHOULD explicitly: after an
+  already-frozen frame suffix and the active FramingCommitted
+  HEADERS/PUSH_PROMISE/CONTINUATION obligation, choose the oldest eligible PING
+  ACK before any other not-yet-exposed output. First exposure freezes that
+  transaction's exact 17-byte frame; later identical PINGs, control demand,
+  correlation events, cancellation, or priority changes cannot replace or
+  deduplicate its suffix. At activation, rate/work ceilings bound starvation,
+  and deterministic FIFO order breaks ties between PING ACKs.
+- This milestone defines and model-checks the ordering hook over finite eligible
+  records but does not activate live PING ACK output. v0.153.0 activates it only
+  after v0.147.0/v0.150.0 install the pre-mutation rate/work ceilings needed to
+  preserve the scheduler's bounded-starvation security contract under a
+  continuous PING source.
 - Schedule each `WindowUpdateOutput` as one exclusive protocol record.
   FramingCommitted field-block output blocks its serialization while credit may
   continue accumulating in the private ledger. Outside that obligation, first
@@ -5771,6 +5794,12 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
   while Frozen, reset/closure/reuse, stale/cross-record tokens, zero/short
   writes, and transport failure. Prove immutable suffix scheduling and no
   advertised-credit mutation at offsets 0..=12.
+- Enqueue distinct and identical PING transactions before, during, and after a
+  frozen ordinary/control suffix and every fragmented field-block boundary.
+  Prove the committed suffix and mandatory CONTINUATION sequence finish first,
+  then every eligible PING ACK wins in FIFO order without coalescing; zero/short
+  writes, stale/cross-record tokens, and transport failure never change bytes or
+  reclaim a transaction early.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5969,7 +5998,7 @@ on v0.146.0 (ALPN and cleartext prior-knowledge selection) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Maintain independent saturating budgets for streams opened/reset, SETTINGS frames and entries, PINGs, CONTINUATION frames and bytes, WINDOW_UPDATE churn, unknown frames and bytes, HPACK work, and generated control output; charge before the governed parse/mutation/admission work, refill deterministically only from the injected monotonic clock, classify exhaustion as a local policy/resource disposition rather than automatic peer PROTOCOL_ERROR, and invoke an optional caller-supplied shared admission/budget hook before connection-local admission so deployments can enforce identity/address/principal limits across reconnects and concurrent connections.
+- Acceptance contract: Maintain independent saturating budgets for streams opened/reset, SETTINGS frames and entries, PINGs, CONTINUATION frames and bytes, WINDOW_UPDATE churn, unknown frames and bytes, HPACK work, and generated control output; charge before the governed parse/mutation/admission work, refill deterministically only from the injected monotonic clock, classify exhaustion as a local policy/resource disposition rather than automatic peer PROTOCOL_ERROR, and invoke an optional caller-supplied shared admission/budget hook before connection-local admission so deployments can enforce identity/address/principal limits across reconnects and concurrent connections. For PING, separately charge syntax handling, local-correlation lookup, inbound transaction/payload copy, reply creation, scheduler wake, and output before mutating the FIFO/table or releasing input. Failed lookup, ACK-bearing input, identical payloads, and later shutdown do not refund completed work.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5981,7 +6010,7 @@ on v0.146.0 (ALPN and cleartext prior-knowledge selection) and must be independe
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Exhaust each PING parse/lookup/copy/reply/output charge independently before mutation and prove deterministic refill, no partial FIFO/correlation insertion, no retained caller borrow, no refund, and policy/resource rather than fabricated protocol error.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6086,7 +6115,7 @@ on v0.149.0 (SETTINGS amplification defenses) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Charge every inbound PING, opaque payload comparison, ACK reservation, and outbound PING before work, including ACK-bearing frames, with saturating counters and deterministic injected-time refill; a valid non-ACK PING cannot be ignored when ACK capacity is exhausted, so reserve its ACK or commit exactly one bounded shutdown action; classify rate exhaustion as policy/resource unless the frame itself violates RFC syntax.
+- Acceptance contract: Charge every inbound PING, local correlation lookup, opaque payload copy/comparison, transaction/ACK reservation, scheduler wake, and outbound PING before work, including ACK-bearing frames, with saturating counters and deterministic injected-time refill; a valid non-ACK PING cannot be ignored when ACK capacity is exhausted, so atomically reserve its distinct transaction and ACK or commit exactly one bounded shutdown action. Never coalesce or deduplicate replies, including identical payloads. ACK-bearing PING produces no reply. Queue/rate exhaustion cannot silently drop an obligation, mutate correlation, or pin caller input; classify exhaustion as policy/resource unless the frame itself violates RFC syntax. Reordered exact live-key ACKs complete their own record; unsolicited, duplicate, and stale correlations remain state-neutral and do not refund lookup work.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6098,7 +6127,7 @@ on v0.149.0 (SETTINGS amplification defenses) and must be independently trustwor
 
 #### Verification
 
-- Test PING flood defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test PING flood defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Flood distinct and identical non-ACK PINGs, ACK-bearing PINGs, and matching/unsolicited/duplicate/reordered/stale local ACKs through each queue/rate boundary. Prove one owned FIFO obligation per accepted non-ACK frame, zero replies for ACK-bearing frames, exact pre-mutation charges, bounded shutdown instead of loss/pinning, and no peer protocol error for correlation mismatch.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6218,6 +6247,17 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
   advertised credit. A Private stream record may be cancelled at closure
   without cancelling independent connection credit; Frozen completes exactly
   or is abandoned only with the connection.
+- Reserve a bounded FIFO slot and exact 17-byte output record for every accepted
+  non-ACK PING transaction. `ReservedPrivate` owns its copied `[u8; 8]` and is
+  never coalesced, including with an identical neighbor. First exposure freezes
+  header, ACK flag, opaque bytes, transaction generation, and token-bound
+  suffix. Acknowledged offsets 0..=16 retain the transaction and slot; only
+  acknowledgement of all 17 bytes produces Complete and releases them. Stale,
+  duplicate, cross-record, out-of-order, or overlong acknowledgement is
+  state-neutral. Queue exhaustion before acceptance selects one bounded
+  connection shutdown, while transport failure at any Frozen prefix abandons
+  connection-owned transactions without claiming Complete or retaining caller
+  input.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6229,7 +6269,7 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 
 #### Verification
 
-- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
+- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK and releases only at byte 17. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6267,6 +6307,16 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
   prefix, no advertised restoration through byte 12, one exact restoration at
   byte 13, immutable target/increment/suffix, and no stream lifecycle loss or
   transfer of independent connection credit.
+- Audit inbound PING transaction ownership from syntax/capacity preflight
+  through copied payload, FIFO scheduling, first exposure, every offset 0..=17,
+  completion/failure, and input reuse. Cross distinct/identical non-ACK PINGs,
+  ACK-bearing no-reply, frozen suffixes, fragmented field blocks, budget/queue
+  exhaustion, and stale/cross-slot acknowledgements. Audit bounded locally
+  originated correlation across unique keys, in-order/reordered matching,
+  unsolicited, duplicate, stale, wrap, and tombstone expiry; require exact
+  live-key completion regardless of arrival order, exact one-for-one peer
+  replies, byte-17-only release, explicit PING priority SHOULD disposition, and
+  no RFC connection error for correlation mismatch.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8162,6 +8212,13 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   offered output suffix, but cannot directly reclaim or advertise credit,
   choose/retarget an increment, acknowledge byte 13 without its token, merge
   stream and connection ledgers, or revive a closed generation.
+- Keep `InboundPingTransaction`, `PingAckOutput`, copied opaque bytes, FIFO
+  position, local correlation keys/generations/tombstones, and completion
+  promotion engine-owned and non-constructible. Callers may request a local
+  liveness probe and acknowledge one exact offered suffix, but cannot supply or
+  reuse the wire correlation key, forge a peer reply obligation, access opaque
+  peer bytes after parsing, coalesce transactions, match an ACK, or release a
+  PING slot before byte 17.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8247,6 +8304,14 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
   Never report reclaimed or in-flight credit as advertised, offset 12 as
   committed, a cancelled stream update as lost connection credit, a stale token
   as progress, or a transport-failed prefix as window restoration.
+- For PING, report redacted inbound transaction generation, FIFO position,
+  ReservedPrivate/Frozen/Complete disposition, acknowledged offset 0..=17,
+  capacity/budget outcome, and local correlation
+  in-order-match/reordered-match/unsolicited/duplicate/stale classification.
+  Never expose
+  opaque bytes, treat equal peer payloads as one transaction, report offset 16
+  as complete, claim a failed prefix released its slot, or diagnose correlation
+  mismatch as an RFC connection error.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8373,6 +8438,15 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   prefix, and partial transport failure. Assert ledger conservation, the
   31-bit ceiling, immutable Frozen bytes/target/increment, and final-byte-only
   advertised restoration.
+- Add stateful `InboundPingTransaction × PingAckOutput ×
+  LocalPingCorrelation` transitions. Overwrite receive storage immediately;
+  generate distinct and identical non-ACK PINGs, ACK-bearing frames, bounded
+  FIFO/table/tombstone exhaustion, unique-key wrap/reuse, every scheduling
+  boundary, all output offsets 0..=17, stale/duplicate/cross-record/overlong
+  tokens, transport failure, and matching/unsolicited/duplicate/reordered/stale
+  ACKs. Assert owned-byte independence, exact one-for-one replies, no
+  coalescing, byte-17-only release, priority after committed framing, bounded
+  cleanup, and state-neutral nonmatching correlation.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8419,6 +8493,13 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
   cross-generation acknowledgement, acknowledgement beyond the offered suffix,
   advertised restoration before byte 13, frozen retargeting/substitution,
   stream-to-connection conversion, and reuse after completion or abandonment.
+- Reject construction, cloning, copying, rebinding, payload substitution,
+  coalescing, or direct completion of `InboundPingTransaction`,
+  `PingAckOutput`, and `LocalPingCorrelation`. Reject caller-chosen/reused
+  correlation keys, cross-transaction/generation acknowledgement, completion
+  before byte 17, access or recycling of frozen/copied storage while owned,
+  duplicate slot release, FIFO bypass, stale tombstone revival, and forged
+  match/unsolicited/duplicate/reordered/stale dispositions.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8978,6 +9059,13 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
   frozen prefixes retain bounded ownership, and all coalescing, `i32`/`u32`,
   31-bit-window, and profile-count arithmetic is checked on 32- and 64-bit
   targets.
+- Size the inbound PING FIFO, owned eight-byte payloads, frozen 17-byte ACK
+  records, output slots/tokens, local correlation table, and bounded tombstone
+  horizon independently for every resource profile. Prove identical payloads
+  consume distinct bounded obligations, peer input storage is released after
+  copy, correlation-key generation/wrap is checked, rate limits bound priority
+  starvation/amplification, and every partial prefix retains only
+  profile-bounded connection-owned state.
 - Preserve the phase invariant: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

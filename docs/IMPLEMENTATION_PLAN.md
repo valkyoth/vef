@@ -129,6 +129,25 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Each output token owns one immutable protocol-record/frame-slot suffix.
   Scalar or vectored transport adapters cannot combine records; exact completion
   runs one hook and any acknowledgement crossing the slot is InvalidState.
+- Copy every validated non-ACK PING payload into its own bounded FIFO
+  transaction before releasing caller input. Reserve reply capacity and charge
+  lookup/creation before mutation; ACK-bearing PINGs allocate no reply.
+  `PingAckOutput` is ReservedPrivate, Frozen with an exact 17-byte frame and
+  acknowledged cursor 0..=16, or Complete. First exposure freezes bytes and
+  generation; offsets through 16 retain the slot, while byte 17 alone releases
+  it. Identical peer payloads are distinct and cannot be coalesced. Stale,
+  duplicate, cross-record, or overlong acknowledgement changes nothing, and
+  partial transport failure abandons the connection without early reclamation.
+  Schedule PING ACK as the highest eligible output after any already-frozen
+  suffix and mandatory CONTINUATION obligation; capacity/budget exhaustion
+  selects bounded shutdown rather than dropping the ACK or pinning input.
+  Locally originated PINGs own bounded generation-checked live records and
+  recent-completion tombstones. Encode a monotonic connection-local `u64` wire
+  key, never reissue it during the connection, and return typed backpressure on
+  exhaustion/wrap. Exact live-key lookup completes once regardless of arrival
+  order and classifies in-order/reordered match. Tombstones classify recent
+  duplicate/stale ACKs; an evicted/unknown key is unsolicited and state-neutral,
+  never an automatic peer protocol error.
 - Give every stream and the connection an independent
   `ReceiveCredit { advertised_remaining: i32, reclaimed_unadvertised: u32,
   update_in_flight: u32 }`. DATA immediately decrements both advertised

@@ -276,7 +276,8 @@ from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
 lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`/
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReusePermit`, and either-version
+`Http10ReuseLedger`/`Http10ReusePermit`/`Http10SuccessorAdmissionOutcome`, and
+either-version
 stripping consume that evidence with no cross-version authority.
 HTTP/1.0 persistence is bound to the current received message and exact
 role/direction: origin requests, client responses, and intermediary upstream
@@ -290,11 +291,17 @@ client/proxy-upstream response first takes the exact local signal from its
 oldest matching HeadCommitted request, then revokes unmatched signals;
 ambiguity closes. Persistence loss rewrites only private heads; after exposure
 it preserves immutable output, prohibits successors, and closes. Reuse alone
-does not admit work: one atomic `Reusable -> ActiveExchange` transition
-preflights all storage/correlation/budgets/deadline, consumes and decrements the
-permit once, and creates a fresh generation before client output or server
-input. Capacity preserves permit/input, expiry closes, and admitted work never
-rolls back. No HTTP/1.0 path pipelines. HTTP/1.0 CONNECT is unsupported: local
+does not admit work. One per-hop monotonic reuse ledger never resets/refunds.
+The atomic `Reusable -> ActiveExchange` transition preflights storage,
+correlation, count/work/policy/deadline, and checked generation. Capacity alone
+retries with permit/input/count intact; all other local terminal reasons consume
+no input, revoke the permit, and close without blaming the peer. Admission
+decrements once, carries the count, and cannot refund or wrap generation.
+Client output and server input require admission. Same-call input requires the
+exact transition into `MessageCommitted`, including final fixed body or
+terminating chunk/trailers; full acknowledgement of a nonfinal record remains
+premature. Admitted work never rolls back. No HTTP/1.0 path pipelines. HTTP/1.0
+CONNECT is unsupported: local
 capacity stays local; aggregate start-line byte/work and method limits keep
 typed peer-limit close/optional safe 400; malformed/overlong version closes
 without version-assuming output; target-only limit is 414; field limits are

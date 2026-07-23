@@ -402,7 +402,8 @@ Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
 persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`,
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReusePermit`, and either-version
+`Http10ReuseLedger`/`Http10ReusePermit`/`Http10SuccessorAdmissionOutcome`, and
+either-version
 intermediary stripping consume that one result. HTTP/1.0
 persistence candidates are distinct for origin-received requests,
 client-received responses, and proxy/gateway-received upstream responses;
@@ -415,20 +416,27 @@ response-owned `CorrelatedHttp10KeepAliveRequest`, then revokes unmatched
 signals; missing or ambiguous correlation closes. This is distinct from origin
 received-request/committed-response pairing.
 Every proxy hop negotiates independently and stripping forwards no signal or
-authority. A newly admitted received message atomically revokes older evidence
+authority. After preserving the exact response-owned correlated signal, a newly
+admitted received message atomically revokes only unmatched/unrelated evidence
 and permits. Persistence loss rewrites only `AcceptedPrivate` output with close;
 `Frozen`, `HeadCommitted`, and `MessageCommitted` remain immutable, seal every
 successor, finish only the current legal output, and close. A client receiving
 a non-keep-alive response emits no next request. No path pipelines. Later
 consumers neither reparse nor renormalize raw fields or substitute authority
 across versions, roles, directions, hops, or generations.
-The sole successor transition preflights next-exchange, correlation, parser,
-output, count/work, and deadline resources before atomically consuming one
-`Http10ReusePermit` and minting a fresh generation. Client/proxy-upstream
-request acceptance/exposure and origin/server input consumption require it.
-Full final-response acknowledgement can complete and admit same-call input;
-zero/short is premature and wholly unconsumed, capacity keeps permit/input
-intact, expiry closes, and ActiveExchange never rolls back.
+One connection/hop `Http10ReuseLedger` owns a monotonic remaining count. The
+sole successor transition preflights next-exchange, correlation, parser/output,
+count/work/policy/deadline, and checked generation. Capacity alone is retryable
+and preserves permit/input/count; every zero/count/work/policy/deadline/
+arithmetic/correlation/generation terminal outcome revokes the permit, consumes
+no input, closes locally, and never becomes a peer error. Admission decrements
+once, carries remaining count into ActiveExchange, and never refunds; checked
+generation exhaustion closes without wrap. Client/proxy-upstream request
+acceptance/exposure and origin/server input consumption require admission.
+Same-call input requires the acknowledgement that enters `MessageCommitted`
+after final fixed bytes, terminating chunk plus trailers, or a bodyless head;
+full acknowledgement of an earlier record remains premature and unconsumed.
+ActiveExchange never rolls back.
 The HTTP/1.0 profile rejects CONNECT before publication through
 `UnsupportedHttp10ConnectDisposition`. Error precedence retains local
 capacity/zero-partial close; typed aggregate start-line byte/work and method

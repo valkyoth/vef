@@ -271,7 +271,8 @@ HTTP version, role, message/request generation, and connection generation.
 HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
 pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`,
 `ValidatedHttp10KeepAlive`, `CommittedHttp10KeepAliveHead`, and
-`CorrelatedHttp10KeepAliveRequest`, and `Http10ReusePermit`; and
+`CorrelatedHttp10KeepAliveRequest`, `Http10ReuseLedger`,
+`Http10ReusePermit`, and `Http10SuccessorAdmissionOutcome`; and
 either-version intermediary stripping consume that same evidence. None reparses
 or renormalizes raw fields, and no semantic refinement crosses versions.
 Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
@@ -292,20 +293,29 @@ local
 lifecycles must complete before one reuse permit is minted. Clients and
 proxy-upstream legs pair local requests with received responses; origins pair
 received requests with local self-delimited responses. Each proxy hop
-negotiates independently; no received authority is forwarded. Admission of a
-newer received message invalidates older signals and permits. Persistence loss
+negotiates independently; no received authority is forwarded. After the exact
+correlation transfer, admission of a newer received message invalidates only
+unmatched/unrelated signals and permits; the response-owned correlated signal
+survives until pairing or terminal cleanup. Persistence loss
 while a head is `AcceptedPrivate` rewrites and revalidates that current head
 with close. After `Frozen`, output remains immutable, every successor is
 prohibited, and the current message finishes only when possible before close;
 a client receiving a response without keep-alive emits no next request.
-The only successor edge atomically moves `Reusable { permit }` to
-`ActiveExchange { next_exchange_generation }` after preflighting every slot,
-correlation owner, parser/output capacity, request-count/work budget, and idle
-deadline. It consumes and decrements the permit once. Client request acceptance/
-exposure and server input consumption cannot precede it. Full final-response
-acknowledgement may admit same-call input; zero/short leaves it premature and
-unconsumed, capacity preserves permit/input, expiry closes, and admitted work
-never rolls back to Reusable. HTTP/1.0 never pipelines.
+One connection/hop `Http10ReuseLedger` starts at configured 0/1/N and never
+increases, resets, or refunds. The only successor edge atomically moves
+`Reusable { permit }` to
+`ActiveExchange { next_exchange_generation, remaining_after_admission }`.
+Retryable storage capacity preserves permit, ledger, input, and Reusable.
+Zero/count/work/policy/deadline/deadline-arithmetic/correlation/generation
+terminal reasons revoke the permit, consume no input, close locally without a
+peer error, and do not decrement; admission alone decrements once and carries
+the count. Generation increment is checked and exhaustion closes without wrap.
+Client request acceptance/exposure and server input consumption cannot precede
+admission. Same-call input is eligible only when acknowledgement enters
+`MessageCommitted`: final fixed body byte, terminating chunk plus trailers, or
+bodyless final head. Earlier full-record/zero/short acknowledgement is
+premature and unconsumed. Cancellation after admission never refunds, and
+admitted work never rolls back to Reusable. HTTP/1.0 never pipelines.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
 when the target URI has no authority, but syntax alone is non-routable. Before
 application publication, role policy authorizes target form and derives an

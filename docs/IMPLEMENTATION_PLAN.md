@@ -397,6 +397,11 @@ persistence, transitions, and connection state. It cannot parse or select
 HTTP/0.9. Starting at v0.157.5 it depends on `vef-media-type`; it later depends
 on `vef-conditions` and `vef-semantics`, consumes frozen validated requests/responses, and has no public head-output entry accepting a
 raw `vef-core` request or response.
+Its v0.56.0 bounded `Connection` parser is the only such parser and emits sealed
+`ValidatedConnectionOptions` for persistence, received optimistic-CONNECT close
+proof, Upgrade pairing, and intermediary stripping. Later consumers neither
+reparse nor renormalize raw fields. The HTTP/1.0 profile rejects CONNECT before
+publication; default-close/keep-alive state cannot become HTTP/1.1 proof.
 
 ### `vef-http09` (planned at `0.76.0`)
 
@@ -806,7 +811,10 @@ transition-input provenance permits lease minting for upstream success-following
 HTTP/1 101 over-read/HTTP/2 success-plus-DATA and permitted ordinary optimistic
 CONNECT. HTTP/1 permission consumes exact request-bound proof: a received,
 validated Connection-close option or a locally generated close-bearing head
-that is fully transport-committed. Configuration intent alone is insufficient.
+that is fully transport-committed. Received proof refines only the exact
+v0.56.0 `ValidatedConnectionOptions`, never raw fields. Configuration intent
+alone is insufficient. HTTP/1.0 CONNECT is unsupported and its default-close or
+keep-alive state grants no proof authority.
 HTTP/2 ordinary CONNECT reuses PendingConnect. Missing HTTP/1 close proof is a
 separate strict unpermitted provenance: discard, close, never reparse or promote
 after success. Optimistic WebSocket and HTTP/1 CONNECT-UDP are also
@@ -839,8 +847,11 @@ commit, then emits the reserved reset. Final commitment processed first makes
 same-call input legal. Connection failure during suffix completion uses
 connection cleanup without invented completion/Active/reset. Discard/reclaim
 only the offending stream through v0.136 and continue unrelated frames.
-Committed downstream success records wire state only; Active requires an
-engine-minted BridgeActivationPermit proving no premature-input failure.
+Committed downstream success records wire state only. Minting the engine-owned
+BridgeActivationPermit atomically consumes the exact one-shot committed-success
+evidence, reserved permit slot, clear failure-latch snapshot, and matching
+frozen bridge generation. Duplicate/stale acknowledgements, repeated hooks,
+cancellation races, and generation reuse cannot publish or transfer twice.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
 closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
 only full acknowledgement of its END_STREAM-carrying frame enters wire

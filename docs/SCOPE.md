@@ -12,7 +12,7 @@ I/O contracts, not an opinionated application framework.
 | Area | Specification | 1.0 disposition |
 | --- | --- | --- |
 | Requirement language | RFC 2119 and RFC 8174 | Applied to requirement ledger |
-| HTTP/0.9 and HTTP/1.0 | RFC 1945 | Explicit historical profiles; HTTP/0.9 is an isolated package |
+| HTTP/0.9 and HTTP/1.0 | RFC 1945 | Explicit historical profiles; HTTP/0.9 is an isolated package and HTTP/1.0 CONNECT is unsupported |
 | URI syntax | RFC 3986 | Validated components without implicit normalization |
 | Media types | RFC 2046 plus RFC 9110 | Bounded grammar and multipart boundary classification; no multipart body parser |
 | WebSocket opening handshake | RFC 6455 | Optional isolated handshake extension; no frame protocol |
@@ -271,7 +271,11 @@ The transferable classes cover upstream
 HTTP/1 101 over-read or HTTP/2 success-plus-DATA, HTTP/1 ordinary CONNECT with
 generation-bound received-validated-close or locally-committed-close-head
 evidence, and ordinary HTTP/2 CONNECT through existing PendingConnect. Mere
-configured intent grants no permit. Missing committed close proof is strict:
+configured intent grants no permit. Received-close evidence is refined only
+from the sole v0.56.0 sealed `ValidatedConnectionOptions` parse result, which
+also owns persistence, Upgrade-pairing, and intermediary-stripping decisions.
+HTTP/1.0 CONNECT is unsupported; default-close and keep-alive state cannot be
+rebound into either HTTP/1.1 close-proof variant. Missing committed close proof is strict:
 discard once, close, never reparse, and never promote after later success.
 Forbidden WebSocket/CONNECT-UDP classes are likewise never transferable.
 Full acknowledgement in the same combined call precedes and legalizes input;
@@ -302,8 +306,12 @@ HEADERS/CONTINUATION block through END_HEADERS with normal HPACK commit, marks
 post-exposure bridge failure, and then emits the reset. It never activates or
 transfers bytes. Final success acknowledgement processed before input makes the
 input legal; connection failure during suffix completion fabricates no
-completion. Committed success is wire evidence only; Active requires a separate
-engine-minted `BridgeActivationPermit` proving the failure latch stayed clear.
+completion. Committed success is wire evidence only. Minting the separate
+engine-owned `BridgeActivationPermit` atomically consumes the exact committed
+success, reserved slot, clear failure-latch snapshot, and matching frozen bridge
+generation. Duplicate/stale acknowledgement, repeated-hook, cancellation, and
+generation-reuse races yield at most one permit, success event, and lease
+transfer.
 Unrelated same-buffer frames and HPACK synchronization remain isolated.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound

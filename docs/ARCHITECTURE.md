@@ -128,7 +128,11 @@ ordinary CONNECT covers HTTP/1 only with
 LocallyCommittedCloseHead}` bound to the exact request/exchange/head generation:
 received requests prove a validated close option in that head; generated
 requests prove the serialized close-bearing head was fully transport-committed.
-A configured intention without committed wire evidence grants no authority.
+Received proof is refined from the exact `ValidatedConnectionOptions`, never
+from reparsing raw fields. A configured intention without committed wire
+evidence grants no authority. HTTP/1.0 CONNECT is unsupported; default-close,
+explicit close, keep-alive, and fallback-close state cannot construct or
+substitute either HTTP/1.1 proof variant.
 HTTP/2 ordinary CONNECT uses its existing PendingConnect owner. Unpermitted
 ordinary CONNECT follows the strict policy: discard once, close, never reparse,
 and never promote even after 2xx. Forbidden WebSocket/CONNECT-UDP input follows
@@ -172,10 +176,13 @@ Connection failure while finishing the suffix performs connection-owned
 cleanup without fabricated response/reset completion or Active. Only the
 offending stream's semantic DATA is discarded and ledger-reclaimed; unrelated
 same-buffer frames continue unless independently connection-fatal.
-`CommittedDownstreamSuccess` is wire evidence only. A private
-`BridgeActivationPermit` is minted at final commitment only while the exact
-bridge remains DownstreamSuccessFrozen and its premature-input failure latch is
-clear; Active consumes that permit, never raw wire evidence.
+`CommittedDownstreamSuccess` is wire evidence only. Minting a private
+`BridgeActivationPermit` atomically consumes that exact non-Copy/non-Clone
+evidence, the reserved permit slot, a clear failure-latch snapshot, and the
+matching DownstreamSuccessFrozen generation. Active consumes that permit, never
+raw wire evidence. Duplicate/stale acknowledgements, repeated hooks,
+cancellation races, and generation reuse cannot mint or publish twice;
+cancellation and minting have one serialized winner and cleanup path.
 
 ## Shared model
 
@@ -233,6 +240,15 @@ HTTP/0.9.
 The parser is an incremental byte-state machine. It does not decode the whole
 message as UTF-8, reparse accepted bytes, scan without limits, allocate from a
 peer length, or continue indefinitely without progress.
+HTTP/1.1 `Connection` fields have one bounded parser. It produces sealed
+`ValidatedConnectionOptions` bound to the exact ordered fields, version, role,
+message/request generation, and connection generation. Persistence, received
+optimistic-CONNECT close proof, Upgrade pairing, and intermediary stripping
+consume that same evidence; none reparses or renormalizes raw fields.
+Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
+elements, and close-over-keep-alive precedence are decided once. Malformed,
+quoted/substr-like close values and `Proxy-Connection` produce no close
+evidence.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
 when the target URI has no authority, but syntax alone is non-routable. Before
 application publication, role policy authorizes target form and derives an

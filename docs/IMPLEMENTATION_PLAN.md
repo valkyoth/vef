@@ -527,6 +527,11 @@ for possible reuse, suppress only proven-unsent bytes and permanently close,
 recognize an already committed message, or record transport abortion. Partial
 framing never admits a successor; 417 retry uses a fresh exchange and a fresh
 connection unless the original request safely reached MessageCommitted.
+AlreadyMessageCommitted is automatic. Continuation requires persistence,
+writable transport, available body source, and reserved deadline/work budget;
+close/default-close/close-delimited/write-closed/missing-source states force
+suppression or abort. Suppression yields a typed seal-output-and-drain versus
+immediate-close transport action, with no protocol assumption of TLS half-close.
 Host parsing accepts the RFC-required empty value but yields only a non-routable
 artifact. The next stop authorizes target form by origin/forward/reverse role,
 derives the full effective scheme/authority/path/query under explicit trusted
@@ -790,9 +795,14 @@ and a pre-reserved generation-bound bridge transaction advances only through
 downstream request validation, upstream request commitment, complete upstream
 success validation, downstream success freezing, and full downstream success
 commitment. v0.187.0 and v0.188.0 reuse that ordered transaction for
-Upgrade/CONNECT. HTTP/2 field blocks require `HpackCommitted`; early failure
-stays HTTP-framed, partial downstream-success failure closes/aborts, and bytes
-cannot cross, release, parse, or be reinterpreted before activation.
+Upgrade/CONNECT. Outbound commitment and inbound validation are distinct sealed
+evidence: HTTP/2 outbound fields use whole-block commitment, while received
+success requires compression synchronization, terminal semantic validity,
+final-2xx/generation/negotiation/stream-state validation. HTTP/1 over-read uses
+an owned lease; HTTP/2 reuses a linear PendingConnect/ReceiveCredit lease
+without copying or early credit. Early failure stays HTTP-framed, partial
+downstream-success failure closes/aborts, and bytes cannot cross, release,
+parse, or be reinterpreted before activation.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
 closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
 only full acknowledgement of its END_STREAM-carrying frame enters wire

@@ -237,13 +237,30 @@ certified transport-unconsumed, rejects later body/trailer commands, and
 permanently forbids reuse; reuse requires the exact fixed/chunked delimiter and
 trailers to finish before any successor. A 417 retry cannot overlap the
 incomplete exchange and normally uses a fresh connection.
+`AlreadyMessageCommitted` is automatic, never policy preference.
+`ContinueToDelimiterForReuse` additionally requires possible persistence,
+writable transport, available remaining source, and a pre-reserved bounded
+continuation deadline/work budget. Close/default-close/close-delimited/write
+closure/missing source forces suppression or abort.
+`EarlyFinalTransportAction::{SealHttpOutputAndDrainResponse,
+CloseTransportNow}` distinguishes bounded response draining from immediate
+close without assuming TCP half-close is available through TLS.
 Cross-protocol handoff uses an asymmetric ordered bridge transaction, not a
 per-leg symmetric barrier: pre-reservation precedes upstream request exposure,
 upstream request commitment precedes complete success validation, downstream
 success exposure follows validation, and byte crossing begins only after full
-downstream success commitment. HTTP/2 field-block commitment means
-`HpackCommitted`; failures retain original-leg byte ownership and select an
-HTTP-framed pre-exposure failure or close-plus-upstream-abort after exposure.
+downstream success commitment. `OutboundHeadCommit::{Http1(HeadCommitted),
+Http2(OutboundFieldBlockHpackCommitted)}` and
+`InboundHeadValidation::{Http1(ValidatedInboundHead),
+Http2(ValidatedInboundFieldSection)}` are sealed and direction-specific.
+Inbound HTTP/2 validation requires complete synchronization, terminal semantic
+validity, final-2xx/correlation/negotiation/stream-state checks and never
+outbound `HpackCommitted`.
+`BridgeInputLease::{Http1(OverreadLease), Http2(PendingConnectLease)}` keeps
+HTTP/1 over-read storage separate from a linear reference to existing HTTP/2
+PendingConnect ranges, stream generation, padding accounting, and receive
+credit. Activation transfers once without copying/reclaiming credit; failure
+uses existing non-2xx/reset cleanup once.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be

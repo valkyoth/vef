@@ -82,9 +82,14 @@ FIFO only after its final head octet is acknowledged. Informational and final
 responses correlate only to the oldest committed request. CONNECT and Upgrade
 publication waits for complete success-head acknowledgement on the emitting
 server leg and committed opening-request evidence on the receiving client leg.
-An early final response selects an explicit request-body disposition: finish
-the promised delimiter for reuse, suppress only transport-unconsumed bytes and
-close, record an already committed message, or record transport abortion.
+An early final response selects an explicit request-body disposition under an
+engine-owned legality matrix. Already-committed is automatic. Continuing to the
+delimiter requires possible persistence, writable transport, available body
+source, and pre-reserved deadline/work budget. Close signaling, HTTP/1.0
+default-close, close-delimited response framing, write closure, or missing body
+source forces suppression/abort. Suppression returns a typed choice between
+sealing HTTP output while boundedly draining the response and immediate
+transport close; protocol code never assumes TCP half-close through TLS.
 Partial fixed/chunked requests never permit a successor, and 417 retry uses a
 fresh exchange generation without overlapping the incomplete original.
 
@@ -92,11 +97,24 @@ Cross-protocol proxy legs are asymmetric and use one ordered generation-bound
 transaction: reserve all barrier/over-read/failure resources, validate the
 downstream request, fully commit the upstream request, validate the complete
 upstream success, freeze the downstream success, and activate only after its
-full commitment. HTTP/2 request/success field blocks reach the applicable
-commit phase only at `HpackCommitted`. Failure before downstream success
-exposure remains HTTP-framed; failure after partial exposure closes downstream
-and aborts/resets upstream. Over-read bytes remain on their original leg until
-the transaction becomes active.
+full commitment. Directional sealed evidence prevents type confusion:
+`OutboundHeadCommit` is either HTTP/1 `HeadCommitted` or HTTP/2 outbound
+field-block commitment, while `InboundHeadValidation` is either a validated
+HTTP/1 head or validated HTTP/2 field section. Inbound HTTP/2 evidence requires
+complete compression synchronization, a sealed terminal field lease, every
+semantic stage, `TerminalValidation::Valid`, final-2xx classification, exact
+request/stream-generation correlation, negotiation validation, and legal
+stream state—never outbound commitment evidence. Failure before downstream
+success exposure remains HTTP-framed; failure after partial exposure closes
+downstream and aborts/resets upstream.
+
+Bridge input ownership is also protocol-specific. HTTP/1 contributes an exact
+`OverreadLease`; HTTP/2 contributes a linear `PendingConnectLease` referencing
+the existing PendingConnect ranges, stream generation, padding/semantic DATA
+accounting, and `ReceiveCredit`. Activation transfers either lease once without
+copying or reclaiming credit. Application acknowledgement or policy discard
+remains the sole HTTP/2 credit reclamation path, and pre-activation failure uses
+the existing non-2xx/reset cleanup exactly once.
 
 ## Shared model
 

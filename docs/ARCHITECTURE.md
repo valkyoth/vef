@@ -272,7 +272,8 @@ HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
 pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`,
 `ValidatedHttp10KeepAlive`, `CommittedHttp10KeepAliveHead`, and
 `CorrelatedHttp10KeepAliveRequest`, `Http10ReuseLedger`,
-`Http10ReusePermit`, and `Http10SuccessorAdmissionOutcome`; and
+`Http10ReusePermit`, `Http10PermitMintOutcome`, and
+`Http10SuccessorAdmissionOutcome`; and
 either-version intermediary stripping consume that same evidence. None reparses
 or renormalizes raw fields, and no semantic refinement crosses versions.
 Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
@@ -301,21 +302,36 @@ while a head is `AcceptedPrivate` rewrites and revalidates that current head
 with close. After `Frozen`, output remains immutable, every successor is
 prohibited, and the current message finishes only when possible before close;
 a client receiving a response without keep-alive emits no next request.
-One connection/hop `Http10ReuseLedger` starts at configured 0/1/N and never
-increases, resets, or refunds. The only successor edge atomically moves
-`Reusable { permit }` to
-`ActiveExchange { next_exchange_generation, remaining_after_admission }`.
-Retryable storage capacity preserves permit, ledger, input, and Reusable.
-Zero/count/work/policy/deadline/deadline-arithmetic/correlation/generation
-terminal reasons revoke the permit, consume no input, close locally without a
-peer error, and do not decrement; admission alone decrements once and carries
-the count. Generation increment is checked and exhaustion closes without wrap.
+One connection/hop `Http10ReuseLedger` starts at configured 0/1/N and is the
+sole mutable authorization count; it never increases, resets, or refunds.
+Permit minting and successor admission are separate phases.
+`Http10PermitMintOutcome::{Minted, CloseWithoutReuse { reason }}` owns
+zero-allowance, ledger-exhaustion, negotiation, framing, policy,
+deadline-arithmetic, and correlation failures before `Reusable` exists.
+`Minted` creates the non-Copy permit directly inside engine-owned
+`Reusable { permit }` without decrementing the ledger. Mint failure creates no
+permit, consumes no successor input, closes locally, and never blames the peer.
+The only successor edge atomically moves `Reusable { permit }` to
+`ActiveExchange { next_exchange_generation, reuse_remaining_snapshot }`.
+`Http10SuccessorAdmissionOutcome::RetryableCapacity` carries only a freely
+constructible reason: state exclusively retains the permit, ledger, input, and
+`Reusable`. Admission terminal reasons cover request-count/work exhaustion,
+policy revocation, idle-deadline equality, permit-ledger mismatch, correlation
+failure, and checked generation exhaustion. They revoke the permit, consume no
+input, close locally without a peer error, and do not decrement.
+`PermitLedgerMismatch` is a local invariant failure. Admission alone decrements
+the ledger once; the immutable `reuse_remaining_snapshot` is diagnostic and
+binding metadata, never a second authority, and the next mint reads only the
+ledger. Generation increment is checked and exhaustion closes without wrap.
 Client request acceptance/exposure and server input consumption cannot precede
 admission. Same-call input is eligible only when acknowledgement enters
-`MessageCommitted`: final fixed body byte, terminating chunk plus trailers, or
-bodyless final head. Earlier full-record/zero/short acknowledgement is
-premature and unconsumed. Cancellation after admission never refunds, and
-admitted work never rolls back to Reusable. HTTP/1.0 never pipelines.
+`MessageCommitted`: an exact fixed-length final body byte or a semantically
+bodyless final head. Earlier full-record/zero/short acknowledgement is premature
+and unconsumed. Transfer-Encoding, chunked coding, trailers, and HTTP/1.1
+transfer semantics remain rejected; a valid close-delimited HTTP/1.0 response
+finishes only by closure and cannot mint evidence, a permit, or a successor.
+Cancellation after admission never refunds, and admitted work never rolls back
+to Reusable. HTTP/1.0 never pipelines.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
 when the target URI has no authority, but syntax alone is non-routable. Before
 application publication, role policy authorizes target form and derives an

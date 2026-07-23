@@ -276,7 +276,8 @@ from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
 lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`/
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReuseLedger`/`Http10ReusePermit`/`Http10SuccessorAdmissionOutcome`, and
+`Http10ReuseLedger`/`Http10ReusePermit`/`Http10PermitMintOutcome`/
+`Http10SuccessorAdmissionOutcome`, and
 either-version
 stripping consume that evidence with no cross-version authority.
 HTTP/1.0 persistence is bound to the current received message and exact
@@ -291,16 +292,26 @@ client/proxy-upstream response first takes the exact local signal from its
 oldest matching HeadCommitted request, then revokes unmatched signals;
 ambiguity closes. Persistence loss rewrites only private heads; after exposure
 it preserves immutable output, prohibits successors, and closes. Reuse alone
-does not admit work. One per-hop monotonic reuse ledger never resets/refunds.
-The atomic `Reusable -> ActiveExchange` transition preflights storage,
-correlation, count/work/policy/deadline, and checked generation. Capacity alone
-retries with permit/input/count intact; all other local terminal reasons consume
-no input, revoke the permit, and close without blaming the peer. Admission
-decrements once, carries the count, and cannot refund or wrap generation.
-Client output and server input require admission. Same-call input requires the
-exact transition into `MessageCommitted`, including final fixed body or
-terminating chunk/trailers; full acknowledgement of a nonfinal record remains
-premature. Admitted work never rolls back. No HTTP/1.0 path pipelines. HTTP/1.0
+does not admit work. One per-hop ledger is the sole mutable authorization count
+and never resets/refunds. `Http10PermitMintOutcome` handles zero allowance,
+ledger exhaustion, missing negotiation, non-reusable framing, policy,
+deadline-add overflow, and correlation failure before `Reusable`; failure
+creates no permit or successor. A minted permit is installed only in
+engine-owned `Reusable` without decrementing. The separate atomic
+`Reusable -> ActiveExchange` transition preflights storage, correlation,
+count/work/policy/idle deadline, ledger consistency, and checked generation.
+Capacity returns a freely constructible reason only, with permit/input/ledger
+retained exclusively in `Reusable`. Admission terminal reasons revoke the
+permit, consume no input, close without blaming the peer, and include explicit
+local-invariant `PermitLedgerMismatch`. Admission alone decrements the ledger
+and stores an immutable, non-authoritative `reuse_remaining_snapshot`; future
+minting reads only the ledger. Client output and server input require
+admission. Same-call input requires the exact transition into
+`MessageCommitted` at a semantically bodyless head or exact fixed-length final
+byte. Transfer-Encoding, chunked coding, trailers, and close-delimited responses
+create no evidence, permit, or successor. Full acknowledgement of a nonfinal
+record remains premature. Admitted work never rolls back. No HTTP/1.0 path
+pipelines. HTTP/1.0
 CONNECT is unsupported: local
 capacity stays local; aggregate start-line byte/work and method limits keep
 typed peer-limit close/optional safe 400; malformed/overlong version closes

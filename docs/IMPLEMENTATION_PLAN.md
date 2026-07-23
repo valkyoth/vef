@@ -402,7 +402,8 @@ Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
 persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`,
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReuseLedger`/`Http10ReusePermit`/`Http10SuccessorAdmissionOutcome`, and
+`Http10ReuseLedger`/`Http10ReusePermit`/`Http10PermitMintOutcome`/
+`Http10SuccessorAdmissionOutcome`, and
 either-version
 intermediary stripping consume that one result. HTTP/1.0
 persistence candidates are distinct for origin-received requests,
@@ -424,19 +425,38 @@ successor, finish only the current legal output, and close. A client receiving
 a non-keep-alive response emits no next request. No path pipelines. Later
 consumers neither reparse nor renormalize raw fields or substitute authority
 across versions, roles, directions, hops, or generations.
-One connection/hop `Http10ReuseLedger` owns a monotonic remaining count. The
-sole successor transition preflights next-exchange, correlation, parser/output,
-count/work/policy/deadline, and checked generation. Capacity alone is retryable
-and preserves permit/input/count; every zero/count/work/policy/deadline/
-arithmetic/correlation/generation terminal outcome revokes the permit, consumes
-no input, closes locally, and never becomes a peer error. Admission decrements
-once, carries remaining count into ActiveExchange, and never refunds; checked
-generation exhaustion closes without wrap. Client/proxy-upstream request
+One connection/hop `Http10ReuseLedger` is the sole mutable remaining-count
+authority. Permit minting first returns
+`Http10PermitMintOutcome::{Minted, CloseWithoutReuse { reason }}`. Its close
+reasons are zero configured allowance, ledger exhaustion, unavailable
+negotiation, non-reusable framing, revoked policy, deadline-addition overflow,
+and correlation invariant failure. `Minted` installs the non-Copy permit
+directly in engine-owned `Reusable` without decrementing; every mint failure
+creates no permit, consumes no successor input, and closes locally without a
+peer error.
+The separate successor transition preflights next-exchange, correlation,
+parser/output, request-count/work/policy/idle-deadline, ledger consistency, and
+checked generation. Its result is
+`Http10SuccessorAdmissionOutcome::{Admitted, RetryableCapacity { reason },
+CloseLocal { reason }}`. Capacity returns only a freely constructible reason
+while `Reusable` exclusively retains permit/input/ledger state. Admission
+terminal reasons are request-count exhaustion, work exhaustion, policy
+revocation, idle-deadline equality, `PermitLedgerMismatch`, correlation
+invariant failure, and generation exhaustion; each consumes no input, revokes
+the permit, closes locally, never blames the peer, and never decrements.
+`PermitLedgerMismatch` is explicitly a local invariant failure. Admission alone
+decrements the ledger once and installs
+`ActiveExchange { next_exchange_generation, reuse_remaining_snapshot }`.
+That immutable snapshot is diagnostic/binding metadata and never authorizes a
+later mint; only the ledger does. Admission never refunds and checked generation
+exhaustion closes without wrap. Client/proxy-upstream request
 acceptance/exposure and origin/server input consumption require admission.
 Same-call input requires the acknowledgement that enters `MessageCommitted`
-after final fixed bytes, terminating chunk plus trailers, or a bodyless head;
-full acknowledgement of an earlier record remains premature and unconsumed.
-ActiveExchange never rolls back.
+after exact fixed-length final bytes or a semantically bodyless final head.
+Transfer-Encoding, chunked coding, trailers, and HTTP/1.1 transfer semantics
+remain rejected, while close-delimited responses finish only by closure; none
+can create evidence, permit, or successor. Full acknowledgement of an earlier
+record remains premature and unconsumed. ActiveExchange never rolls back.
 The HTTP/1.0 profile rejects CONNECT before publication through
 `UnsupportedHttp10ConnectDisposition`. Error precedence retains local
 capacity/zero-partial close; typed aggregate start-line byte/work and method

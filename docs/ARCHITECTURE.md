@@ -434,9 +434,24 @@ PROTOCOL_ERROR, and HEADERS self-dependency is stream PROTOCOL_ERROR.
 
 Unknown frames are bounded, incrementally drained, and state-neutral unless an
 enabled extension owns their type; they cannot interleave an active field
-block. Receive-credit accounting is separate from WINDOW_UPDATE emission so
-discarded padding can be credited internally while output is coalesced under
-rate and amplification limits. The scheduler preserves inbound field-block
+block. Each stream and the connection own independent
+`ReceiveCredit { advertised_remaining, reclaimed_unadvertised,
+update_in_flight }` ledgers. DATA, including its Pad Length and padding,
+immediately decrements both advertised windows. Application acknowledgement,
+padding discard, and policy discard increase only reclaimed-unadvertised
+credit; they never make that credit protocol-visible. A private
+`WindowUpdateOutput` may coalesce one generation-bound target with checked
+arithmetic, but first exposure moves its chosen increment in flight and freezes
+the exact 13-byte frame. Offsets 0 through 12 do not restore advertised credit;
+only acknowledgement of byte 13 atomically adds the frozen increment, while
+credit reclaimed during frozen output remains private for the next frame.
+Neither closure nor generation reuse can retarget a frozen stream update into a
+connection update. Closing a stream may cancel its unexposed stream update but
+preserves the independent connection ledger; an exposed update finishes exactly
+or transport failure abandons the connection without fabricated credit. Every
+increment satisfies `advertised_remaining + increment <= 2^31 - 1`.
+Coalescing remains bounded by rate and amplification limits. The scheduler
+preserves inbound field-block
 contiguity and treats a FramingCommitted outbound field block as its highest
 framing obligation through final END_HEADERS acknowledgement; its complete
 slot/entry set was pre-reserved, while mandatory-control capacity remains reserved

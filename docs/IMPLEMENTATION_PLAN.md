@@ -129,8 +129,23 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Each output token owns one immutable protocol-record/frame-slot suffix.
   Scalar or vectored transport adapters cannot combine records; exact completion
   runs one hook and any acknowledgement crossing the slot is InvalidState.
-- Internal receive-credit accounting is distinct from bounded, coalesced
-  WINDOW_UPDATE emission; padding cannot drive one control frame per DATA frame.
+- Give every stream and the connection an independent
+  `ReceiveCredit { advertised_remaining: i32, reclaimed_unadvertised: u32,
+  update_in_flight: u32 }`. DATA immediately decrements both advertised
+  remainders, including Pad Length and padding. Application acknowledgement,
+  padding discard, and policy discard increase only reclaimed-unadvertised
+  credit, so validation never treats credit as peer-visible before it is sent.
+  A generation-bound `WindowUpdateOutput` is None, Private, or Frozen. Private
+  output may coalesce one target with checked arithmetic; first exposure freezes
+  its exact 13 bytes and moves only that increment in flight. Acknowledged
+  offsets 0..=12 restore nothing; byte 13 alone atomically restores advertised
+  credit. New reclaimed credit remains separate for the next update, every
+  increment keeps the resulting advertised window at or below `2^31 - 1`, and
+  padding cannot drive one control frame per DATA frame. Stream closure can
+  cancel only unexposed stream output while preserving connection credit;
+  frozen output cannot retarget and must finish exactly or be abandoned with
+  the connection. Invalid/stale tokens and partial transport failure are
+  state-neutral for advertised credit.
 - Unknown HTTP/2 frames are bounded, incrementally drained, state-neutral, and
   unpublished unless an explicitly enabled extension owns their type.
 - Outbound framing is validated as strictly as inbound framing, including
@@ -464,7 +479,10 @@ one-byte shortage finishes synchronization and selects bounded shutdown, never
 truncation or partial semantics.
 Parse SETTINGS early but integrate header-table, initial-window, admission, and
 frame-size effects only after their owning components exist. Add borrowed DATA
-events with partial acknowledgement and credit release, then the outbound
+events with partial acknowledgement and private credit reclamation. Establish
+stream and connection receive-credit ledgers before activating coalesced
+WINDOW_UPDATE output; bind protocol-visible restoration to exact final-byte
+acknowledgement, then add the outbound
 HEADERS/DATA/trailers/END_STREAM command lifecycle before general scheduling.
 Stream flow control introduces signed available/reserved/committed accounting;
 connection flow control composes one atomic dual reservation; INITIAL_WINDOW_SIZE

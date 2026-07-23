@@ -4440,7 +4440,7 @@ on v0.111.0 (RST_STREAM frame codec) and must be independently trustworthy befor
 
 #### Deliverables
 
-- Acceptance contract: Require exactly four payload bytes and a nonzero reserved-bit-masked 31-bit increment, ignore unknown flags, and emit reserved bits as zero; map invalid length to connection FRAME_SIZE_ERROR, zero on stream zero to connection PROTOCOL_ERROR, and zero on a nonzero stream to stream PROTOCOL_ERROR before checked window mutation.
+- Acceptance contract: Require exactly four payload bytes and a nonzero reserved-bit-masked 31-bit increment, ignore unknown flags, and emit reserved bits as zero; map invalid length to connection FRAME_SIZE_ERROR, zero on stream zero to connection PROTOCOL_ERROR, and zero on a nonzero stream to stream PROTOCOL_ERROR before checked window mutation. Define the canonical exact 13-byte frame (nine-byte header plus four-byte increment), typed stream-or-connection target, and checked increment primitive reused by v0.133.0–v0.153.0; encoding never permits `advertised_remaining + increment > 2^31 - 1`.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4452,7 +4452,7 @@ on v0.111.0 (RST_STREAM frame codec) and must be independently trustworthy befor
 
 #### Verification
 
-- Test WINDOW_UPDATE codec and checked windows and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test WINDOW_UPDATE codec and checked windows and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cover stream zero/nonzero targets, reserved-bit masking/zeroing, increments zero/one/`2^31 - 1`, exact 13-byte encoding, and checked result overflow without mutation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5286,6 +5286,15 @@ on v0.132.0 (Cookie field combination and Set-Cookie preservation) and must be i
 
 - Acceptance contract: Maintain a checked signed send and nonnegative receive window per stream, charge the entire DATA payload before application publication or PendingConnect capacity disposition, including DATA received while AwaitingConnectOutcome, reject receive underflow with stream FLOW_CONTROL_ERROR, reject increment overflow with stream FLOW_CONTROL_ERROR, permit negative send windows after SETTINGS reduction, and mutate no connection window on a stream-only failure beyond required DATA accounting; capacity-triggered CANCEL does not restore stream credit before v0.136.0 owns discard/release.
 - Establish the outbound stream-credit ledger used by v0.137.0: distinguish checked peer-window availability, generation-bound unexposed reservations, and irrevocable committed debits. Reservable stream credit is the nonnegative remainder after unexposed reservations; no queued frame can reserve from negative availability. This milestone provides the stream-local reservation/commit/release primitive but exposes no DATA frame before v0.134.0 adds the matching connection transaction and v0.137.0 owns frame output.
+- Establish the inbound stream ledger as
+  `ReceiveCredit { advertised_remaining: i32,
+  reclaimed_unadvertised: u32, update_in_flight: u32 }`. Receiving DATA,
+  including Pad Length and padding, immediately decrements
+  `advertised_remaining` with stream FLOW_CONTROL_ERROR on underflow.
+  Consumption is not restoration: application acknowledgement and every
+  stream-level discard increase only `reclaimed_unadvertised`. No stream update
+  increment can be selected unless checked addition keeps the resulting
+  advertised window at or below `2^31 - 1`.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5297,7 +5306,7 @@ on v0.132.0 (Cookie field combination and Set-Cookie preservation) and must be i
 
 #### Verification
 
-- Test ordinary, PendingConnect, AwaitingConnectOutcome, capacity-reset, padding, END_STREAM, and receive-underflow stream-window accounting. Model available/reserved/committed outbound stream credit, negative windows, generation mismatch, exact reservation release, and no reservation from insufficient credit; create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Test ordinary, PendingConnect, AwaitingConnectOutcome, capacity-reset, padding, END_STREAM, and receive-underflow stream-window accounting. Test advertised/reclaimed/in-flight independence, padding-only DATA, every underflow prefix, checked update selection, stale generations, and state-neutral failure. Model available/reserved/committed outbound stream credit, negative windows, generation mismatch, exact reservation release, and no reservation from insufficient credit; create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5326,6 +5335,13 @@ on v0.133.0 (Stream flow control) and must be independently trustworthy before v
 
 - Acceptance contract: Maintain checked connection send/receive windows independently from every stream, charge every DATA payload including PendingConnect/AwaitingConnectOutcome bytes even when its stream is capacity-reset or later errors, reject connection-window underflow or increment overflow with connection FLOW_CONTROL_ERROR, apply WINDOW_UPDATE atomically, and expose backpressure without busy progress or hidden buffering; a stream-local CONNECT disposition never skips or double-restores connection accounting before v0.136.0 owns release.
 - Extend the outbound ledger with connection available/reserved-unexposed/committed-debited credit. Reserve one exact DATA frame's flow-controlled length atomically against both its stream and the connection or mutate neither and return flow-control backpressure. Competing streams cannot observe or spend another frame's reservation. Stream or connection WINDOW_UPDATE changes checked availability without refunding committed debit; a blocked frame may reserve only in a later deterministic scheduling transaction.
+- Add an independent connection `ReceiveCredit` ledger with the same three
+  fields as each stream. Every DATA frame debits connection
+  `advertised_remaining` even if stream validation, publication, reset, or
+  closure later takes a different path. Reclamation updates the stream and
+  connection ledgers independently: no stream update can consume, erase, or
+  become connection credit, and connection-only post-closure reclamation never
+  revives a stream ledger.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5337,7 +5353,7 @@ on v0.133.0 (Stream flow control) and must be independently trustworthy before v
 
 #### Verification
 
-- Test ordinary and pending CONNECT DATA across connection-window boundaries, stream reset, non-2xx, and END_STREAM without skipped/double accounting. Race multiple streams for the final connection octet and prove atomic dual reservation, losing-stream backpressure, generation isolation, checked WINDOW_UPDATE, and exact paired release/commit; create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Test ordinary and pending CONNECT DATA across connection-window boundaries, stream reset, non-2xx, and END_STREAM without skipped/double accounting. Cross every stream/connection advertised-window underflow prefix and prove the required error scope with no fabricated reclamation. Race multiple streams for the final connection octet and prove independent inbound ledgers, atomic outbound dual reservation, losing-stream backpressure, generation isolation, checked WINDOW_UPDATE, and exact paired release/commit; create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5403,8 +5419,17 @@ on v0.135.0 (SETTINGS initial-window active-stream integration and atomic rollba
 
 #### Deliverables
 
-- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked range; separately record flow-controlled payload length (including Pad Length and padding) and semantic DATA length (excluding both), route ordinary ranges to application Content-Length reconciliation but route CONNECT PendingConnect/AwaitingConnectOutcome/connected ranges only to stream-local bounded tunnel ownership with no application-content event; immediately add padding the application never sees to internal consumed-credit accounting for both stream and connection, permit partial acknowledgement while retaining the suffix, release credit only for acknowledged or policy-discarded octets, and coalesce WINDOW_UPDATE emission under independent threshold, rate, and amplification budgets; replace v0.130.0 capacity-reset-only handling with credit-aware backpressure where caller capacity exists, otherwise reset and release exactly once; keep acknowledgement, discard, cancellation, invalid outcome, non-2xx cleanup, generation, and credit local to that stream while preserving one terminal ordering across DATA, END_STREAM, reset, cancellation, and shutdown.
+- Acceptance contract: Treat each DATA delivery as a borrowed, generation-checked range; separately record flow-controlled payload length (including Pad Length and padding) and semantic DATA length (excluding both), route ordinary ranges to application Content-Length reconciliation but route CONNECT PendingConnect/AwaitingConnectOutcome/connected ranges only to stream-local bounded tunnel ownership with no application-content event; immediately add padding the application never sees to internal consumed-credit accounting for both stream and connection, permit partial acknowledgement while retaining the suffix, release credit only for acknowledged or policy-discarded octets, and coalesce WINDOW_UPDATE emission under independent threshold, rate, and amplification budgets; replace v0.130.0 capacity-reset-only handling with credit-aware backpressure where caller capacity exists, otherwise reset and release exactly once; keep acknowledgement, discard, cancellation, invalid outcome, non-2xx cleanup, generation, and credit local to that stream while preserving one terminal ordering across DATA, END_STREAM, reset, cancellation, and shutdown. “Release” here means moving exact octets into `reclaimed_unadvertised`, never increasing `advertised_remaining`: DATA already decremented both advertised ledgers before publication, and only the v0.153.0 full-frame output commitment makes an update peer-visible.
 - For a policy-rejected promised stream, DATA in reserved(remote) takes the v0.121.0 connection-PROTOCOL_ERROR path before discard accounting, including while its reset is Frozen with only 0..=12 bytes acknowledged; DATA after legal response HEADERS moved the stream to half-closed(local) is discarded with ordinary stream and connection credit. DATA+END_STREAM first charges/discards its full payload and padding, releases each stream/connection credit exactly once, then records remote closure. Only DATA after `ResetOutput::Complete` caused local closure, or after an independent remote closed-state race, consumes/restores connection-level credit alone and must never emit stream WINDOW_UPDATE.
+- Define `WindowUpdateOutput::{None, Private { target, generation,
+  increment }, Frozen { target, generation, increment, frame: [u8; 13],
+  acknowledged: 0..=12 }}`. Before exposure, same-target/same-generation
+  reclaimed credit may coalesce with checked arithmetic. First exposure moves
+  only the chosen increment from reclaimed to in-flight and freezes target,
+  generation, increment, and bytes without restoring advertised credit.
+  Reclamation during Frozen remains private for the next update. Stream closure
+  may cancel Private stream output, but preserves the independent connection
+  reclamation; Frozen finishes unchanged or the connection is abandoned.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5421,6 +5446,11 @@ on v0.135.0 (SETTINGS initial-window active-stream integration and atomic rollba
   shutdown, stream-slot reuse, all-padding tiny-frame churn, threshold crossing,
   coalescing, amplification-budget, PendingConnect capacity/non-2xx cleanup,
   and ordinary-versus-tunnel publication permutation.
+- Assert application acknowledgement, padding discard, and policy discard
+  mutate only reclaimed-unadvertised credit. Cross coalescing before and after
+  first exposure, reset/closure and connection-only post-reset reclamation,
+  stale tokens, and arithmetic ceilings; this milestone does not claim
+  advertised restoration before v0.153.0.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5695,6 +5725,13 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
 
 - Acceptance contract: Once HEADERS or PUSH_PROMISE begins without END_HEADERS, emit only CONTINUATION frames for that same stream until the block commits; flow-controlled DATA cannot block mandatory control output or runnable unrelated streams; reserve application-independent capacity for RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY; cancellation cannot strand a partially emitted HPACK block; deterministic tie-breaking and bounded starvation hold under continuous higher-priority arrivals; and SETTINGS frame-segmentation changes affect only uncommitted frames.
 - Scheduling a frozen mandatory-control record never regenerates it from live stream state. An outstanding token owns its offered range; after acknowledgement, schedule exactly the frozen unacknowledged suffix before record reclamation. Stream/tombstone generation changes cannot retarget a queued/frozen frame.
+- Schedule each `WindowUpdateOutput` as one exclusive protocol record.
+  FramingCommitted field-block output blocks its serialization while credit may
+  continue accumulating in the private ledger. Outside that obligation, first
+  non-empty exposure freezes exactly one stream-or-connection target,
+  generation, increment, and 13-byte frame. Later reclamation, stream closure,
+  reset, generation reuse, priority change, and other update demand cannot
+  replace its suffix or convert a stream update into a connection update.
 - Preserve each v0.137.0 END_STREAM frame's completion hook through scheduling and fragmentation: only acknowledgement of that frame's final byte can emit `LocalEndStreamComplete`. Priority changes, interleaved streams, CONTINUATION ownership, zero/short writes, cancellation, and connection failure cannot run the hook early or twice; command-level send sealing remains independent from wire-state transition.
 - Treat each unexposed DATA reservation as a linear scheduler capability bound to one stream generation, connection generation, immutable frame layout, and queue entry. Arbitration may revoke/release it before exposure; first exposure consumes it into a non-refundable debit. A Frozen ordinary frame owns connection framing until its suffix completes, so mandatory RST_STREAM waits behind that frame but ahead of later ordinary work. WINDOW_UPDATE or SETTINGS changes wake/revoke eligible reservations without allowing two streams to spend the same connection credit.
 - Make FramingCommitted `OutboundFieldBlock` the scheduler's highest framing obligation. Admission exposes its initial frame only after every worst-case-fragmented slot and queue entry through END_HEADERS is atomically reserved/materialized. From first initial-frame exposure through final-frame acknowledgement, select only its exact current suffix or next pre-reserved CONTINUATION; individual AcceptedPrivate disposition and later local capacity exhaustion cannot authorize supersession. All required control queues remain reserved but blocked behind that obligation. A connection-fatal protocol decision waits to emit GOAWAY until END_HEADERS if output remains usable; fatal transport failure abandons block, provisional HPACK transaction, and connection with no further bytes.
@@ -5729,6 +5766,11 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
   and connection-abandonment-only escape. Exhaust capacity before preflight and
   after FramingCommitted; prove zero exposure in the first case and guaranteed
   completion from already owned slots/entries in the second.
+- For stream and connection WINDOW_UPDATE records, cross FramingCommitted
+  blocking, first exposure, every acknowledged offset 0..=13, new reclamation
+  while Frozen, reset/closure/reuse, stale/cross-record tokens, zero/short
+  writes, and transport failure. Prove immutable suffix scheduling and no
+  advertised-credit mutation at offsets 0..=12.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6122,7 +6164,7 @@ on v0.151.0 (CONTINUATION bomb defenses) and must be independently trustworthy b
 
 #### Deliverables
 
-- Acceptance contract: Charge every WINDOW_UPDATE frame, checked increment, target lookup, scheduler wake, and coalesced emitted update before mutation; use saturating frame/work/output counters with deterministic injected-time refill, never refund churn because a stream closes, preserve valid zero/nonzero and overflow RFC dispositions, and treat budget exhaustion as local policy/resource followed by one bounded shutdown action rather than automatic peer PROTOCOL_ERROR.
+- Acceptance contract: Charge every WINDOW_UPDATE frame, checked increment, target lookup, scheduler wake, and coalesced emitted update before mutation; use saturating frame/work/output counters with deterministic injected-time refill, never refund churn because a stream closes, preserve valid zero/nonzero and overflow RFC dispositions, and treat budget exhaustion as local policy/resource followed by one bounded shutdown action rather than automatic peer PROTOCOL_ERROR. Outbound coalescing is permitted only while Private and only for the same target and generation. Select an increment with checked arithmetic satisfying `advertised_remaining + increment <= 2^31 - 1`; budget exhaustion may delay a private update but cannot merge targets, alter Frozen bytes, count reclaimed credit as advertised, or strand independent connection credit when a stream closes.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6134,7 +6176,7 @@ on v0.151.0 (CONTINUATION bomb defenses) and must be independently trustworthy b
 
 #### Verification
 
-- Test WINDOW_UPDATE churn defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test WINDOW_UPDATE churn defenses and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Exercise tiny acknowledgements and padding-only DATA around threshold/rate/amplification limits, checked same-target coalescing before exposure, reclamation after exposure, maximum-window arithmetic, stream closure, and independent connection progress; Frozen target/increment/bytes never change.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6162,6 +6204,20 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 #### Deliverables
 
 - Acceptance contract: Reserve independent fixed capacity for required RST_STREAM, SETTINGS ACK, PING ACK, WINDOW_UPDATE, and GOAWAY commands plus their partially committed bytes; application output cannot consume it, cancellation cannot discard it, and valid required replies cannot be silently dropped; when the relevant reserved queue or generation-safe slot is exhausted, coalesce where RFC-safe and otherwise commit exactly one terminal bounded shutdown action with no duplicate control frame. Reserve exactly one nine-byte ACK slot inside each validated `InboundSettingsTransaction`, never inside HPACK/window/admission/push/frame-size participants; retain transaction FIFO order and make that slot eligible only after all participants are Effective. First exposure freezes its bytes and token-bound suffix as AckFrozen; acknowledged offsets 0..=8 retain the slot, transaction, participant outcome, FIFO position, and each encoder obligation's received-ceiling snapshot plus optional selected delta. Only exact final-byte acknowledgement releases the slot, advances the wire-acknowledged ceiling to that snapshot, merges only that selected delta into `EncoderTableUpdateDebt`, and produces AckCommitted; later ACKs cannot commit first. Never put raw peer ceilings into debt, automatically enlarge selection, clear older debt, or let an ACK bypass profile/physical bounds. Duplicate/mixed entries still share the slot. Participant failure cancels before exposure; invalid/stale acknowledgement is state-neutral; transport failure at any frozen prefix marks uncommitted transactions AbortedConnection and exposes no dependent block. FramingCommitted defers ACK serialization; Private rollback restores any debt lease before a selected delta can merge. No subsystem can race an ACK, forge an acknowledged ceiling, fabricate debt, or clear unsignaled history.
+- Reserve WINDOW_UPDATE storage and queue ownership for both stream and
+  connection targets. Private owns a checked coalescible increment but no
+  protocol-visible credit. First exposure atomically subtracts that increment
+  from `reclaimed_unadvertised`, adds it to `update_in_flight`, and freezes the
+  exact 13-byte record. Acknowledgements 0..=12 retain the slot and change
+  neither `advertised_remaining` nor the frozen record. Acknowledgement of all
+  13 bytes atomically adds exactly `update_in_flight` to
+  `advertised_remaining`, clears that in-flight amount, reclaims the slot, and
+  leaves later reclaimed credit for the next Private record. Invalid, stale,
+  duplicate, cross-target, or overlong acknowledgement is state-neutral.
+  Partial transport failure abandons the connection and never fabricates
+  advertised credit. A Private stream record may be cancelled at closure
+  without cancelling independent connection credit; Frozen completes exactly
+  or is abandoned only with the connection.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6173,7 +6229,7 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 
 #### Verification
 
-- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte.
+- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6202,6 +6258,15 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
 
 - Acceptance contract: Replay every RFC 9113 frame, stream-state, continuation, flow-control, SETTINGS, GOAWAY, push, priority, HPACK, malformed-field, flood, and shutdown vector for both roles; require exact connection/stream error code, state delta, publication trace, control output, work charge, and interop transcript before the HTTP/2 pentest exit. Replay every inbound frame at local RST_STREAM acknowledgement offsets 0..=13 and require pre-completion legality, full-acknowledgement-only local closure, immutable first-closure attribution, remote-first completion behavior, and partial-failure non-completion evidence. For ordinary output, replay whole Private/FramingCommitted/HpackCommitted HEADERS and PUSH_PROMISE blocks plus every initial/CONTINUATION prefix against all SETTINGS_HEADER_TABLE_SIZE sequences, local fragment caps/mandatory prefixes/block-byte/continuation ceilings, resource exhaustion, peer MAX_FRAME_SIZE reduction, remote END_STREAM, peer/local reset, every control type, other streams, cancellation, GOAWAY, and transport failure; require exact debt merge after ACK commitment, Private lease and rollback-before-newer-merge, first-exposure transfer, immutable transmitted prefix through FramingCommitted, post-exposure following-block debt, exact FIFO ACK suffix commitment, no later stale encoding or dependent exposure through ACK byte eight, actual-cap slot/entry preflight, zero-exposure local oversized-field failure, final-frame-only table publication, independent initial END_STREAM hook, and connection-abandonment-only escape. Exhaust atomic stream+connection DATA reservations and caller-provided staging bytes across checked `9 + payload`, padding overhead/data selection, padding-only shortage/reduction policy, concurrent last-credit contenders, WINDOW_UPDATE, negative SETTINGS reductions, unexposed resegmentation/revocation, frozen debit, zero-length END_STREAM, peer maximum 16,777,215, local payload cap, and independent byte/entry exhaustion. Require every scalar/vectored `OutputToken` to own one slot suffix and reject cross-slot acknowledgement without mutation.
 - Audit combined-entry `InboundSettingsTransaction` products spanning HEADER_TABLE_SIZE, INITIAL_WINDOW_SIZE, MAX_FRAME_SIZE, MAX_CONCURRENT_STREAMS, ENABLE_PUSH, duplicates, unknowns, and enabled extensions in every wire order. Require one frame-wide ACK; generation-bound participants; FIFO ACK states; separate peer-received/peer-wire-acknowledged/selected/physical limits; per-frame ceiling snapshots and optional selected deltas; immediate reduction clamp/eviction; no automatic increase; selected-only debt for peer clamps, local policy changes, and initial-below-4096; safe decoder advertisement/activation; exact 0→4096 and 4096→0→4096 debt history across Private/exposure/CONTINUATION boundaries; stale-token neutrality; failure cleanup; and encoder/decoder table equivalence with no physical eviction lacking matching wire debt.
+- Audit stream and connection `ReceiveCredit` independently across DATA
+  validation, application acknowledgement, padding/policy discard, private
+  coalescing, first exposure, every WINDOW_UPDATE offset 0..=13, new
+  reclamation while Frozen, FramingCommitted blocking, reset/closure/reuse,
+  connection-only post-reset handling, stale tokens, 31-bit ceilings, and
+  transport failure. Require flow-control underflow at the exact offending
+  prefix, no advertised restoration through byte 12, one exact restoration at
+  byte 13, immutable target/increment/suffix, and no stream lifecycle loss or
+  transfer of independent connection credit.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8091,6 +8156,12 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 
 - Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator. Expose `OutboundFrameArena` only from exclusive caller storage, with generation-checked `OutboundFrameSlot`/`FrozenOutboundFrameSlot` ownership, independent queue-byte/entry sizing, nonzero `ResourceProfile::max_outbound_frame_payload`, and typed `OutboundFrameStorageCapacity`; no API sizes storage directly from peer MAX_FRAME_SIZE or permits caller access/reuse before supersession, full acknowledgement, or connection cleanup. `PartialDeliveryPreference`, `RequestedOverlapBudget`, `AssemblyInvalidationCapacity`, `PushedAssemblyProvenanceCapacity`, `StreamTrackingUnavailable`, `PushRejectionTrackingUnavailable`, `LeaseHeld`, and ordinary error values are freely constructible and confer no authority; caller-provided `VariantIdentityStorage` is constructible only from exclusive slices/sealed slots. Expose civil-time evidence, PendingConditionalRequest, CurrentRepresentationEvidence, WouldBe200Snapshot, request content/execution permits, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, and PartialCombinationPlan only with the sealed generation/lifetime constraints appropriate to authority-bearing evidence. The invalidation handle and pushed provenance remain non-Copy/non-Clone, exact promised-correlation-bound, independently leased from associated-stream storage, held through reserved push and terminal backpressure, and exactly-once released; no public operation duplicates, rebinds, substitutes peer identity, crosses associated requests, borrows recyclable associated-stream storage, or releases either early. Semantic invalidation is observable only as rejection and cannot shorten a lease or authorize physical reclamation. Expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` consumed whole by the selected engine, preserve the mandatory reserve, and keep raw request/response serializers and separable capability/data pairings non-public.
 - Public constructors reject overflow in `checked_add(9, max_outbound_frame_payload)`, zero/undersized `field_fragment_cap`, enabled mandatory-prefix shortage, inconsistent block/continuation capacity, ambiguous padding, and HPACK layouts whose checked logical physical capacity exceeds exclusive caller storage. `EncoderTableLimits`, received/acknowledged ceiling transitions, selected-capacity mutation, decoder advertisement proof, `InboundSettingsTransaction`, `PendingEncoderTableSizeTransition`, `EncoderTableUpdateDebt`, leases, AckCommitted promotion, debt merge/restore/transfer, and HPACK promotion remain engine-owned and non-constructible. Callers provide storage and policy preferences but cannot forge a larger physical capacity, select outside limits, acknowledge a peer ceiling, advertise unsafe decoder capacity, or expose ACK/debt authority. Public output acknowledgement accepts only one token-bound suffix.
+- Keep `ReceiveCredit`, `WindowUpdateOutput`, target/generation binding,
+  private-to-in-flight transfer, and advertised-credit commitment engine-owned
+  and non-constructible. Callers may acknowledge borrowed DATA and an exact
+  offered output suffix, but cannot directly reclaim or advertise credit,
+  choose/retarget an increment, acknowledge byte 13 without its token, merge
+  stream and connection ledgers, or revive a closed generation.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8170,6 +8241,12 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
 
 - Acceptance contract: Assign stable non-secret diagnostic codes to syntax, protocol scope/code, policy, capacity, cancellation, timeout, transport, and peer/local role; include bounded offsets/counters and generation identifiers, redact field/credential/compression/section contents, and emit each event once. Distinguish local `AssemblyInvalidationCapacity`, `PushedAssemblyProvenanceCapacity`, `StreamTrackingUnavailable`, `PushRejectionTrackingUnavailable`, and `OutboundFrameStorageCapacity`. For reset and ordinary output, separately record AcceptedPrivate/Frozen/Complete/SupersededBeforeExposure disposition, Private/FramingCommitted/HpackCommitted/AbandonedWithConnection field-block disposition, stream/block/slot generation, remaining CONTINUATION count, command/local-send seal, exposure, offered/acknowledged counts, outstanding token, completion hook, directional transition, remote/reset records, and immutable first-wire-closure cause. For DATA, record bounded arena/queue bytes and entries, local payload cap, staged slot length, stream/connection available, reserved-unexposed, committed-debited charge, and reservation generation without payload contents. Never report released reservation as debit, freed arena capacity as still owned, refund frozen debit, offered-but-unacknowledged bytes as written, partial/failing output as half-closed/closed, RemoteEndStream as a closure cause when it only produced HalfClosedRemote, or later completion as replacing a peer-first close. Record terminal/section/workspace dispositions without raw contents and preserve redaction/caller-scrub rules.
 - Distinguish Private/FramingCommitted/HpackCommitted/AbandonedWithConnection, transition/debt ownership, and SETTINGS disposition; separately report bounded peer-received ceiling, peer-wire-acknowledged ceiling, selected capacity, checked physical capacity, active profile cap, per-frame snapshot/selected-delta presence, ACK offset, debt smallest/final values, and decoder advertised/effective capacity without settings/header contents or raw storage addresses. Never conflate a ceiling with selection/debt, report an increase as selected, overstate physical storage, attribute ACK ownership to debt, report AckEligible/offset eight as committed, diagnose Private encoding as debt consumption, or hide eviction lacking a selected wire update.
+- For stream and connection receive flow control, separately report bounded
+  advertised remaining, reclaimed-unadvertised, update-in-flight, update target
+  kind/generation, Private/Frozen disposition, and acknowledged offset 0..=13.
+  Never report reclaimed or in-flight credit as advertised, offset 12 as
+  committed, a cancelled stream update as lost connection credit, a stale token
+  as progress, or a transport-failed prefix as window restoration.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8288,6 +8365,14 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
 
 - Acceptance contract: Maintain stateful fuzz targets for HTTP/1, HPACK, HTTP/2, Structured Fields, and translation with deterministic minimized replay. The HTTP/2 oracle spans ResetOutput × ordinary AcceptedPrivate/Frozen/Complete/Superseded output × `OutboundFieldBlock` Private/FramingCommitted/HpackCommitted/AbandonedWithConnection × initial/CONTINUATION position × exposure/acknowledgement × completion hook × HEADERS/PUSH_PROMISE/DATA/trailers/empty-DATA layout × arena slot/byte/entry ownership × peer/local payload limits × stream/connection available-reserved-committed credit × padding × every control queue × WINDOW_UPDATE/SETTINGS/resegmentation × token generations × every inbound frame × wire/closure/terminal/section state × peer/local reset/GOAWAY/failure/reuse. It asserts whole-block-only private supersession, END_HEADERS contiguity after FramingCommitted and final-frame-only HpackCommitted publication, no continuation/control interleaving, independent initial END_STREAM completion, connection-only abandonment, staged-byte immutability/no early reuse, typed independent byte/entry backpressure, peer-maximum framing under a small local cap, paired refund, no frozen refund/mutation, exact suffix and hook once, atomic no-oversubscription credit, full payload but no header charge, zero-length zero charge, negative-window blocking, directional legality, HPACK ownership, stable first cause, partial-failure non-completion, and no stranded state.
 - Add stateful transitions for every combined SETTINGS transaction plus `EncoderTableLimits`, transition obligations, and selected debt. Cross encoder/decoder caller arenas from unusable through 4096+, peer ceilings 0/4096/`u32::MAX`, profile boundaries, local policy changes without SETTINGS, increases before/after the relevant ACK byte nine, initial selected capacity below 4096, unsafe decoder advertisement/activation, every Private/exposure/CONTINUATION/debt boundary, rollback, backpressure, stale tokens, reset, GOAWAY, and failure. Assert all inequalities, immediate reduction/no automatic increase, exact per-frame acknowledged snapshots, selected-only debt, no eviction without matching update, correct first-block reduction, lease restoration/transfer, one ACK/fatal cancellation, and encoder/decoder table equivalence.
+- Add stateful `ReceiveCredit × WindowUpdateOutput` transitions for both target
+  kinds. Generate DATA/padding/acknowledgement/discard, checked private
+  coalescing, first exposure, all output offsets 0..=13, further reclamation,
+  FramingCommitted blocking, stream reset/closure/reuse, connection-only
+  post-reset paths, stale/cross-record tokens, flow-control underflow at every
+  prefix, and partial transport failure. Assert ledger conservation, the
+  31-bit ceiling, immutable Frozen bytes/target/increment, and final-byte-only
+  advertised restoration.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8328,6 +8413,12 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 
 - Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse/rebind civil-time evidence, `OutputToken`, `OutboundFrameSlot`, `FrozenOutboundFrameSlot`, CurrentRepresentationEvidence, WouldBe200Snapshot, RequestContentPermit, MethodExecutionPermit, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, PartialCombinationPlan, or `ResponseEmissionPermit`; prove callers can construct preferences/requested budgets/ordinary errors without authority and create `OutboundFrameArena`/VariantIdentityStorage only from exclusive slice/sealed-slot inputs; reject duplicate/stale/cross-generation output acknowledgement, access/mutation/reuse of staged arena bytes while AcceptedPrivate/Frozen/offered, slot duplication/rebinding, frozen-frame/reset substitution, early stream/tombstone reuse, invalidation-handle/provenance Copy/Clone/duplication/rebinding/early or double release/retry reuse, ordinary-to-pushed or cross-associated-request rebinding, peer-derived principal/partition/tenant/navigation substitution, associated-stream-borrowed provenance or reuse after associated-stream teardown, promised publication without atomic slot/handle/provenance/rejection-tracking reservation, tombstone release before cancellation/classification horizon, caller storage traits/trust constructors, alias/mutate/recycle/reissue while leased, semantic invalidation used to end a borrow or authorize slot reuse, unfenced DMA mutation, identity release then assembly admission, active-budget reset/enlargement/replacement, frozen-data substitution, wrong generation/domain/principal use, trailer decision changes, and fabricated outcomes.
 - Reject construction/rebinding of `EncoderTableLimits`, peer-ceiling snapshots, acknowledged-ceiling evidence, selected-capacity transitions, decoder-advertisement proof, `HpackEncoderTransaction`, SETTINGS/ACK transactions, `EncoderTableUpdateDebt`, or its lease. Reject selected > received/profile/physical, increases > wire-acknowledged ceiling, raw peer ceiling inserted as debt, automatic selection increase, eviction without selected update, unsafe decoder advertisement, AckCommitted before byte nine, duplicate/cross-block debt lease, rollback without exact restoration, early clearing/transfer, caller HpackCommitted, bound bypass, and cross-record acknowledgement.
+- Reject construction, cloning, copying, rebinding, or direct mutation of
+  `ReceiveCredit`, `WindowUpdateOutput`, update targets/generations, and
+  private/in-flight credit. Reject caller-selected increments, cross-target or
+  cross-generation acknowledgement, acknowledgement beyond the offered suffix,
+  advertised restoration before byte 13, frozen retargeting/substitution,
+  stream-to-connection conversion, and reuse after completion or abandonment.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8880,6 +8971,13 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
 
 - Acceptance contract: Measure maximum stack and minimal-feature code size, prohibit peer-controlled recursion, cap work per byte/frame and amplification, detect quadratic work, price one-byte fragmentation, verify scheduler fairness, and document Aesynx arena sizing. Replay `OutboundFrameArena` slot-byte and queue-entry exhaustion independently, every supported nonzero `max_outbound_frame_payload`, and peer MAX_FRAME_SIZE up to 16,777,215 while proving bounded local storage, typed local backpressure, no alias/reuse, and no loss of committed field-block progress.
 - Size each profile for encoder and decoder caller arenas, checked logical `physical_capacity` after metadata/alignment/entry overhead, selected/profile bounds, initial 4096 decoder safety, and every dynamic-table entry/eviction case. Separately size `EncoderTableLimits`, per-frame ceiling snapshots/optional selected deltas, SETTINGS/ACK records, one connection debt, at most one Private lease or transferred debt, FIFO metadata, and cleanup; peer `u32::MAX` never requires equivalent storage, mixed entries cannot multiply records unboundedly, and backpressured prefixes retain bounded ownership. Prove all `u32`/`usize` conversions and `9 + payload` arithmetic at target boundaries.
+- Size one connection and the configured maximum stream `ReceiveCredit`
+  ledgers, independent bounded private/frozen WINDOW_UPDATE records, their
+  exact 13-byte storage, generations, counters, and reserved queue entries.
+  Prove padding-only and one-octet reclamation cannot force unbounded output,
+  frozen prefixes retain bounded ownership, and all coalescing, `i32`/`u32`,
+  31-bit-window, and profile-count arithmetic is checked on 32- and 64-bit
+  targets.
 - Preserve the phase invariant: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

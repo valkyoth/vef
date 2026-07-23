@@ -117,7 +117,19 @@ second transition. Remote END_STREAM received in Open creates
 half-closed(remote), so a later completed local reset performs the close and owns
 its cause. Connection failure records only acknowledged bytes and no incomplete
 local-reset transition; tolerated DATA
-after actual closure restores connection credit without stream WINDOW_UPDATE.
+after actual closure reclaims only connection credit without stream
+WINDOW_UPDATE. Reclaimed receive credit is never the advertised receive window:
+each stream and the connection separately track advertised remaining,
+reclaimed-unadvertised, and update-in-flight credit. DATA including padding
+decrements advertised remaining immediately. Acknowledgement or discard changes
+only reclaimed-unadvertised credit until a generation-bound, exact 13-byte
+WINDOW_UPDATE has been acknowledged in full. Prefixes through byte 12 restore
+nothing; byte 13 atomically restores only its frozen increment. Further
+reclamation accumulates for a later update, and checked arithmetic prevents a
+result above `2^31 - 1`. An unexposed stream update may be cancelled on closure
+without losing independent connection credit; an exposed update cannot change
+target or increment and either completes exactly or is abandoned with the
+connection. Stale tokens and partial transport failure fabricate no credit.
 For normal outbound HEADERS, DATA, trailers, or empty DATA carrying END_STREAM,
 command acceptance seals later application sends but leaves wire state intact.
 Only acknowledgement of the complete carrying frame emits

@@ -135,11 +135,15 @@ explicit close, keep-alive, and fallback-close state cannot construct or
 substitute either HTTP/1.1 proof variant. Local builders return zero-output
 `UnsupportedVersionMethod`. Only a completely validated HTTP/1.0 CONNECT with
 authority-form target can mint role-specific
-`UnsupportedHttp10ConnectDisposition`. Local capacity remains local; target
-byte/work limits retain 414, field byte/count/section/work limits retain 431,
-and syntax/framing/CONNECT-content failures retain 400. Authority-form is
-recognized only for unsupported-CONNECT classification and never becomes
-application-visible HTTP/1.0 grammar.
+`UnsupportedHttp10ConnectDisposition`. Local capacity remains local. Aggregate
+start-line byte/work and method-token limits retain a typed peer-limit close
+with bounded 400 only when a trusted HTTP/1.0 version and reserve are already
+available; malformed or overlong version closes without version-assuming
+output. A target within its own cap that overflows the aggregate line remains a
+start-line limit. Target-only limits retain 414, field byte/count/section/work
+limits retain 431, and syntax/framing/CONNECT-content failures retain 400.
+Authority-form is recognized only for unsupported-CONNECT classification and
+never becomes application-visible HTTP/1.0 grammar.
 Receiving servers, proxies, intermediaries, and gateways atomically reserve the
 fixed 70-byte `HTTP/1.0 501 Not Implemented` response and mandatory close before
 publishing the disposition. That response contains only `Connection: close`
@@ -267,7 +271,7 @@ HTTP version, role, message/request generation, and connection generation.
 HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
 pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`,
 `ValidatedHttp10KeepAlive`, `CommittedHttp10KeepAliveHead`, and
-`Http10ReusePermit`; and
+`CorrelatedHttp10KeepAliveRequest`, and `Http10ReusePermit`; and
 either-version intermediary stripping consume that same evidence. None reparses
 or renormalizes raw fields, and no semantic refinement crosses versions.
 Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
@@ -278,8 +282,12 @@ message-bound. Origin requests, client responses, and intermediary upstream
 responses have distinct candidate dispositions; proxy/gateway downstream
 requests are always close and invalid role/direction pairs are rejected.
 Default-close clients emit `Connection: close` on requests and default-close
-servers/intermediaries emit it on responses. Persistence is two-sided:
-received current-message evidence must pair with an exact local
+servers/intermediaries emit it on responses. Persistence is two-sided. For a
+client/proxy-upstream response, the oldest matching HeadCommitted request is
+correlated first and its local signal is transferred into the response
+lifecycle before unmatched signals are revoked; missing or ambiguous
+correlation closes. Received current-message evidence must pair with that exact
+local
 `Connection: keep-alive` head that reached `HeadCommitted`, and both message
 lifecycles must complete before one reuse permit is minted. Clients and
 proxy-upstream legs pair local requests with received responses; origins pair
@@ -290,7 +298,14 @@ while a head is `AcceptedPrivate` rewrites and revalidates that current head
 with close. After `Frozen`, output remains immutable, every successor is
 prohibited, and the current message finishes only when possible before close;
 a client receiving a response without keep-alive emits no next request.
-HTTP/1.0 never pipelines.
+The only successor edge atomically moves `Reusable { permit }` to
+`ActiveExchange { next_exchange_generation }` after preflighting every slot,
+correlation owner, parser/output capacity, request-count/work budget, and idle
+deadline. It consumes and decrements the permit once. Client request acceptance/
+exposure and server input consumption cannot precede it. Full final-response
+acknowledgement may admit same-call input; zero/short leaves it premature and
+unconsumed, capacity preserves permit/input, expiry closes, and admitted work
+never rolls back to Reusable. HTTP/1.0 never pipelines.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
 when the target URI has no authority, but syntax alone is non-routable. Before
 application publication, role policy authorizes target form and derives an

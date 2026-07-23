@@ -401,7 +401,8 @@ Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
 `ValidatedConnectionOptions` retaining the exact HTTP version. HTTP/1.1
 persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`,
-`CommittedHttp10KeepAliveHead`/`Http10ReusePermit`, and either-version
+`CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
+`Http10ReusePermit`, and either-version
 intermediary stripping consume that one result. HTTP/1.0
 persistence candidates are distinct for origin-received requests,
 client-received responses, and proxy/gateway-received upstream responses;
@@ -409,7 +410,10 @@ proxy/gateway downstream requests always close, invalid role/direction pairs
 fail. Keep-alive reuse requires both the exact current received-peer signal and
 the corresponding local request/response keep-alive head fully committed, with
 both message lifecycles complete. Client and proxy-upstream request/response
-pairing is distinct from origin received-request/committed-response pairing.
+pairing first moves the oldest matching HeadCommitted request signal into a
+response-owned `CorrelatedHttp10KeepAliveRequest`, then revokes unmatched
+signals; missing or ambiguous correlation closes. This is distinct from origin
+received-request/committed-response pairing.
 Every proxy hop negotiates independently and stripping forwards no signal or
 authority. A newly admitted received message atomically revokes older evidence
 and permits. Persistence loss rewrites only `AcceptedPrivate` output with close;
@@ -418,11 +422,20 @@ successor, finish only the current legal output, and close. A client receiving
 a non-keep-alive response emits no next request. No path pipelines. Later
 consumers neither reparse nor renormalize raw fields or substitute authority
 across versions, roles, directions, hops, or generations.
+The sole successor transition preflights next-exchange, correlation, parser,
+output, count/work, and deadline resources before atomically consuming one
+`Http10ReusePermit` and minting a fresh generation. Client/proxy-upstream
+request acceptance/exposure and origin/server input consumption require it.
+Full final-response acknowledgement can complete and admit same-call input;
+zero/short is premature and wholly unconsumed, capacity keeps permit/input
+intact, expiry closes, and ActiveExchange never rolls back.
 The HTTP/1.0 profile rejects CONNECT before publication through
 `UnsupportedHttp10ConnectDisposition`. Error precedence retains local
-capacity/zero-partial close, request-target byte/work 414, field
-byte/count/section/work 431, syntax/framing/content 400, and only then the fixed
-501 for a fully bounded valid authority-form HTTP/1.0 CONNECT. Authority-form
+capacity/zero-partial close; typed aggregate start-line byte/work and method
+limits; overlong/malformed-version close; request-target byte/work 414; field
+byte/count/section/work 431; syntax/framing/content 400; and only then the fixed
+501 for a fully bounded valid authority-form HTTP/1.0 CONNECT. A target within
+its own cap can still select aggregate start-line limit. Authority-form
 recognition is classification-only. Local builders return zero-output
 `UnsupportedVersionMethod`. Receivers atomically reserve the exact fixed
 70-byte `HTTP/1.0 501 Not Implemented` response and mandatory close, suppress
@@ -849,10 +862,12 @@ Configuration intent alone is insufficient. HTTP/1.0
 `ValidatedConnectionOptions` may refine only through the matching current
 role/direction-bound `Http10PersistenceDisposition` to received-peer
 `ValidatedHttp10KeepAlive`. Reuse additionally consumes an exact
-`CommittedHttp10KeepAliveHead` from the corresponding local message and only
-after both lifecycles complete. A newer received message revokes both signals
-and any unconsumed permit. Proxy/gateway downstream requests never refine,
-proxy hops never forward signals, and no HTTP/1.0 permit authorizes pipelining.
+`CommittedHttp10KeepAliveHead` transferred by exact oldest-request correlation,
+or from the corresponding local response, and only after both lifecycles
+complete. A newer received message revokes unmatched signals but not the exact
+signal owned by its correlated response. Proxy/gateway downstream requests
+never refine, proxy hops never forward signals, and no HTTP/1.0 permit
+authorizes pipelining.
 These types grant no close-proof, optimistic-CONNECT, or HTTP/1.1 Upgrade
 authority.
 HTTP/2 ordinary CONNECT reuses PendingConnect. Missing HTTP/1 close proof is a

@@ -45,6 +45,10 @@ not enter the production dependency graph.
   connection-fatal decisions stop application publication and reserve exactly
   one bounded GOAWAY action.
 - Every source file remains below 500 lines.
+- A detailed implementation-stop section remains at or below 15,360 Unicode
+  scalar values excluding its `###` heading. Exceeding that reviewability cap
+  requires dependency-ordered patch stops; a smaller section still splits when
+  it contains independently reviewable primary capabilities.
 - Fuzz/model harnesses begin with hostile surfaces; final campaigns replay and
   expand them rather than creating them for the first time.
 
@@ -3029,8 +3033,10 @@ Status: planned
 
 #### Goal
 
-Deliver **Explicit HTTP/1.0 keep-alive extension profile** as the sole primary capability in this stop. It builds
-on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustworthy before v0.76.0 (Separate vef-http09 package and exact grammar) begins.
+Deliver the **HTTP/1.0 keep-alive evidence, role matrix, and reuse decision**
+slice as the sole primary capability in this stop. It builds on v0.74.0
+(HTTP/1.0 default-close lifecycle) and must be independently trustworthy before
+v0.75.1 (Bounded HTTP/1.0 successor-admission work) begins.
 
 #### Deliverables
 
@@ -3039,6 +3045,38 @@ on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustwor
 - Define total reuse resolution after both lifecycles terminate over optional generation-bound evidence. Its fixed precedence remains correlation, policy, framing, configured-zero, exhausted ledger, missing negotiation, deadline arithmetic, then reuse. Record the result independently as `Http10ReuseResolutionRecord::{Reuse { provisional_permit: Http10ReusePermit }, ReuseRevokedByInterrupt { resolved: ResolvedHttp10ReuseIdentity }, Close { reason: Http10ReuseCloseReason }, SkippedByInterrupt}`. Only `Reuse` consumes both signals; `ReuseRevokedByInterrupt` destroys all permit/deadline authority while retaining non-authoritative identity for diagnostics. Every close reason remains reachable. Resolution never constructs Reusable. A proxy resolves each hop independently; received keep-alive evidence is never forwarded or rebound.
 - `Http10TerminalDecision { reuse_resolution, terminal_interrupt: Option<Http10CompletionFirstCause> }` stores only the two independent facts. It has no final-state field, cache, constructor input, or mutable shadow authority. Its sealed `planned_final_state(&self) -> Http10PlannedFinalState` exhaustively matches both fields immediately before publication; `Http10PlannedFinalState::{PublishReuse, PublishClose}` is an ephemeral result, never retained authority, and only `Reuse { provisional_permit }` plus `None` returns `PublishReuse`. Every Close, SkippedByInterrupt, ReuseRevokedByInterrupt, or accepted interrupt returns `PublishClose`. A Close(NegotiationUnavailable) followed by TransportFailure retains both facts. An interrupt after successful resolution records ReuseRevokedByInterrupt rather than erasing success. Only final publication consumes that exhaustive result to construct the actual connection state.
 - The role × direction matrix remains exact. `IntermediaryDownstreamClose` for a proxy or gateway received request can never refine. `OriginRequestCandidate` may refine only for the origin's downstream connection. `ClientUpstreamCandidate` may refine only for the client's server connection. `IntermediaryUpstreamCandidate` may refine only for the proxy/gateway upstream connection after a received response. `InvalidRoleDirection` never refines. Every allowed received path additionally requires recognized `keep-alive` with no winning `close`, explicit local support, self-delimited framing and completed message lifecycle, Content-Length where closure would otherwise delimit, remaining request-count/idle-time budget, and exact connection/message generations. After the correlation transfer above, admission of a newer received message atomically revokes the prior disposition, `ValidatedHttp10KeepAlive`, every unmatched committed-local signal, and any unrelated unconsumed reuse permit; the correlated signal owned by that exact response remains until pairing or terminal cleanup. Loss of persistence uses the exact v0.74.0 `AcceptedPrivate`/`Frozen`/`HeadCommitted`/`MessageCommitted` close boundary; never defer close signaling to a hypothetical successor. No HTTP/1.0 keep-alive path enables pipelining. These types authorize only their exact HTTP/1.0 per-hop lifecycle. They cannot construct `ReceivedValidatedCloseOption`, authorize optimistic CONNECT, bind HTTP/1.1 Upgrade, or substitute evidence across roles, directions, hops, versions, connections, exchanges, heads, or generations. HTTP/1.0 CONNECT retains the v0.73.0 typed rejection in every matrix cell.
+
+#### Verification
+
+- Exhaust the role × direction × hop matrix, correlation order, framing
+  eligibility, configured allowance, stale-generation revocation, and every
+  close reason. Prove that only two exact committed signals can select reuse.
+- No test may require v0.75.1 admission-work or later-version capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The HTTP/1.0 keep-alive evidence, role matrix, and reuse-decision contract has
+reproducible evidence; v0.74.0 still passes; no behavior assigned to v0.75.1 is
+claimed; the active resource profile passes; and no critical/high finding is
+open.
+
+`0.75.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.75.1 — Bounded HTTP/1.0 successor-admission work
+
+Status: planned
+
+#### Goal
+
+Deliver bounded successor-command admission, irreversible dual-ledger charging,
+structurally scoped work windows, exact generic outcomes/receipts, and terminal
+poison behavior. It builds on v0.75.0 and must be independently trustworthy
+before v0.75.2 (Atomic HTTP/1.0 exchange reservation and publication) begins.
+
+#### Deliverables
+
 - Define the sole successor-admission edge as `Http10ConnectionState::Reusable { permit: Http10ReusePermit } -> ActiveExchange { next_exchange_generation, completion_binding, reuse_remaining_snapshot, local_persistence_mode, admission_attempt_work_consumed }`. Its total result is `Http10SuccessorAdmissionOutcome::{Admitted, RejectedLocalCommand { reason: Http10LocalCommandReason }, RetryableCapacity { reason: Http10CapacityReason }, CloseLocal { reason }}`. Each call checked-allocates a fresh non-wrapping `attempt_generation` before command inspection or work-ledger mutation, then creates private `AdmissionAttempt<'command> { attempt_generation, cursors: AdmissionProgressCursors, command: &'command Command, state: AdmissionAttemptState }`. The attempt stores the actual immutable command view, not `PhantomData`, exposes no raw command getter, and is the sole engine-side owner from which bounded work windows derive data; validation stages never receive a parallel unbounded `&Command`, slice, or iterator. Exhaustion selects local `AdmissionAttemptGenerationExhausted`, inspects no command byte, leaves both work ledgers and every cursor unchanged, creates no attempt/work permit/window/receipt, and closes without wrap. `RejectedLocalCommand` covers invalid method/target/ordered fields, illegal framing, semantic invalidity, and conflicting caller `Connection`; `RetryableCapacity` remains capacity-only. Before either reason-only result returns, the attempt destroys every cursor and releases the command borrow. The permit/deadline/ledger/output/structural state remains in `Reusable`, but a retry always checked-allocates a distinct attempt generation, creates new zeroed cursors, and recharges every repeated unit against the unchanged permit budget and non-resetting cumulative ledger, even if the caller reuses or mutates the same buffer. Cross-call progress retention is forbidden unless the engine owns an immutable exact command copy; this reason-only API intentionally retains no such copy.
 - Store non-Copy `Http10AdmissionAttemptBudget { permit_generation, configured_max, remaining, consumed }` inside each provisional/published permit. Initialize it exactly once when the provisional permit is created, transfer it unchanged into `Reusable`, and never reset it across rejection or capacity retries. Also maintain engine-owned connection-lifetime `Http10AdmissionCumulativeLedger { connection_generation, configured_max, remaining, consumed }`, initialized once when the connection is created and never reset by a new permit. Preserve `configured_max == remaining + consumed` for each ledger with checked arithmetic.
 - Define sealed granular `AdmissionWorkKind::{CommandBase, MethodByte, TargetByte, FieldEntry, FieldByte, FramingStep, SemanticRule, CloseInjectionByte, OutputPreflightByte, ReservationComponent}` and engine-only `AdmissionWorkChargeSpec { kind, units }`. The fixed schedule maps each kind to checked `(base_cost, per_unit_cost)` and derives `cost = base_cost + per_unit_cost * units`; callers can construct neither kind nor spec and select neither units nor cost. Unit derivation is itself O(1): it reads only attempt-local stored bounded lengths/counts and monotonic cursors, never traverses an iterator or scans bytes to discover a future charge. Access to each field entry is charged before that entry is inspected. Each bounded processing step selects `n` from stored metadata and charges `n`; all governed access then occurs only through a bounded window exposing at most those `n` units. Early rejection never refunds unprocessed charged units. A retry has new zeroed cursors and cannot reuse any prior attempt's work authority. No scan, field traversal, output byte, reservation component, unit-discovery traversal, or repeated retry may occur outside a charge and its window.
@@ -3047,9 +3085,73 @@ on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustwor
 - Define exact `AdmissionWindowOutcome<R, E>::{Completed { value: R, receipt: AdmissionWorkReceipt }, Aborted { error: E, receipt: AdmissionWorkReceipt }}`. On `Ok(value)` or `Err(error)`, the method consumes its owned window, copies internally maintained progress within the preflighted cursor range, updates the attempt cursor, creates exactly one receipt, and returns the matching variant so closure result and receipt cannot separate. Poisoning is not a third outcome variant: impossible guard/window corruption returns separate typed terminal `AdmissionWindowTerminalError::Poisoned(AdmissionWorkWindowInvariantFailure)`, after `AdmissionAttemptState::Poisoned` burns the charge, advances no cursor, emits no receipt, forbids further work/admission, and closes without refund. Private `finish()` accepts no caller count and performs no fallible arithmetic.
 - Supported production profiles use abort-only panic behavior; unwinding is never a recovery or successful-finalization path. If an unwind-enabled test profile is retained, a test-only outer harness catches after the private guard's unwind cleanup poisons the attempt, burns the charge, emits no Completed/Aborted receipt, and requires the same typed local invariant close before any further work. Core correctness never depends on catching a panic.
 - The non-authoritative diagnostic is `AdmissionWorkReceipt { attempt_generation, cursor_kind, cursor_before, cursor_after, kind, charged_units, processed_units, cost, permit_generation, connection_generation, permit_consumed_after, connection_consumed_after }`. Construction copies preflight-bounded values, so `processed_units == cursor_after - cursor_before <= charged_units` and `cursor_after <= cursor_limit` hold without finish-time failure; no receipt can contain inconsistent cursor fields. It retains no borrow, cursor, window, permit, command contents, or work authority. A stale, cross-attempt, duplicated, or reused permit/window cannot inspect data, take a unit, finalize, advance a cursor, or produce a receipt. Successful admission transfers ledger totals without recharge; receipts never authorize work or state transitions.
+
+#### Verification
+
+- Test attempt/cursor generation exhaustion, zero/one/maximum bounded units,
+  atomic dual-ledger charging, every reason-only retry, and stale authority.
+- Positively compile owned `R`/`E`; compile-fail every `'scope`-derived window,
+  slice, iterator-item, or other borrow escape. Cross Completed, Aborted,
+  poison, abort-only production panic, and optional unwind-test cleanup.
+- No test may require v0.75.2 reservation behavior or later-version capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The bounded HTTP/1.0 successor-admission work contract has reproducible
+evidence; v0.75.0 still passes; no behavior assigned to v0.75.2 is claimed; the
+active resource profile passes; and no critical/high finding is open.
+
+`0.75.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.75.2 — Atomic HTTP/1.0 exchange reservation and publication
+
+Status: planned
+
+#### Goal
+
+Deliver all-or-nothing initial/successor reservation and Active publication as
+the sole primary capability. It builds on v0.75.1 and must be independently
+trustworthy before v0.75.3 (HTTP/1.0 completion interrupts and same-call reuse)
+begins.
+
+#### Deliverables
+
 - Before transition, transactionally assemble role-specific `Http10NextExchangeReservation::{Client { request: PendingHttp10SuccessorRequest, private_output, correlation, resources }, Server { parser, local_persistence_mode, correlation, resources }}`. Shared resources include records, parser/event/output leases, tentative count debit, parser reserve, deadline snapshot, checked exchange generation, and a checked non-wrapping completion generation. The reservation seals both into `Http10CompletionBinding { connection_generation, exchange_generation, completion_generation }`. The event lease covers the largest terminal event. Initial construction uses `Http10InitialExchangeReservation::{Client { request: PendingHttp10InitialRequest, private_output, resources }, Server { parser, resources }}` and reserves the identical slot and completion binding before initial Active publication, including configured-zero/default-close.
 - Initial failure is role-total: Client retains no command borrow, accepts/exposes no request byte, leaves private output unchanged, and publishes no connection/exchange/completion generation; Server leaves input wholly unconsumed and likewise publishes no generation. Both release every tentative record, lease, count/work reservation, event slot, completion binding, and connection-ledger owner exactly once. Every reservation is all-or-nothing; completion-generation exhaustion fails before command/input acceptance or output exposure, and no Active state exists without its future completion binding. Cancellation or abandonment invalidates the reserved binding before slot reuse; a later occupant receives a distinct non-wrapping generation, so every stale binding remains neutral. One-short capacity preserves preexisting state apart from already atomically charged work. Successor construction also validates policy, deadline/binding, ledger count, and checked generations; terminal reasons close locally without peer blame.
 - On `Admitted`, atomically consume the reservation and permit; commit only the tentative request/exchange-count debit; install records, leases, and the parser-work reserve; transfer the already-consumed admission-attempt total into `ActiveExchange { next_exchange_generation, completion_binding, reuse_remaining_snapshot, local_persistence_mode, admission_attempt_work_consumed }` without recommit or recharge; decrement the reuse ledger once; install generation/mode; then publish. Initial admission installs the same reserved binding. Capacity rollback retains the exact deadline and modified attempt budget but invalidates any abandoned reservation binding. No structural fallibility remains after publication.
+
+#### Verification
+
+- Cross initial/client/server and successor reservations at one-short, exact,
+  and excess capacity; check generation exhaustion, cancellation, rollback,
+  stale-slot reuse, single ledger decrement, and no post-publication fallibility.
+- No test may require v0.75.3 completion-interrupt behavior or later-version
+  capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The atomic HTTP/1.0 exchange-reservation/publication contract has reproducible
+evidence; v0.75.1 still passes; no behavior assigned to v0.75.3 is claimed; the
+active resource profile passes; and no critical/high finding is open.
+
+`0.75.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.75.3 — HTTP/1.0 completion interrupts and same-call reuse
+
+Status: planned
+
+#### Goal
+
+Deliver completion-phase ownership, interrupt attribution, terminal
+publication, and the exact same-call reuse boundary. It builds on v0.75.2 and
+must be independently trustworthy before v0.76.0 begins.
+
+#### Deliverables
+
 - `ActiveExchange` exclusively owns its records/evidence/leases and the already-reserved `Http10CompletionBinding`. Entering Completing moves that binding infallibly; it performs no generation allocation. `Http10CompletingPhase::{Resolving, DecisionHeld { terminal_decision }, Reclaiming { terminal_decision, reclamation_state }, PublicationPending { publication }}` retains it in every phase. Define `Http10CompletionInterrupt { binding, cause: Http10CompletionInterruptCause }`, where causes are `IdleDeadlineReached { permit_generation, deadline_generation, observed_now }`, `PolicyRevoked { policy_generation }`, `TransportFailure { transport_generation, cause }`, `LocalClose { close_command_generation }`, and `Cancellation { cancellation_generation }`. Every cause must match the common binding before cause-specific evidence is inspected or latched. Stale/wrong-binding LocalClose, Cancellation, PolicyRevoked, deadline, and transport notifications are state-neutral during every phase, after final publication, after successor admission, and after reservation-slot reuse.
 - The first exact valid interrupt is immutably latched in `Http10CompletionFirstCause`; same-call ties retain precedence TransportFailure, PolicyRevoked, IdleDeadlineReached, LocalClose, Cancellation. Exact deadline equality expires. In Resolving, an accepted interrupt records SkippedByInterrupt. In DecisionHeld/Reclaiming, Close reasons remain unchanged while the interrupt is added; Reuse is destroyed and becomes ReuseRevokedByInterrupt. PublicationPending updates the two fact records and its reserved event in place, then calls the exhaustive final-state method again; it stores no planned-state authority. Every phase remains capacity-infallible, never reruns resolution/reclamation, and cannot publish expired/revoked reuse.
 - The combined-call fast path exists only when acknowledgement causes exact outbound HTTP/1.0 `MessageCommitted`: the final promised fixed-length body byte or semantically bodyless final head. Chunked/trailered and nonfinal records have no positive path. Same-call successor input remains wholly unconsumed throughout `Completing`; only an infallibly published `Reusable` may run role-specific admission. Invalid, zero, short, or nonfinal acknowledgement is `PrematureHttp10Successor`; close also leaves input unconsumed. Across resolution, pending-publication backpressure, immediate admission, cancellation, and repeated hooks there is at most one decision, permit, ledger decrement, terminal event/state publication, and successor publication. `ActiveExchange` never rolls back.
@@ -3074,12 +3176,12 @@ on v0.74.0 (HTTP/1.0 default-close lifecycle) and must be independently trustwor
 
 #### Exit criteria
 
-The Explicit HTTP/1.0 keep-alive extension profile contract and all previously implemented relevant behavior have
-reproducible evidence; v0.74.0 (HTTP/1.0 default-close lifecycle) still passes; no behavior assigned to v0.76.0 (Separate vef-http09 package and exact grammar) is
+The HTTP/1.0 completion-interrupt and same-call-reuse contract and all previously implemented relevant behavior have
+reproducible evidence; v0.75.2 (Atomic HTTP/1.0 exchange reservation and publication) still passes; no behavior assigned to v0.76.0 (Separate vef-http09 package and exact grammar) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.75.0 implementation stop reached. Run pentest for this exact commit.`
+`0.75.3 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.76.0 — Separate vef-http09 package and exact grammar
 
@@ -3088,7 +3190,7 @@ Status: planned
 #### Goal
 
 Deliver **Separate vef-http09 package and exact grammar** as the sole primary capability in this stop. It builds
-on v0.75.0 (Explicit HTTP/1.0 keep-alive extension profile) and must be independently trustworthy before v0.77.0 (Explicit HTTP/0.9 client API) begins.
+on v0.75.3 (HTTP/1.0 completion interrupts and same-call reuse) and must be independently trustworthy before v0.77.0 (Explicit HTTP/0.9 client API) begins.
 
 #### Deliverables
 
@@ -3114,7 +3216,7 @@ on v0.75.0 (Explicit HTTP/1.0 keep-alive extension profile) and must be independ
 #### Exit criteria
 
 The Separate vef-http09 package and exact grammar contract and all previously implemented relevant behavior have
-reproducible evidence; v0.75.0 (Explicit HTTP/1.0 keep-alive extension profile) still passes; no behavior assigned to v0.77.0 (Explicit HTTP/0.9 client API) is
+reproducible evidence; v0.75.3 (HTTP/1.0 completion interrupts and same-call reuse) still passes; no behavior assigned to v0.77.0 (Explicit HTTP/0.9 client API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -3287,8 +3389,8 @@ on v0.80.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently tru
 
 #### Deliverables
 
-- Acceptance extension: Audit v0.75.0 as one causal product: exact generic `AdmissionWindowOutcome<R,E>` couples value/error to receipt; a separate terminal error owns poison; and the callback separates the structural `'attempt` lifetime from the higher-ranked temporary `'scope` reborrow, which cannot escape through `R` or `E`. Treat lifetime conflation or weakening, outcome/receipt separation, poison encoded as an ordinary abort, closure-returned window/slice/iterator/item borrows, production unwind recovery, unwind represented as Completed/Aborted, missing poison on test unwind, movable/forgettable owned windows, finish-time arithmetic, parallel raw access, or uncharged/quadratic traversal as release-blocking.
-- Acceptance contract: Close every applicable RFC 1945/6455/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on divergent framing, publication, close, capacity, or bounded-work results. Audit the complete HTTP/1 causal product: the sole version-neutral `Connection` lexer; v0.74.0/v0.75.0 role × direction persistence matrix; two-sided per-hop signals and response-correlation-first transfer; configured-max/remaining ledger; delayed-role persistence mode; total exactly-once reuse resolution; validated client command and role-specific successor reservation; reason-only rejection/capacity with irreversible attempt work; permit-exclusive deadline; atomic completion event/state publication and terminal reclamation; checked generation exhaustion; bodyless/fixed-only same-call boundary; negative framing; cancellation/duplicate-hook serialization; and no pipelining. Also audit the HTTP/1 commitment/FIFO/100/early-final/disposition product, HTTP/1.1 CONNECT/Upgrade/WebSocket transitions, and v0.73.0 HTTP/1.0 local-capacity/start-line/414/431/400/501 precedence and fixed terminal action.
+- Acceptance extension: Audit the v0.75.0–v0.75.3 family as one causal product: exact generic `AdmissionWindowOutcome<R,E>` couples value/error to receipt; a separate terminal error owns poison; and the callback separates the structural `'attempt` lifetime from the higher-ranked temporary `'scope` reborrow, which cannot escape through `R` or `E`. Treat lifetime conflation or weakening, outcome/receipt separation, poison encoded as an ordinary abort, closure-returned window/slice/iterator/item borrows, production unwind recovery, unwind represented as Completed/Aborted, missing poison on test unwind, movable/forgettable owned windows, finish-time arithmetic, parallel raw access, or uncharged/quadratic traversal as release-blocking.
+- Acceptance contract: Close every applicable RFC 1945/6455/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on divergent framing, publication, close, capacity, or bounded-work results. Audit the complete HTTP/1 causal product: the sole version-neutral `Connection` lexer; v0.74.0/v0.75.0–v0.75.3 role × direction persistence matrix; two-sided per-hop signals and response-correlation-first transfer; configured-max/remaining ledger; delayed-role persistence mode; total exactly-once reuse resolution; validated client command and role-specific successor reservation; reason-only rejection/capacity with irreversible attempt work; permit-exclusive deadline; atomic completion event/state publication and terminal reclamation; checked generation exhaustion; bodyless/fixed-only same-call boundary; negative framing; cancellation/duplicate-hook serialization; and no pipelining. Also audit the HTTP/1 commitment/FIFO/100/early-final/disposition product, HTTP/1.1 CONNECT/Upgrade/WebSocket transitions, and v0.73.0 HTTP/1.0 local-capacity/start-line/414/431/400/501 precedence and fixed terminal action.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7259,16 +7361,80 @@ Status: planned
 
 #### Goal
 
-Deliver **Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge** as the sole primary capability in this stop. It builds
-on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy before v0.164.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) begins.
+Deliver the **bidirectional WebSocket mapping and bridge-transaction
+foundation** as the sole primary capability in this stop. It builds on v0.162.0
+(RFC 8441 extended CONNECT) and must be independently trustworthy before
+v0.163.1 (Transition-input provenance and pending handoff) begins.
 
 #### Deliverables
 
 - Acceptance contract: For HTTP/1 downstream to HTTP/2 upstream, validate and retain the HTTP/1 Sec-WebSocket-Key, strip Connection, Upgrade, Host, Sec-WebSocket-Key, and any Sec-WebSocket-Accept from the HTTP/2 request/response, construct extended CONNECT with ws mapped to :scheme http and wss to https, lowercase every emitted HTTP/2 field name, and preserve/validate Origin, Sec-WebSocket-Version, Sec-WebSocket-Protocol, and Sec-WebSocket-Extensions plus ordinary end-to-end cookies/authorization through the normal matrix; validate selected protocol/extensions against the exact original absent/empty/duplicate offers without processing key/accept upstream, then after HTTP/2 2xx locally compute the HTTP/1 accept and commit 101; for HTTP/2 downstream to HTTP/1 upstream, ignore received HTTP/2 key/accept fields for key generation, obtain a fresh v0.69.0 nonce, generate the HTTP/1 key, validate upstream 101/accept and selected negotiation, then translate success to HTTP/2 2xx without copying HTTP/1 accept/Connection/Upgrade. Define four sealed, non-Copy/non-Clone phase-specific capabilities: `ValidatedDownstreamRequest`, `CommittedUpstreamRequest`, `ValidatedUpstreamSuccess`, and `CommittedDownstreamSuccess`. Each binds the bridge generation, connection and leg identity, client/server role, request/response kind, exchange or stream generation, and exact HTTP/1 or HTTP/2 head identity. `ValidatedDownstreamRequest` requires complete request semantic validation, CONNECT/extended-CONNECT form, advertisement/authorization/negotiation prerequisites, and legal inbound state. `CommittedUpstreamRequest` requires final HTTP/1 request-head acknowledgement or outbound HTTP/2 whole-field-block commitment. `ValidatedUpstreamSuccess` requires complete inbound head validation, and for HTTP/2 complete HEADERS/CONTINUATION compression synchronization, the sealed exact `TerminalFieldSectionLease`, every semantic stage, `TerminalValidation::Valid`, final 2xx, exact upstream-request/stream-generation correlation, negotiation agreement, and legal tunnel stream state; it never contains, requires, or fabricates outbound `HpackCommitted`. `CommittedDownstreamSuccess` requires final HTTP/1 success-head acknowledgement or outbound HTTP/2 whole-field-block commitment.
 - Represent the asymmetric proxy flow as `BridgeTransaction::{Reserved, DownstreamRequestValidated, UpstreamRequestCommitted, UpstreamSuccessValidated, DownstreamSuccessFrozen, ActiveAfterDownstreamSuccessCommitted, FailedBeforeDownstreamSuccessExposure(BridgeFailurePhase), FailedAfterDownstreamSuccessExposure}` with one sealed generation. Its first three advancing transitions consume only `ValidatedDownstreamRequest`, `CommittedUpstreamRequest`, and `ValidatedUpstreamSuccess`; final downstream wire acknowledgement produces one non-Copy/non-Clone `CommittedDownstreamSuccess` as evidence of exact wire commitment, not activation authority. Minting the sealed `BridgeActivationPermit` is one atomic runtime transition that consumes the exact `CommittedDownstreamSuccess`, the pre-reserved permit slot, a clear `PrematureInputLatch` snapshot, and the matching `DownstreamSuccessFrozen` bridge generation. The matching `PrematureInputLatch` is clear at that transition or minting fails. Only the resulting permit enters `ActiveAfterDownstreamSuccessCommitted`; duplicate/stale acknowledgements, repeated completion hooks, cancellation races, and generation reuse cannot recreate any consumed input or mint a second permit/success publication/lease transfer. If cancellation wins before the atomic transition, it owns terminal cleanup and no permit exists; if permit minting wins, subsequent cancellation consumes the permit/Active owner through the one terminal path. No phase accepts another phase's capability even when connection, generation, or numeric stream identifiers coincide. Before exposing any upstream request byte, atomically reserve transaction/lease metadata, every required HTTP/1 over-read store, request/success output record, close/reset/abort action, suffix-completion owner, activation permit slot, premature-input latch, and terminal cleanup owner.
+
+#### Verification
+
+- Test both protocol directions, scheme/header mapping, complete request/success
+  validation, exact wire commitment, phase-capability non-substitution, and
+  all-or-nothing bridge reservation/rollback.
+- No test may require v0.163.1 transition provenance or later-version
+  capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The bridge mapping and transaction foundation has reproducible evidence;
+v0.162.0 still passes; no behavior assigned to v0.163.1 is claimed; the active
+resource profile passes; and no critical/high finding is open.
+
+`0.163.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.163.1 — Transition-input provenance and pending handoff
+
+Status: planned
+
+#### Goal
+
+Deliver five-way transition-input provenance, acknowledgement-first causal
+ordering, and bounded pre-Active HTTP/1 handoff ownership. It builds on
+v0.163.0 and must be independently trustworthy before v0.163.2 (Bridge
+activation and premature-data arbitration) begins.
+
+#### Deliverables
+
 - Seal `TransitionInputProvenance::{SuccessFollowingTransitionInput, PermittedOptimisticConnectInput(OptimisticConnectPermit), UnpermittedOptimisticConnectInput { reason: MissingCommittedCloseProof }, ForbiddenOptimisticWebSocketInput, ForbiddenHttp1ConnectUdpInput}` with bridge, protocol, role, leg, request/stream, and exchange generations. `BridgeInputLease::{Http1(OverreadLease), Http2(PendingConnectLease)}` can be minted only from the first two variants. Success-following input is upstream HTTP/1 101 plus over-read WebSocket bytes or upstream HTTP/2 success HEADERS plus DATA. HTTP/1 ordinary-CONNECT permission consumes `OptimisticConnectCloseProof::{ReceivedValidatedCloseOption, LocallyCommittedCloseHead}`: the received variant proves a fully validated `Connection: close` option in that exact request head, while the local variant proves that exact serialized close-bearing request head reached v0.54.0 `HeadCommitted`; queued bytes or configured close intent alone grant no authority. Missing proof selects the strict unpermitted disposition: discard once, close, never HTTP-reparse, and never later promote even if CONNECT succeeds. HTTP/2 ordinary CONNECT remains permitted only through the existing v0.130.0 PendingConnect generation. Neither permit can be rebound to RFC 8441 WebSocket or HTTP/1 CONNECT-UDP; both forbidden classes terminate without lease creation.
 - Apply the acknowledgement-first boundary without content classification. In `advance_io(output_ack, input)`, complete 101/2xx acknowledgement runs its success hook before input and permits post-handshake handling in that same call. Valid zero or short acknowledgement followed by WebSocket input leaves success uncommitted, classifies the input as premature, and selects the terminal violation; invalid acknowledgement remains state-neutral and leaves input wholly unconsumed.
 - For legal HTTP/1 transition input or a terminal-only transition, create one `PendingHttp1Transition { overread: Option<OverreadLease>, terminal: Option<PreActiveTerminalCause>, bridge_generation, leg, exchange_generation, transport_generation }`. Optional over-read represents a valid 101/2xx followed by immediate termination with zero bytes, bytes without a terminal event, or combined bytes and termination. The sealed owner retains immutable first-terminal-cause attribution and distinguishes `PlainTcpEof`, `TlsCloseNotify`, `TlsTruncationEof`, `FatalTlsAlert`, `TransportReset`, `TransportFailure`, and `Cancellation`. It disposes optional bytes and terminal ownership exactly once. WebSocket EOF/failure before downstream success exposure fails the handshake; after any success exposure it closes/aborts both legs without a replacement HTTP response. Ordinary CONNECT follows an explicit drain/close policy. TLS close_notify never fabricates TCP half-close authority.
+
+#### Verification
+
+- Cross all five provenance variants, exact/missing close proof, invalid/zero/
+  short/full acknowledgement, same-call input, terminal-only input, every first
+  cause, and pending-handoff capacity boundary.
+- No test may require v0.163.2 activation behavior or later-version capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The transition-provenance and pending-handoff contract has reproducible
+evidence; v0.163.0 still passes; no behavior assigned to v0.163.2 is claimed;
+the active resource profile passes; and no critical/high finding is open.
+
+`0.163.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.163.2 — Bridge activation and premature-data arbitration
+
+Status: planned
+
+#### Goal
+
+Deliver atomic bridge activation, premature HTTP/2 DATA arbitration, and exact
+downstream success commitment. It builds on v0.163.1 and must be independently
+trustworthy before v0.164.0 begins.
+
+#### Deliverables
+
 - Extend the existing HTTP/2 stream owner through `AwaitingConnectOutcome -> AwaitingBridgeActivation { bridge_generation } -> ActiveTunnel`. Validated upstream success enters `AwaitingBridgeActivation` rather than releasing or reclassifying PendingConnect. `PendingConnectLease` remains a linear reference to the existing v0.130.0/v0.136.0 PendingConnect ranges and creates no second byte store, copy, discard, or credit owner. This state retains all existing DATA ranges in exact order, semantic length versus padding charge, stream and connection receive-credit ownership, END_STREAM/remote-half-close state, and reset, EOF, TLS-alert, GOAWAY/connection-failure, and immutable first-terminal-cause attribution for the exact bridge generation. Success HEADERS followed in the same input buffer by DATA remains in this owner. Activation transfers ranges and any permitted pending directional FIN exactly once without copying or credit reclamation; failure uses the existing discard/reset/credit cleanup once. For WebSocket, upstream END_STREAM before downstream success exposure fails the handshake. For ordinary CONNECT, explicit policy either preserves it as a pending remote half-close published immediately after Active or rejects it before exposure. RST_STREAM or fatal failure before downstream success exposure remains an HTTP-framed downstream failure; after any success exposure it selects close-plus-abort and never another HTTP response.
 - Premature downstream RFC 8441 WebSocket DATA first validates frame syntax and padding; any independent connection-fatal framing condition retains its normal scope. Otherwise charge the complete flow-controlled payload against both stream and connection windows, latch `PrematureExtendedConnectData`, discard semantic DATA only for that stream, and reclaim it only through the existing v0.136.0 `ReceiveCredit` ledger. Then arbitrate against the v0.137.0/v0.142.0 downstream-success output state. If the provisional 2xx remains `AcceptedPrivate` and no byte was exposed, supersede it and emit only reserved `RST_STREAM(PROTOCOL_ERROR)`—no HTTP response. If it is `Frozen` or `FramingCommitted`, including first exposure with zero acknowledged bytes, enter `FailedAfterDownstreamSuccessExposure`, finish the exact immutable HEADERS/CONTINUATION suffix contiguously through END_HEADERS, commit HPACK and framing normally, never activate or transfer tunnel input, and only then emit the reserved reset. If final END_HEADERS acknowledgement was processed before the DATA in the same combined call, its success hook may mint `BridgeActivationPermit` first and the DATA is legal Active input. A connection failure while the immutable suffix is finishing selects connection-owned cleanup without fabricating response completion, Active, permit, or reset completion. Later same-buffer SETTINGS, PING, HEADERS, and DATA for unrelated streams continue normally; never mutate/reset them, discard their bytes, or desynchronize HPACK.
 - Never expose downstream 101/2xx before complete upstream inbound validation. First downstream success exposure freezes its exact bytes. `CommittedDownstreamSuccess` records full wire commitment only; it cannot override a latched premature-input failure or itself authorize Active. Only the engine-minted `BridgeActivationPermit` transfers each provenance-authorized input lease once without copying or releasing HTTP/2 credit. Success transfers success-following and permitted optimistic ordinary-CONNECT ownership once; non-2xx/failure and unpermitted/forbidden input dispose under their exact one-shot rules. Application acknowledgement or policy discard remains the sole reclamation path and WINDOW_UPDATE owner. Failure from any earlier phase normally remains an HTTP-framed downstream failure and invokes the HTTP/1 `PendingHttp1Transition` or existing HTTP/2 non-2xx/reset/PendingConnect cleanup once; premature RFC 8441 DATA uses the output-state arbitration above. Failure after any downstream success exposure closes downstream and aborts/resets the established upstream side without a replacement response or double discard. Over-read/PendingConnect bytes remain owned by their original leg and provenance until Active or cleanup.
@@ -7297,12 +7463,12 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Exit criteria
 
-The Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge contract and all previously implemented relevant behavior have
-reproducible evidence; v0.162.0 (RFC 8441 extended CONNECT) still passes; no behavior assigned to v0.164.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) is
+The bridge-activation and premature-data-arbitration contract and all previously implemented relevant behavior have
+reproducible evidence; v0.163.1 (Transition-input provenance and pending handoff) still passes; no behavior assigned to v0.164.0 (vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.163.0 implementation stop reached. Run pentest for this exact commit.`
+`0.163.2 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.164.0 — vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton
 
@@ -7311,7 +7477,7 @@ Status: planned
 #### Goal
 
 Deliver **vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton** as the sole primary capability in this stop. It builds
-on v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) and must be independently trustworthy before v0.165.0 (Structured Fields integer and decimal ranges) begins.
+on v0.163.2 (Bridge activation and premature-data arbitration) and must be independently trustworthy before v0.165.0 (Structured Fields integer and decimal ranges) begins.
 
 #### Deliverables
 
@@ -7337,7 +7503,7 @@ on v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) and mus
 #### Exit criteria
 
 The vef-structured-fields crate, lexical cursor, and bare-item dispatch skeleton contract and all previously implemented relevant behavior have
-reproducible evidence; v0.163.0 (Bidirectional WebSocket HTTP/1 and HTTP/2 handshake bridge) still passes; no behavior assigned to v0.165.0 (Structured Fields integer and decimal ranges) is
+reproducible evidence; v0.163.2 (Bridge activation and premature-data arbitration) still passes; no behavior assigned to v0.165.0 (Structured Fields integer and decimal ranges) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -8633,12 +8799,13 @@ Status: planned
 
 #### Goal
 
-Deliver **Fixed-capacity caller-storage public API** as the sole primary capability in this stop. It builds
-on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) and must be independently trustworthy before v0.192.0 (Optional alloc-backed convenience API) begins.
+Deliver the **fixed-capacity storage and causal driver API foundation** as the
+sole primary capability in this stop. It builds on v0.190.0 (Authenticated
+origin authorization and HTTP/2 coalescing metadata) and must be independently
+trustworthy before v0.191.1 (HTTP/1 public authority boundary) begins.
 
 #### Deliverables
 
-- HTTP/1.0 API extension: expose neither generation constructors, attempt/raw command getters, terminal constructors, work kind/spec/units, private permit/window, nor cursors. `with_charged_window` remains private with distinct structural `'attempt` and higher-ranked temporary `'scope` lifetimes; no public return type can name or borrow through `'scope`, and no API may conflate or weaken those lifetimes. `AdmissionWindowOutcome<R,E>` couples value/error with receipt, while poison is a separate terminal error. Callers cannot separate outcome/receipt, encode poison as abort, select panic recovery, move/drop/forget guards, report progress, fabricate work, or turn diagnostics into authority.
 - Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator. Expose `OutboundFrameArena` only from exclusive caller storage, with generation-checked `OutboundFrameSlot`/`FrozenOutboundFrameSlot` ownership, independent queue-byte/entry sizing, nonzero `ResourceProfile::max_outbound_frame_payload`, and typed `OutboundFrameStorageCapacity`; no API sizes storage directly from peer MAX_FRAME_SIZE or permits caller access/reuse before supersession, full acknowledgement, or connection cleanup. `PartialDeliveryPreference`, `RequestedOverlapBudget`, `AssemblyInvalidationCapacity`, `PushedAssemblyProvenanceCapacity`, `StreamTrackingUnavailable`, `PushRejectionTrackingUnavailable`, `LeaseHeld`, and ordinary error values are freely constructible and confer no authority; caller-provided `VariantIdentityStorage` is constructible only from exclusive slices/sealed slots. Expose civil-time evidence, PendingConditionalRequest, CurrentRepresentationEvidence, WouldBe200Snapshot, request content/execution permits, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, and PartialCombinationPlan only with the sealed generation/lifetime constraints appropriate to authority-bearing evidence. The invalidation handle and pushed provenance remain non-Copy/non-Clone, exact promised-correlation-bound, independently leased from associated-stream storage, held through reserved push and terminal backpressure, and exactly-once released; no public operation duplicates, rebinds, substitutes peer identity, crosses associated requests, borrows recyclable associated-stream storage, or releases either early. Semantic invalidation is observable only as rejection and cannot shorten a lease or authorize physical reclamation. Expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` consumed whole by the selected engine, preserve the mandatory reserve, and keep raw request/response serializers and separable capability/data pairings non-public.
 - Stabilize `advance_io(output_ack, input)` so output acknowledgement is applied
   before any input borrow is consumed. With a live `OutputToken`, only a
@@ -8650,6 +8817,39 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   convenience/alloc facade may add a dependency classifier, reorder the two
   phases, buffer rejected input, treat vectored/DMA queuing as transport
   consumption, or synthesize commitment from input.
+
+#### Verification
+
+- Test exclusive caller-storage construction, generation-safe slot/token
+  ownership, every capacity error, and invalid/zero/short/full combined causal
+  I/O without hidden buffering or allocator dependence.
+- No test may require v0.191.1 HTTP/1 authority exposure or later-version
+  capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The fixed-capacity storage and causal driver API foundation has reproducible
+evidence; v0.190.0 still passes; no behavior assigned to v0.191.1 is claimed;
+the active resource profile passes; and no critical/high finding is open.
+
+`0.191.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.191.1 — HTTP/1 public authority boundary
+
+Status: planned
+
+#### Goal
+
+Freeze the public HTTP/1, HTTP/1.0 reuse, early-final, and transition authority
+boundary without exposing internal progress or capability constructors. It
+builds on v0.191.0 and must be independently trustworthy before v0.191.2
+(HPACK and SETTINGS public authority boundary) begins.
+
+#### Deliverables
+
+- HTTP/1.0 API extension: expose neither generation constructors, attempt/raw command getters, terminal constructors, work kind/spec/units, private permit/window, nor cursors. `with_charged_window` remains private with distinct structural `'attempt` and higher-ranked temporary `'scope` lifetimes; no public return type can name or borrow through `'scope`, and no API may conflate or weaken those lifetimes. `AdmissionWindowOutcome<R,E>` couples value/error with receipt, while poison is a separate terminal error. Callers cannot separate outcome/receipt, encode poison as abort, select panic recovery, move/drop/forget guards, report progress, fabricate work, or turn diagnostics into authority.
 - Expose early-final policy preference without exposing progress or reuse
   authority. Keep `EarlyFinalBodyDisposition`, exact request-body committed/
   unsent prefix, fixed/chunked delimiter/trailer obligation, exchange
@@ -8735,6 +8935,38 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   premature DATA; reset before an exposed immutable success block reaches
   END_HEADERS; skip/reorder phases; expose downstream success; cross bytes;
   retry an incomplete exchange; or mark a request/bridge reusable or active.
+
+#### Verification
+
+- Compile and run the complete role matrix against public construction,
+  lifetime, retry, close, reuse, early-final, CONNECT, Upgrade, and bridge
+  boundaries. Reject every authority fabrication, rebinding, or progress input.
+- No test may require v0.191.2 HPACK/SETTINGS exposure or later-version
+  capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The HTTP/1 public authority boundary has reproducible evidence; v0.191.0 still
+passes; no behavior assigned to v0.191.2 is claimed; the active resource
+profile passes; and no critical/high finding is open.
+
+`0.191.1 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.191.2 — HPACK and SETTINGS public authority boundary
+
+Status: planned
+
+#### Goal
+
+Freeze caller-storage configuration and acknowledgement APIs for HPACK,
+field-block output, and SETTINGS while retaining every transition owner inside
+the engine. It builds on v0.191.1 and must be independently trustworthy before
+v0.191.3 (HTTP/2 control public authority boundary) begins.
+
+#### Deliverables
+
 - Public constructors reject overflow in `checked_add(9, max_outbound_frame_payload)`, zero/undersized `field_fragment_cap`, enabled mandatory-prefix shortage, inconsistent block/continuation capacity, ambiguous padding, and HPACK layouts whose checked logical physical capacity exceeds exclusive caller storage. `EncoderTableLimits`, received/acknowledged ceiling transitions, selected-capacity mutation, decoder advertisement proof, `InboundSettingsTransaction`, `PendingEncoderTableSizeTransition`, `EncoderTableUpdateDebt`, leases, AckCommitted promotion, debt merge/restore/transfer, and HPACK promotion remain engine-owned and non-constructible. Callers provide storage and policy preferences but cannot forge a larger physical capacity, select outside limits, acknowledge a peer ceiling, advertise unsafe decoder capacity, or expose ACK/debt authority. Public output acknowledgement accepts only one token-bound suffix.
 - Keep `OutboundSettingsTransaction`, ordered frozen entries, future-ACK FIFO
   reservation, commit plan/snapshot, timeout generation, strict committed FIFO,
@@ -8743,6 +8975,37 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   fixed storage/time, but cannot accept a command without its atomic reservation,
   mutate entries after exposure, apply advertised effects, promote the FIFO,
   start/cancel the deadline, bind an ACK, or roll back committed effects.
+
+#### Verification
+
+- Test every checked storage constructor and caller-selectable policy boundary;
+  compile-fail all HPACK debt, field-block, SETTINGS transaction, ACK, timeout,
+  and effect-plan authority construction or promotion.
+- No test may require v0.191.3 control-surface exposure or later-version
+  capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The HPACK and SETTINGS public authority boundary has reproducible evidence;
+v0.191.1 still passes; no behavior assigned to v0.191.3 is claimed; the active
+resource profile passes; and no critical/high finding is open.
+
+`0.191.2 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.191.3 — HTTP/2 control public authority boundary
+
+Status: planned
+
+#### Goal
+
+Freeze receive-credit, PING, GOAWAY, and scheduler public APIs as one
+control-plane boundary. It builds on v0.191.2 and must be independently
+trustworthy before v0.192.0 begins.
+
+#### Deliverables
+
 - Keep `ReceiveCredit`, `WindowUpdateOutput`, target/generation binding,
   private-to-in-flight transfer, and advertised-credit commitment engine-owned
   and non-constructible. Callers may acknowledge borrowed DATA and an exact
@@ -8789,12 +9052,12 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 
 #### Exit criteria
 
-The Fixed-capacity caller-storage public API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) still passes; no behavior assigned to v0.192.0 (Optional alloc-backed convenience API) is
+The HTTP/2 control public authority boundary and all previously implemented relevant behavior have
+reproducible evidence; v0.191.2 (HPACK and SETTINGS public authority boundary) still passes; no behavior assigned to v0.192.0 (Optional alloc-backed convenience API) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.191.0 implementation stop reached. Run pentest for this exact commit.`
+`0.191.3 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.192.0 — Optional alloc-backed convenience API
 
@@ -8803,7 +9066,7 @@ Status: planned
 #### Goal
 
 Deliver **Optional alloc-backed convenience API** as the sole primary capability in this stop. It builds
-on v0.191.0 (Fixed-capacity caller-storage public API) and must be independently trustworthy before v0.193.0 (Stable diagnostics and security events) begins.
+on v0.191.3 (HTTP/2 control public authority boundary) and must be independently trustworthy before v0.193.0 (Stable diagnostics and security events) begins.
 
 #### Deliverables
 
@@ -8829,7 +9092,7 @@ on v0.191.0 (Fixed-capacity caller-storage public API) and must be independently
 #### Exit criteria
 
 The Optional alloc-backed convenience API contract and all previously implemented relevant behavior have
-reproducible evidence; v0.191.0 (Fixed-capacity caller-storage public API) still passes; no behavior assigned to v0.193.0 (Stable diagnostics and security events) is
+reproducible evidence; v0.191.3 (HTTP/2 control public authority boundary) still passes; no behavior assigned to v0.193.0 (Stable diagnostics and security events) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
@@ -9046,8 +9309,10 @@ Status: planned
 
 #### Goal
 
-Deliver **Adversarial and stateful fuzz campaign** as the sole primary capability in this stop. It builds
-on v0.195.0 (Multi-implementation interoperability) and must be independently trustworthy before v0.197.0 (Compile-fail state and lifetime tests) begins.
+Deliver the **protocol-state adversarial fuzz campaign** as the sole primary
+capability in this stop. It builds on v0.195.0 (Multi-implementation
+interoperability) and must be independently trustworthy before v0.196.1
+(Cross-protocol causal and bridge fuzz campaign) begins.
 
 #### Deliverables
 
@@ -9100,6 +9365,37 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   no caller-clock reorder of committed work, Frozen-first completion, atomic
   Private-only abandonment after fatal commitment, no later output, exact-once
   release, and no fabricated ACK/debt, credit, reset, response, or timer hook.
+
+#### Verification
+
+- Replay and minimize the HTTP/1, HPACK, HTTP/2, SETTINGS, flow-credit, PING,
+  GOAWAY, and scheduler corpora independently and in their owned state products.
+- No test may require v0.196.1 cross-protocol causal/bridge fuzzing or a
+  later-version capability.
+- Run Rust `1.90.0`–`1.97.1`, `no_std`, target, docs/package, dependency policy,
+  audit, SBOM, CI, and CodeQL default-setup gates.
+
+#### Exit criteria
+
+The protocol-state adversarial fuzz campaign has deterministic minimized
+evidence; v0.195.0 still passes; no behavior assigned to v0.196.1 is claimed;
+the active resource profile passes; and no critical/high finding is open.
+
+`0.196.0 implementation stop reached. Run pentest for this exact commit.`
+
+### v0.196.1 — Cross-protocol causal and bridge fuzz campaign
+
+Status: planned
+
+#### Goal
+
+Fuzz acknowledgement-before-input causality, HTTP/1 lifecycle ownership, and
+CONNECT/Upgrade/WebSocket bridge transfer as one cross-protocol campaign. It
+builds on v0.196.0 and must be independently trustworthy before v0.197.0
+begins.
+
+#### Deliverables
+
 - Fuzz the v0.25.0 causal call product over offered bytes, invalid/stale/
   oversized and every valid zero/short/full acknowledgement, outstanding token
   generations, input-only/combined delivery, input parse failure, scalar/
@@ -9124,7 +9420,7 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   every condition holds; suppression releases only certified-unsent bytes and
   never restores reuse; and retry generations cannot overlap incomplete
   originals.
-- Fuzz CONNECT 2xx, Upgrade/WebSocket 101, and the v0.163.0/v0.187.0/v0.188.0
+- Fuzz CONNECT 2xx, Upgrade/WebSocket 101, and the v0.163.0–v0.163.2/v0.187.0/v0.188.0
   `BridgeTransaction` at every one of the four capability kinds, HTTP/1 head,
   outbound HTTP/2 field-block, inbound HTTP/2 compression/semantic/correlation
   stage, binding mismatch, reservation shortage, legal phase edge, illegal
@@ -9219,12 +9515,12 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
 
 #### Exit criteria
 
-The Adversarial and stateful fuzz campaign contract and all previously implemented relevant behavior have
-reproducible evidence; v0.195.0 (Multi-implementation interoperability) still passes; no behavior assigned to v0.197.0 (Compile-fail state and lifetime tests) is
+The cross-protocol causal and bridge fuzz campaign and all previously implemented relevant behavior have
+reproducible evidence; v0.196.0 (Protocol-state adversarial fuzz campaign) still passes; no behavior assigned to v0.197.0 (Compile-fail state and lifetime tests) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 
-`0.196.0 implementation stop reached. Run pentest for this exact commit.`
+`0.196.1 implementation stop reached. Run pentest for this exact commit.`
 
 ### v0.197.0 — Compile-fail state and lifetime tests
 
@@ -9233,7 +9529,7 @@ Status: planned
 #### Goal
 
 Deliver **Compile-fail state and lifetime tests** as the sole primary capability in this stop. It builds
-on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently trustworthy before v0.198.0 (Long-running soak and exhaustion campaign) begins.
+on v0.196.1 (Cross-protocol causal and bridge fuzz campaign) and must be independently trustworthy before v0.198.0 (Long-running soak and exhaustion campaign) begins.
 
 #### Deliverables
 
@@ -9383,7 +9679,7 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 #### Exit criteria
 
 The Compile-fail state and lifetime tests contract and all previously implemented relevant behavior have
-reproducible evidence; v0.196.0 (Adversarial and stateful fuzz campaign) still passes; no behavior assigned to v0.198.0 (Long-running soak and exhaustion campaign) is
+reproducible evidence; v0.196.1 (Cross-protocol causal and bridge fuzz campaign) still passes; no behavior assigned to v0.198.0 (Long-running soak and exhaustion campaign) is
 claimed; the active resource profile passes; and no critical/high finding is
 open.
 

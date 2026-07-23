@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check 225 minor milestones, thirteen patch stops, and two release candidates."""
+"""Check 225 minor milestones, 22 patch stops, and two release candidates."""
 from __future__ import annotations
 import re
 import sys
@@ -14,19 +14,17 @@ def main() -> int:
     detailed_versions = versions(r"^### v0\.(\d+)\.0 — ", detailed)
     compact_versions = versions(r"^\| `0\.(\d+)\.0` \|", compact)
     patch_stops = (
-        "0.157.1",
-        "0.157.2",
-        "0.157.3",
+        "0.75.1", "0.75.2", "0.75.3",
+        "0.157.1", "0.157.2", "0.157.3",
         "0.157.4", "0.157.5",
-        "0.180.1",
-        "0.180.2",
-        "0.180.3",
+        "0.163.1", "0.163.2",
+        "0.180.1", "0.180.2", "0.180.3",
         "0.180.4", "0.180.5",
-        "0.181.1",
-        "0.181.2",
-        "0.182.1",
+        "0.181.1", "0.181.2", "0.182.1",
+        "0.191.1", "0.191.2", "0.191.3",
+        "0.196.1",
     )
-    failures: list[str] = []
+    failures: list[str] = []; failures.extend(f"implementation-stop section exceeds 15,360-scalar review cap: {match.group(1)}" for match in re.finditer(r"(?ms)^### (v(?:0\.\d+\.\d+ — [^\n]+|1\.0\.0-rc\.\d+))\n(.*?)(?=^### |^## |\Z)", detailed) if len(match.group(2)) > 15_360)
     if detailed_versions != expected:
         failures.append("detailed plan does not cover v0.1.0 through v0.225.0 exactly")
     if compact_versions != expected:
@@ -37,9 +35,9 @@ def main() -> int:
         if compact.count(f"| `{patch_stop}` |") != 1:
             failures.append(f"version index does not contain exactly one {patch_stop} patch stop")
     for heading in ("Goal", "Deliverables", "Verification", "Exit criteria"):
-        if detailed.count(f"#### {heading}") != 238:
-            failures.append(f"expected 238 {heading} sections")
-    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 240:
+        if detailed.count(f"#### {heading}") != 247:
+            failures.append(f"expected 247 {heading} sections")
+    if detailed.count("implementation stop reached. Run pentest for this exact commit.") != 249:
         failures.append("expected one pentest stop for each milestone and release candidate")
     required_markers = (
         "Non-zero parser progress",
@@ -494,7 +492,7 @@ def main() -> int:
         for failure in failures:
             print(failure, file=sys.stderr)
         return 1
-    print("release plan: 225 minor milestones, thirteen patch stops, and two release candidates")
+    print("release plan: 225 minor milestones, 22 patch stops, and two release candidates")
     return 0
 if __name__ == "__main__":
     raise SystemExit(main())

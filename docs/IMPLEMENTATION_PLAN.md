@@ -469,12 +469,13 @@ base-plus-per-unit cost in O(1) from lengths/counts/cursors inside
 and exposes no raw getter. Its generation is allocated before inspection/ledger
 mutation. Cursor kind and maximum advancement are preflighted before charge, so
 receipt arithmetic cannot fail. Private `with_charged_window` owns the
-structurally borrowed permit/guard and gives validation only `&mut` bounded
-window access. It finalizes normal, early-error, and explicit-abort results;
-drop/forget of the borrowed reference cannot skip it. Bytes/entries expose only
-their prefix and other work requires `take_unit()`. Each result emits one
-consistent receipt. Impossible guard corruption burns the charge, poisons the
-attempt, emits no receipt, and closes.
+structurally borrowed permit/guard and uses a higher-ranked callback whose
+generic `R`/`E` cannot borrow the window. Normal Ok and error/abort return exact
+`AdmissionWindowOutcome<R,E>` variants that inseparably contain one receipt;
+drop/forget of the borrowed reference cannot skip finalization. Poison is a
+separate terminal error with no receipt. Bytes/entries expose only their prefix
+and other work requires `take_unit()`. Production panics abort; optional
+unwind-test cleanup poisons/burns and never reports Completed/Aborted.
 Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/

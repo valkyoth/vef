@@ -363,12 +363,14 @@ unbounded view. Exhaustion closes locally with both ledgers unchanged. Before
 charging, cursor selection and `before + charged` are preflighted, making later
 advancement/receipt arithmetic infallible. The scoped
 `with_charged_window` method owns the structurally borrowed permit/window and
-passes only `&mut ChargedWorkWindow` to validation. Early error, abort, dropping,
-or forgetting that reference cannot bypass owner finalization. Byte/entry work
-sees only a bounded prefix; other work must `take_unit()`. Every closure result
-emits one Completed/Aborted receipt with attempt generation and cursor
-kind/before/after. Impossible guard corruption poisons the attempt, burns the
-charge, emits no receipt, forbids admission, and closes. Fragmentation retains
+uses a higher-ranked callback, so generic success/error payloads cannot borrow
+the window. Early error, abort, dropping, or forgetting the borrowed reference
+cannot bypass owner finalization. Byte/entry work sees only a bounded prefix;
+other work must `take_unit()`. Exact `AdmissionWindowOutcome<R,E>` couples
+Completed value or Aborted error with one receipt. Poison is a separate terminal
+error with none. Impossible guard corruption poisons the attempt, burns the
+charge, forbids admission, and closes. Production panics abort; optional
+unwind-test cleanup poisons and never fabricates an ordinary outcome. Fragmentation retains
 cursors only within the call;
 reason-only return destroys every cursor and command borrow. Retry creates
 zeroed cursors and recharges all repeated work. Stale/cross-attempt/reused

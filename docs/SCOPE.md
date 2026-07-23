@@ -334,11 +334,12 @@ Each call owns `AdmissionAttempt<'command>` with the sole private engine
 `&Command`, cursors, and checked generation; no raw command getter or parallel
 validation view exists. Cursor kind and maximum advancement preflight before
 charge. Scoped `with_charged_window` retains permit/guard ownership and passes
-only a bounded mutable window, so normal/error/abort return always finalizes
-despite dropping/forgetting the borrowed reference. Bytes/entries expose only
-their prefix and other work requires `take_unit()`. Finalization emits one
-infallibly consistent receipt. Impossible corruption burns the charge, poisons
-the attempt, emits none, forbids admission, and closes. Reason-only return
+the bounded mutable window through a higher-ranked lifetime that cannot escape
+in generic `R`/`E`. Exact Completed/Aborted variants inseparably carry value or
+error plus one receipt despite early return/drop/forget. Bytes/entries expose
+only their prefix and other work requires `take_unit()`. Poison is a separate
+terminal error with no receipt. Production panics abort; optional unwind-test
+cleanup poisons/burns and cannot report an ordinary outcome. Reason-only return
 destroys cursors/borrow; retry cannot use stale permits/windows/receipts.
 Successful admission
 transfers rather than double-charges. Admission terminal reasons revoke the

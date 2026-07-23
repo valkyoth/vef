@@ -215,12 +215,20 @@ acknowledgement, negative stream windows block new DATA, and zero-length
 END_STREAM DATA charges zero.
 Each scalar or vectored output token owns one frame-slot suffix; acknowledgement
 cannot cross a slot boundary, release several records, or batch hooks.
-For each connection, the driver reports outbound prefix commitment before VEF
-consumes input causally dependent on that prefix. Combined I/O applies output
-acknowledgement first. Independent reversed delivery returns typed local
-DriverCommitOrderViolation without consuming bytes or mutating state; peer
-input never proves output commitment. Apply this to SETTINGS/PING ACKs, locally
-initiated responses, advertised extensions, and GOAWAY-dependent interpretation.
+For each connection, ordering is independent of peer-input contents. While an
+`OutputToken` is outstanding, VEF accepts nonempty input only in a combined
+operation that consumes that exact token first. A valid zero acknowledgement
+resolves the offer and parses against unchanged protocol state; a short/full
+acknowledgement commits exactly its prefix first, with completion hooks before
+parsing. Invalid/stale/oversized acknowledgement is state-neutral and leaves
+input wholly unconsumed, while later parse failure cannot roll back committed
+output. Input-only delivery with a live token returns local
+DriverCommitOrderViolation before parsing. No dependency flag exists; peer
+input never proves output commitment, and vectored/DMA adapters cannot
+acknowledge bytes merely queued in caller-controlled memory. Apply this to
+HTTP/1 request/response FIFO correlation and success-head handoffs as well as
+SETTINGS/PING ACKs, locally initiated HTTP/2 responses, advertised extensions,
+and GOAWAY-dependent interpretation.
 Each fully validated non-ACK SETTINGS frame reserves one connection-owned
 transaction and one ACK before mutation. Ordered entries attach generation-bound
 HPACK/window/frame-size/admission/push/extension participants; all must be

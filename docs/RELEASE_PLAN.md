@@ -814,15 +814,17 @@ on v0.19.0 (Role, profile, and policy types) and must be independently trustwort
 
 - Acceptance contract: Define short reads/writes, zero-length calls, clean versus truncated EOF, temporary starvation, scalar fallback, alignment requirements, non-reentrancy, and optional vectored/scatter-gather progress without owning sockets. One engine offer and acknowledgement covers exactly one immutable protocol-record suffix; an adapter may map that suffix to scalar or vectored OS buffers but cannot combine multiple records under one acknowledgement.
 - Treat bytes offered by a Sans-I/O engine separately from bytes the caller acknowledges as written. A zero-length or short write advances only the acknowledged prefix; it never permits regeneration of already exposed output from changed protocol state. Exact lease/token rules and the irrevocable exposure boundary are fixed at v0.25.0.
-- Define the per-connection causal driver invariant: acknowledgement of an
-  outbound written prefix must be delivered to the protocol engine before input
-  whose existence or interpretation could depend on that prefix is consumed.
-  Peer input never proves output commitment. A combined operation processes
-  output acknowledgement before input; an independent reversed call refuses all
-  input consumption and returns typed local `DriverCommitOrderViolation`
-  without protocol mutation. Apply the rule to SETTINGS ACK, locally originated
-  PING ACK, responses on locally initiated streams, frames enabled by locally
-  advertised extensions/features, GOAWAY, and every later causal state change.
+- Define the content-independent per-connection driver invariant: while an
+  `OutputToken` is outstanding, nonempty input is accepted only by a combined
+  call that consumes that exact token before parsing. Valid zero, short, and
+  full acknowledgements resolve the offer and establish the state in which
+  input is parsed; invalid acknowledgement and input-only delivery leave all
+  input unconsumed, with the latter returning typed local
+  `DriverCommitOrderViolation`. No dependency classifier exists, peer input
+  never proves output commitment, and vectored/DMA queuing is not transport
+  consumption. Apply the rule to HTTP/1 response correlation and transition
+  heads, SETTINGS/PING ACKs, locally initiated HTTP/2 responses, advertised
+  extensions/features, GOAWAY, and every later output/input boundary.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -834,7 +836,7 @@ on v0.19.0 (Role, profile, and policy types) and must be independently trustwort
 
 #### Verification
 
-- Test Minimal synchronous I/O contracts and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cross independent and combined calls with zero/short/full output commitment and causally dependent/independent input; prove acknowledgement-first ordering, zero input consumption/mutation on `DriverCommitOrderViolation`, and no peer-input-derived output commitment.
+- Test Minimal synchronous I/O contracts and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cross input-only and combined calls with invalid/stale/oversized and valid zero/short/full output acknowledgement, subsequent parse failure, scalar/vectored/DMA delivery, and every call order; prove acknowledgement-first ordering, state-neutral invalid acknowledgement, preserved committed prefixes, zero input consumption/mutation on `DriverCommitOrderViolation`, and no peer-input-derived or caller-queue-derived output commitment.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -980,11 +982,13 @@ on v0.23.0 (Cancellation, close, and bounded-backpressure contracts) and must be
 
 - Acceptance contract: The Deterministic fake transport and driver harness outcome must name its representation and ownership invariants, valid and invalid construction paths, publication/commit point, typed policy/capacity failures, bounded work/storage, portability evidence, and deterministic tests; no later milestone may be required to make this foundation safe.
 - Model output exposure and transport acknowledgement independently. Interleave zero/short/full writes, stale/duplicate/out-of-order tokens, cancellation, connection failure, and caller-buffer reuse; retain the exact offered bytes until the acknowledgement/revocation contract resolves them.
-- Model causality independently from byte arrival. Permute offered bytes,
-  acknowledged prefixes, adapter reads, engine input delivery, combined
-  acknowledgement-plus-input, connection failure, and retry. Dependent input
-  delivered before its write acknowledgement produces only
-  `DriverCommitOrderViolation`; combined delivery commits output first.
+- Model ordering independently from peer-byte contents. Permute offered bytes,
+  invalid/zero/short/full acknowledged prefixes, adapter reads, input-only and
+  combined delivery, parse failure, connection failure, retry, and scalar,
+  vectored, or DMA transport progress. Any nonempty input-only delivery with an
+  outstanding token produces only `DriverCommitOrderViolation`; a combined
+  call consumes the exact token first and never acknowledges bytes merely
+  queued in caller-controlled memory.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -996,7 +1000,7 @@ on v0.23.0 (Cancellation, close, and bounded-backpressure contracts) and must be
 
 #### Verification
 
-- Test Deterministic fake transport and driver harness and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Include deterministic SETTINGS/PING ACK, locally initiated response HEADERS, advertised-extension frame, and GOAWAY-dependent input traces at every output prefix and both call orders.
+- Test Deterministic fake transport and driver harness and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Include deterministic HTTP/1 response/FIFO and transition-head traces plus SETTINGS/PING ACK, locally initiated response HEADERS, advertised-extension frame, and GOAWAY input at every output prefix and call order. Make all expected outcomes independent of input classification.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1028,12 +1032,21 @@ on v0.24.0 (Deterministic fake transport and driver harness) and must be indepen
 - While a token is outstanding, prohibit reentrant offers, mutation/replacement of its frozen record, caller-buffer reuse through the safe borrow, and owning stream/record reclamation. Connection failure consumes or invalidates the token through connection-owned cleanup and records only the acknowledged prefix. Require every later semantic-validation layer to preserve independent engine-only validation slots and head storage that application response work cannot consume, with one deterministic close/shutdown action and zero partial response output if even the reserve cannot proceed.
 - Expose a combined causal operation conceptually equivalent to
   `advance_io(output_ack, input)` and process its optional output token/delta
-  completely before parsing one input byte. An input-only operation is legal
-  only when no unreported outbound commitment can causally enable that input;
-  otherwise return `DriverCommitOrderViolation` with the input wholly
-  unconsumed, outstanding token/cursor unchanged, and no protocol event,
-  timeout, feature, correlation, cutoff, or stream transition. Never accept
-  peer input as implicit acknowledgement.
+  completely before parsing one input byte. While any `OutputToken` is
+  outstanding, accept nonempty input only through this combined call consuming
+  that exact token; make no peer-controlled content inspection and accept no
+  caller-provided dependent/independent flag or trait. Invalid, stale,
+  cross-record, or oversized acknowledgement is state-neutral and leaves input
+  wholly unconsumed. A valid zero acknowledgement invalidates the offer without
+  advancing output, then parses against unchanged protocol state; a short
+  acknowledgement commits only its prefix, and a full acknowledgement runs
+  infallible completion hooks, before parsing. Subsequent input failure never
+  rolls back already acknowledged output. Input-only nonempty delivery with a
+  live token returns `DriverCommitOrderViolation` before parsing, with token,
+  cursor, input, and protocol state unchanged. Scalar, vectored, and DMA
+  adapters obey the same rule and may acknowledge only bytes consumed by the
+  transport, never bytes merely queued in caller-controlled memory. Never
+  accept peer input as implicit acknowledgement.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -1045,7 +1058,7 @@ on v0.24.0 (Deterministic fake transport and driver harness) and must be indepen
 
 #### Verification
 
-- Test Engine event, command, acknowledgement, and publication contract and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cover private encoding before exposure, first non-empty exposure, zero-length and every short acknowledgement, exact one-record completion, attempted acknowledgement across a record boundary, stale/duplicate/oversized/cross-record/out-of-order tokens, failure with an outstanding lease, caller-buffer reuse attempts, and generation rollover; prove only acknowledged prefixes count as written, every exposed byte remains immutable, and no token completes or releases another record. Cross output-only/input-only/combined calls at every prefix; prove combined acknowledgement precedes parsing and reversed dependent input is wholly state-neutral local failure.
+- Test Engine event, command, acknowledgement, and publication contract and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cover private encoding before exposure, first non-empty exposure, zero-length and every short acknowledgement, exact one-record completion, attempted acknowledgement across a record boundary, stale/duplicate/oversized/cross-record/out-of-order tokens, failure with an outstanding lease, caller-buffer reuse attempts, and generation rollover; prove only acknowledged prefixes count as written, every exposed byte remains immutable, and no token completes or releases another record. Cross output-only/input-only/combined calls at every prefix and call order with empty/nonempty input: invalid acknowledgement leaves all input unconsumed, zero parses against unchanged state, short parses against prefix-committed state, full runs hooks before parsing, parse failure preserves commitment, and input-only with a live token is wholly state-neutral local failure. Prove no input classifier or vectored/DMA queue can bypass transport-consumption evidence.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -1113,10 +1126,13 @@ on v0.26.0 (Requirement, applicability, and errata evidence system) and must be 
 
 - Acceptance contract: The Foundation Kani campaign, audit, and pentest outcome must name its representation and ownership invariants, valid and invalid construction paths, publication/commit point, typed policy/capacity failures, bounded work/storage, portability evidence, and deterministic tests; no later milestone may be required to make this foundation safe.
 - Model-check the v0.25.0 output lease/token state machine: no frozen byte changes after exposure, acknowledgements advance one exact prefix at most once, zero writes preserve the cursor, invalid tokens are state-neutral, and record/generation reuse is impossible with an outstanding lease or acknowledged-prefix obligation.
-- Model-check driver causality over offered/acknowledged/input permutations:
-  dependent input is consumed only after the enabling prefix commits, combined
-  calls commit first, reversed calls preserve every byte/state/token, and no
-  peer-controlled input can select an output-completion transition.
+- Model-check the content-independent driver order over offered token,
+  invalid/zero/short/full acknowledgement, empty/nonempty input, parse result,
+  and call-order permutations. Combined calls consume the exact token and
+  commit first, subsequent parse failure preserves the committed prefix,
+  input-only calls with a live token preserve every byte/state/token, and
+  neither peer content, a dependency flag, nor caller-controlled vectored/DMA
+  queuing can select an output-completion transition.
 - Preserve the phase invariant: No parser may publish protocol state until checked progress, storage, event ownership, capacity disposition, resource ceilings, limits, roles, and evidence contracts exist.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2174,7 +2190,7 @@ on v0.53.0 (Chunked encoder with partial-output state) and must be independently
 
 #### Deliverables
 
-- Acceptance contract: Serialize a head followed by exactly no body, fixed-length bytes, or chunked bytes; reject length disagreement, illegal trailers, post-completion commands, and sender-side HEAD/CONNECT/1xx/204/304 violations under one-byte output fragmentation; keep raw locally generated head constructors and framing-only serializer entries crate-private/unstable so they cannot become a final public bypass. Request framing remains internally testable but v0.180.4 must replace its raw entry with frozen `ValidatedConditionalRequest`; v0.182.1 replaces the response entry with frozen `ValidatedResponse` carrying an unextractable sealed permit before public API stabilization.
+- Acceptance contract: Serialize a head followed by exactly no body, fixed-length bytes, or chunked bytes; reject length disagreement, illegal trailers, post-completion commands, and sender-side HEAD/CONNECT/1xx/204/304 violations under one-byte output fragmentation. Track every generation-bound outbound message as `AcceptedPrivate -> Frozen -> HeadCommitted -> MessageCommitted` or `Abandoned`: acceptance remains replaceable until first nonempty exposure, exposure freezes exact bytes, and only acknowledgement of the complete head's final octet enters `HeadCommitted`. For a client request, only `HeadCommitted` creates response-correlation authority; its body may remain in progress because an early final response is legal. Partial-head failure never creates that authority. Keep raw locally generated head constructors and framing-only serializer entries crate-private/unstable so they cannot become a final public bypass. Request framing remains internally testable but v0.180.4 must replace its raw entry with frozen `ValidatedConditionalRequest`; v0.182.1 replaces the response entry with frozen `ValidatedResponse` carrying an unextractable sealed permit before public API stabilization.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2186,7 +2202,7 @@ on v0.53.0 (Chunked encoder with partial-output state) and must be independently
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Split every request/response head at offsets `0..=head_len`, cross zero/short/full acknowledgement, failure, cancellation, and body progress, and prove response-correlation authority appears exactly at final-head-octet acknowledgement.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2291,7 +2307,7 @@ on v0.56.0 (HTTP/1.1 persistence and Connection semantics) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Without pipelining, admit one request and its ordered informational/final response lifecycle at a time; reject or backpressure a second request until body acknowledgement and response completion make reuse legal, bind cancellation to that exchange generation, and never attach late bytes/events to the next exchange.
+- Acceptance contract: Without pipelining, admit one request and its ordered informational/final response lifecycle at a time; represent the client side as a one-entry generation-bound outstanding-response FIFO populated only by v0.54.0 `HeadCommitted`. Associate every 1xx and final response only with its oldest committed request. If response input arrives with no committed request, close as ambiguous under RFC 9112 without publishing a response or borrowing an accepted/private/frozen request identity. Reject or backpressure a second request until body acknowledgement and response completion make reuse legal, bind cancellation to that exchange generation, and never attach late bytes/events to the next exchange.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2303,7 +2319,7 @@ on v0.56.0 (HTTP/1.1 persistence and Connection semantics) and must be independe
 
 #### Verification
 
-- Test Sequential request/response connection state and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test Sequential request/response connection state and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Feed response prefixes before request exposure, at every acknowledged request-head offset, after exact head commitment while the body remains in progress, and after cancellation/failure; require ambiguous close with no committed request and oldest-generation correlation only after final-head-octet acknowledgement.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2330,7 +2346,7 @@ on v0.57.0 (Sequential request/response connection state) and must be independen
 
 #### Deliverables
 
-- Acceptance contract: When explicitly enabled, queue at most the configured number and bytes of fully validated requests, preserve request and response FIFO order, stop parsing at capacity without partial enqueue, associate bodies/cancellation by generation, and close rather than emit an out-of-order, ambiguous, or post-error response.
+- Acceptance contract: When explicitly enabled, queue at most the configured number and bytes of fully validated requests, but populate the outstanding-response FIFO only as each outbound request reaches v0.54.0 `HeadCommitted`; accepted/private/frozen requests are not response-correlatable. Preserve request-head commitment and response association order, stop parsing at capacity without partial enqueue, associate bodies/cancellation by generation, match every 1xx/final response only to the oldest committed request, and close rather than accept a response with no committed request or emit an out-of-order, ambiguous, or post-error response.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2342,7 +2358,7 @@ on v0.57.0 (Sequential request/response connection state) and must be independen
 
 #### Verification
 
-- Test Optional bounded pipelining queue and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test Optional bounded pipelining queue and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Permute several accepted, frozen, partially acknowledged, head-committed, body-active, completed, and abandoned request generations with response input; prove FIFO insertion occurs once at HeadCommitted and no response skips an older committed request.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2369,7 +2385,7 @@ on v0.58.0 (Optional bounded pipelining queue) and must be independently trustwo
 
 #### Deliverables
 
-- Acceptance contract: Model two exclusive response branches: zero or more informational responses in 100..=199 excluding 101 followed by exactly one final response, or one validated 101 that terminally ends HTTP and is followed only by the selected protocol; HTTP/1.0 servers never emit any 1xx, informational responses after a final/101 and invalid 1xx framing are rejected, and every event remains correlated to the active request without premature completion or recycling.
+- Acceptance contract: Model two exclusive response branches: zero or more informational responses in 100..=199 excluding 101 followed by exactly one final response, or one validated 101 that terminally ends HTTP and is followed only by the selected protocol. On the client side, both branches require and remain attached to the oldest `HeadCommitted` request in the outstanding-response FIFO; response input with no committed request closes as ambiguous without publication. HTTP/1.0 servers never emit any 1xx, informational responses after a final/101 and invalid 1xx framing are rejected, and every event remains correlated to the active committed request without premature completion or recycling.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2381,7 +2397,7 @@ on v0.58.0 (Optional bounded pipelining queue) and must be independently trustwo
 
 #### Verification
 
-- Test the informational-then-final and terminal-101 branches separately, HTTP/1.0 1xx emission rejection, post-final/post-101 invalid states, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test the informational-then-final and terminal-101 branches separately at every opening-request head acknowledgement offset, including absent FIFO authority, oldest committed selection, an active request body, HTTP/1.0 1xx emission rejection, post-final/post-101 invalid states, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2408,7 +2424,7 @@ on v0.59.0 (Informational response lifecycle) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Recognize exact 100-continue, emit 417 for unsupported expectations by policy, withhold client bodies, accept caller timeout decisions through injected time, handle final-before-100 and server pre-body rejection, bound drain-or-close behavior, and preserve pipeline ordering around interim responses; if Upgrade will succeed, require 100 to commit before 101 whenever Expect: 100-continue applies, and forbid 101 until the complete request message has been sent or received.
+- Acceptance contract: Recognize exact 100-continue, emit 417 for unsupported expectations by policy, withhold client bodies, accept caller timeout decisions through injected time, handle final-before-100 and server pre-body rejection, bound drain-or-close behavior, and preserve pipeline ordering around interim responses. A client accepts received 100 or an early final only for the oldest committed request head; no response becomes valid from command acceptance or partial head output. Server-side inbound request-body acceptance never depends on acknowledgement of an outbound 100 because a client may send after its own timeout. If Upgrade will succeed, require full acknowledgement of the complete 100 response head before any 101 exposure whenever Expect applies, and forbid 101 until the complete request message has been sent or received.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2420,7 +2436,7 @@ on v0.59.0 (Informational response lifecycle) and must be independently trustwor
 
 #### Verification
 
-- Test final-before-100, 100-before-body, mandatory 100-before-101, rejection of 101 before request completion, timeout/drain/close choices, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test final-before-100 and 100-before-body at every request-head acknowledgement offset, body arrival before/without/after 100 commitment, mandatory complete-100-head acknowledgement before 101 exposure, rejection of 101 before request completion, timeout/drain/close choices, and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2564,7 +2580,7 @@ on v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) and must b
 
 #### Deliverables
 
-- Acceptance contract: Accept CONNECT only with the v0.40.0 validated ConnectAuthority and staged Sans-I/O admission: authorize its lexical host plus explicit 1..=65535 port, issue a request/policy-generation-bound ConnectAttemptToken, let the caller resolve, authorize every candidate endpoint before its dial, and consume exactly once only an AuthorizedConnectOutcome whose opaque attempt identity, authority, authorized resolved endpoint, actual connected peer, attempt/request/policy generations, and token all match; cancellation, rejection, policy-generation change, non-2xx completion, or tunnel commitment invalidates every remaining attempt/outcome, and duplicate outcome/success commands are InvalidState before output; VEF performs no DNS, dialing, or socket inspection, and rejects stale, alternate, mismatched, or policy-revoked outcomes before 2xx, upstream bytes, or tunnel publication; use no Host routing or scheme default; outbound builders reject request content, Content-Length, and Transfer-Encoding; hardened inbound framing rejects either field with bounded 400 plus mandatory close and no reparse; successful server responses forbid both fields while clients ignore received ones, every response is non-cacheable, a final 2xx atomically hands over each over-read byte once, and non-2xx remains ordinary HTTP without tunnel publication.
+- Acceptance contract: Accept CONNECT only with the v0.40.0 validated ConnectAuthority and staged Sans-I/O admission: authorize its lexical host plus explicit 1..=65535 port, issue a request/policy-generation-bound ConnectAttemptToken, let the caller resolve, authorize every candidate endpoint before its dial, and consume exactly once only an AuthorizedConnectOutcome whose opaque attempt identity, authority, authorized resolved endpoint, actual connected peer, attempt/request/policy generations, and token all match; cancellation, rejection, policy-generation change, non-2xx completion, or tunnel commitment invalidates every remaining attempt/outcome, and duplicate outcome/success commands are InvalidState before output; VEF performs no DNS, dialing, or socket inspection, and rejects stale, alternate, mismatched, or policy-revoked outcomes before 2xx, upstream bytes, or tunnel publication; use no Host routing or scheme default; outbound builders reject request content, Content-Length, and Transfer-Encoding; hardened inbound framing rejects either field with bounded 400 plus mandatory close and no reparse; successful server responses forbid both fields while clients ignore received ones, and every response is non-cacheable. A client accepts a received 2xx only for its oldest committed CONNECT request head. A server publishes the tunnel and hands over over-read bytes only after full acknowledgement of the complete 2xx response head. Partial 2xx acknowledgement followed by transport failure closes without tunnel publication or reinterpretation of tunnel bytes; non-2xx remains ordinary HTTP.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2576,7 +2592,7 @@ on v0.63.0 (1xx, 204, 205, 304, and body-forbidden response handling) and must b
 
 #### Verification
 
-- Test lexical rejection before resolution, every resolved endpoint allow/deny, alternate-address and connected-peer mismatch, stale attempt/request/policy generations, revocation after resolution, single consumption, duplicate outcome/success, replay after cancellation/non-2xx/commit and same-generation reuse, caller-certified success without socket inspection, safe/unsafe ports, bracketed IPv6, Host disagreement, content/framing rejection with close/no-reparse, successful field prohibition/client ignore, non-cacheability, 2xx/non-2xx handoff, and all earlier behavior.
+- Test lexical rejection before resolution, every resolved endpoint allow/deny, alternate-address and connected-peer mismatch, stale attempt/request/policy generations, revocation after resolution, single consumption, duplicate outcome/success, replay after cancellation/non-2xx/commit and same-generation reuse, caller-certified success without socket inspection, safe/unsafe ports, bracketed IPv6, Host disagreement, content/framing rejection with close/no-reparse, successful field prohibition/client ignore, non-cacheability, and all earlier behavior. For 2xx/non-2xx, cross every CONNECT request-head and response-head acknowledgement offset, over-read boundary, and transport failure; require client correlation only after request HeadCommitted and server publication only after complete 2xx-head acknowledgement, with partial failure closing without handoff or reparse.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2681,7 +2697,7 @@ on v0.66.0 (Connection-option, Upgrade, and hop-by-hop field grammar) and must b
 
 #### Deliverables
 
-- Acceptance contract: Commit a valid 101 only after its Connection/Upgrade prerequisites and selected protocol validate and the complete request message has been sent or received; treat it as the terminal HTTP response branch, hand buffered post-handshake bytes exactly once exclusively to the selected protocol, and make every later HTTP response parse, serialization, body, trailer, pipeline, or reuse operation an InvalidState without consuming or emitting bytes.
+- Acceptance contract: Validate a 101 only after its Connection/Upgrade prerequisites and selected protocol validate and the complete request message has been sent or received. A client may accept it only for its oldest committed opening-request head. A server activates the transition and hands buffered post-handshake bytes exactly once only after full acknowledgement of the complete 101 response head; partial output plus failure closes without publication or reparse. Treat committed 101 as the terminal HTTP response branch and make every later HTTP response parse, serialization, body, trailer, pipeline, or reuse operation an InvalidState without consuming or emitting bytes.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2693,7 +2709,7 @@ on v0.66.0 (Connection-option, Upgrade, and hop-by-hop field grammar) and must b
 
 #### Verification
 
-- Test complete-request gating, invalid Connection/Upgrade selection, exactly-once over-read handoff, and every HTTP parse/serialize/body/trailer/pipeline operation after 101 returning InvalidState without byte progress, plus all previously implemented relevant behavior.
+- Test complete-request gating, client receipt before/at opening-request HeadCommitted, invalid Connection/Upgrade selection, every 101 response-head acknowledgement offset, partial-output failure, exactly-once over-read handoff, and every HTTP parse/serialize/body/trailer/pipeline operation after committed 101 returning InvalidState without byte progress, plus all previously implemented relevant behavior.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -2837,7 +2853,7 @@ on v0.70.0 (WebSocket accept generation and client/server validation) and must b
 
 #### Deliverables
 
-- Acceptance contract: Define subprotocol and extension selection, preserve Origin metadata for caller policy, reject unsolicited negotiation, and publish no post-handshake bytes before success.
+- Acceptance contract: Define subprotocol and extension selection, preserve Origin metadata for caller policy, reject unsolicited negotiation, and publish no post-handshake bytes before success. WebSocket uses the v0.67.0 wire boundary: client receipt of 101 requires its opening request head to be committed, while a server handshake and every post-handshake byte remain unpublished until the complete 101 response head is acknowledged. Forbid optimistic WebSocket transmission before that commitment under RFC 6455 and RFC 9931.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -2849,7 +2865,7 @@ on v0.70.0 (WebSocket accept generation and client/server validation) and must b
 
 #### Verification
 
-- Test WebSocket negotiation, origin metadata, and byte-publication barrier and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test WebSocket negotiation, origin metadata, and byte-publication barrier and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cross every opening-request and 101-response acknowledgement offset, optimistic post-handshake input/output, over-read bytes, and partial failure; prove no WebSocket byte publishes before the applicable client/server commitment boundary.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -3227,7 +3243,7 @@ on v0.80.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently tru
 
 #### Deliverables
 
-- Acceptance contract: Close every applicable RFC 1945/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on any divergent framing, publication, close, capacity, or bounded-work result.
+- Acceptance contract: Close every applicable RFC 1945/6455/9110/9112/9931 requirement and erratum with a named passing test or recorded disposition, replay the HTTP/0.9 cross-protocol and HTTP/1 smuggling corpora against client/server/intermediary profiles, and block exit on any divergent framing, publication, close, capacity, or bounded-work result. Audit the complete HTTP/1 causal product: `AcceptedPrivate -> Frozen -> HeadCommitted -> MessageCommitted/Abandoned`, outstanding-response FIFO insertion and oldest matching, 100/early-final behavior, complete-100-before-101 output, CONNECT 2xx and Upgrade/WebSocket 101 publication, and ambiguous response input without a committed request.
 - Preserve the phase invariant: HTTP/1 has one octet-level inbound/outbound interpretation, bounded body ownership, exact transition handoff, typed dispositions, and no HTTP/0.9 fallback.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -3239,7 +3255,7 @@ on v0.80.0 (HTTP/1 smuggling and ambiguity corpus) and must be independently tru
 
 #### Verification
 
-- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
+- Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus. Replay every request/response head acknowledgement offset and input call order, early response/body timing, FIFO generation, CONNECT/101 over-read boundary, partial failure, and optimistic WebSocket attempt; require exact commitment, close, ownership, and no-reparse outcomes.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5593,11 +5609,13 @@ on v0.136.0 (HTTP/2 inbound DATA ownership, acknowledgement, and credit release)
 - Track `OutboundFieldBlock::{Private { stream, generation, hpack: HpackEncoderTransaction, table_update_debt: Option<EncoderTableUpdateDebtLease>, initial, continuations }, FramingCommitted { stream, generation, hpack: HpackEncoderTransaction, transmitted_table_update: Option<EncoderTableUpdateDebt>, remaining_continuations }, HpackCommitted, AbandonedWithConnection}` at connection scope. Define `field_fragment_cap = min(16_384, ResourceProfile::max_outbound_frame_payload, checked_sub(slot_capacity, 9))`; reject zero/overflow and require it to fit the enabled initial frame's mandatory payload prefix (four promised-stream-ID octets for PUSH_PROMISE and five priority octets only when that HEADERS form is enabled). Check `ResourceProfile::max_outbound_field_block_bytes` before encoding. Compute initial fragment capacity after its prefix, then compute `continuation_count = checked_ceil_div(remaining_encoded_block_bytes, field_fragment_cap)` and require it not exceed `ResourceProfile::max_outbound_continuations_per_block`. Before any initial HEADERS/PUSH_PROMISE exposure, linearly lease the exact connection `EncoderTableUpdateDebt`, fully encode its required one or smallest-then-final prefix plus the bounded block, and atomically reserve/materialize the exact initial slot, every CONTINUATION slot, total checked arena bytes, and `checked_add(1, continuation_count)` queue entries. This actual local cap is no larger than the minimum legal peer MAX_FRAME_SIZE, so a valid peer reduction cannot require resegmentation; shortage or oversized locally generated fields returns typed local `OutboundFieldBlockCapacity`/validation failure with zero exposure and restores the debt lease exactly. The whole Private block may be superseded, returning that lease before any newer setting merges and releasing all slots plus provisional HPACK mutations together. First non-empty initial-frame exposure atomically transfers the lease into FramingCommitted and clears only the connection-side debt; the pre-reserved block is then guaranteed to finish and every remaining CONTINUATION is non-supersedable. SETTINGS_HEADER_TABLE_SIZE received after that boundary cannot alter the transferred prefix and accrues debt for the following block after its own ACK commits. No later field block encodes against the provisional transaction or an unresolved transition. Full acknowledgement of the frame carrying END_HEADERS atomically publishes `HpackCommitted` and releases block resources in order. No RST_STREAM, GOAWAY, PING ACK, SETTINGS ACK, WINDOW_UPDATE, or other-stream output can interleave. Fatal transport failure may abandon transferred debt and the transaction/block only with the entire connection. An END_STREAM completion hook on initial HEADERS still runs when that frame is fully acknowledged, independently of final HPACK commit. v0.145.0 applies the same lifecycle to PUSH_PROMISE.
 - Each `OutputToken` offered by HTTP/2 owns exactly one frame-slot suffix. Scalar and vectored adapters may expose that suffix but cannot combine it with another slot; a short acknowledgement advances only this slot, exact completion runs only this frame's hook, and an acknowledgement extending into the next frame is `InvalidState` without mutation.
 - A response or dependent frame on a locally initiated stream cannot be consumed
-  until the request HEADERS prefix that causally permits it is acknowledged
-  committed. The combined driver call commits that output first; reversed
-  independent input returns `DriverCommitOrderViolation` without parsing,
-  publishing, changing HPACK/stream state, or using the response as request
-  commitment evidence.
+  while its request `OutputToken` is outstanding. The combined driver call
+  consumes that exact token first; input-only delivery with the live token
+  returns `DriverCommitOrderViolation` without parsing, publishing, changing
+  HPACK/stream state, or using the response as request commitment evidence.
+  After a valid zero/short acknowledgement resolves the offer, ordinary
+  protocol rules decide whether the resulting committed prefix permits the
+  received frame.
 - Before a DATA frame becomes exposable, use checked arithmetic for `payload = data + optional_pad_length_octet + padding`, require payload to fit the peer limit, local cap, both flow-control windows, remaining source, and `slot_capacity - 9` simultaneously, then atomically reserve that entire flow-controlled payload against both ledgers; the nine-byte frame header is not charged. Derive data length only after subtracting checked padding overhead. If requested padding alone cannot fit, follow the configured deterministic padding-reduction policy or return typed local capacity/backpressure; never truncate source data silently or overflow. First exposure atomically commits/debits the reservation before returning bytes. Insufficient/negative credit or stale generation leaves the frame unexposed. Zero-length DATA carrying END_STREAM reserves/debits zero credit but follows the ordinary output and completion lifecycle.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
@@ -7197,7 +7215,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Deliverables
 
-- Acceptance contract: For HTTP/1 downstream to HTTP/2 upstream, validate and retain the HTTP/1 Sec-WebSocket-Key, strip Connection, Upgrade, Host, Sec-WebSocket-Key, and any Sec-WebSocket-Accept from the HTTP/2 request/response, construct extended CONNECT with ws mapped to :scheme http and wss to https, lowercase every emitted HTTP/2 field name, and preserve/validate Origin, Sec-WebSocket-Version, Sec-WebSocket-Protocol, and Sec-WebSocket-Extensions plus ordinary end-to-end cookies/authorization through the normal matrix; validate selected protocol/extensions against the exact original absent/empty/duplicate offers without processing key/accept upstream, then after HTTP/2 2xx locally compute the HTTP/1 accept and commit 101; for HTTP/2 downstream to HTTP/1 upstream, ignore received HTTP/2 key/accept fields for key generation, obtain a fresh v0.69.0 nonce, generate the HTTP/1 key, validate upstream 101/accept and selected negotiation, then translate success to HTTP/2 2xx without copying HTTP/1 accept/Connection/Upgrade; no WebSocket byte crosses until both sides commit, and either-direction failure remains independently HTTP-framed with normal failure-response translation.
+- Acceptance contract: For HTTP/1 downstream to HTTP/2 upstream, validate and retain the HTTP/1 Sec-WebSocket-Key, strip Connection, Upgrade, Host, Sec-WebSocket-Key, and any Sec-WebSocket-Accept from the HTTP/2 request/response, construct extended CONNECT with ws mapped to :scheme http and wss to https, lowercase every emitted HTTP/2 field name, and preserve/validate Origin, Sec-WebSocket-Version, Sec-WebSocket-Protocol, and Sec-WebSocket-Extensions plus ordinary end-to-end cookies/authorization through the normal matrix; validate selected protocol/extensions against the exact original absent/empty/duplicate offers without processing key/accept upstream, then after HTTP/2 2xx locally compute the HTTP/1 accept and commit 101; for HTTP/2 downstream to HTTP/1 upstream, ignore received HTTP/2 key/accept fields for key generation, obtain a fresh v0.69.0 nonce, generate the HTTP/1 key, validate upstream 101/accept and selected negotiation, then translate success to HTTP/2 2xx without copying HTTP/1 accept/Connection/Upgrade. Represent each bridge generation with `HandshakeBarrier { downstream: DownstreamCommitted, upstream: UpstreamCommitted }`; each leg becomes committed only when its locally emitted success head/frame is fully acknowledged and its received success correlates to a committed opening request on that leg. No WebSocket byte crosses until both exact leg states are committed. Over-read bytes remain owned by their original leg and cannot cross, be parsed as WebSocket, or be released before the barrier. Failure at any partial prefix abandons the bridge generation once without reinterpreting bytes, and either-direction failure remains independently HTTP-framed with normal failure-response translation.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -7209,7 +7227,7 @@ on v0.162.0 (RFC 8441 extended CONNECT) and must be independently trustworthy be
 
 #### Verification
 
-- Test both directions with RFC 6455/RFC 8441 vectors: ws/wss scheme mapping, lowercase HTTP/2 names, Origin/version preservation, ordinary cookies/authorization, stripped/generated key/accept/Connection/Upgrade, hostile HTTP/2 key/accept noninfluence, fresh nonce, absent versus empty and duplicate offers, selected-but-unoffered protocol/extension, failure translation, cancellation, and zero WebSocket bytes before both commits.
+- Test both directions with RFC 6455/RFC 8441 vectors: ws/wss scheme mapping, lowercase HTTP/2 names, Origin/version preservation, ordinary cookies/authorization, stripped/generated key/accept/Connection/Upgrade, hostile HTTP/2 key/accept noninfluence, fresh nonce, absent versus empty and duplicate offers, selected-but-unoffered protocol/extension, failure translation, and cancellation. Cross every request/success-head or frame acknowledgement offset on both legs and both completion orders; prove generation-bound `DownstreamCommitted x UpstreamCommitted`, original-leg ownership of over-read bytes, zero WebSocket bytes before the barrier, and exactly-once abandonment without reinterpretation on partial failure.
 - Create or extend the relevant stateful HTTP/1/intermediary fuzz target now and retain its minimized corpus.
 - Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
@@ -8403,7 +8421,7 @@ on v0.186.0 (Tunnel lifecycle and half-close semantics) and must be independentl
 
 #### Deliverables
 
-- Acceptance contract: Transform only a fully validated Upgrade request/101 response pair, preserve selected protocol and negotiation metadata, emit no destination or post-transition bytes before commit, and reject unsupported cross-version upgrades with an HTTP-framed close action.
+- Acceptance contract: Transform only a fully validated Upgrade request/101 response pair, preserve selected protocol and negotiation metadata, and bind each bridge generation to an explicit `DownstreamCommitted x UpstreamCommitted` barrier. A leg commits only when its received 101 correlates to its committed opening request and its locally emitted success head reaches full acknowledgement. Keep over-read bytes owned by their original leg; emit no cross-leg or post-transition bytes, parse none under the upgraded protocol, and release none before both exact states commit. Partial failure abandons the generation exactly once without reinterpretation. Reject unsupported cross-version upgrades with an HTTP-framed close action.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8415,7 +8433,7 @@ on v0.186.0 (Tunnel lifecycle and half-close semantics) and must be independentl
 
 #### Verification
 
-- Test Upgrade transformation boundary and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test Upgrade transformation boundary and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cross both legs' request/101 acknowledgement offsets, barrier completion orders, over-read ownership, stale generations, cancellation, and partial transport failure; require no cross-leg publication before both exact commitments and one abandonment without byte reinterpretation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -8442,7 +8460,7 @@ on v0.187.0 (Upgrade transformation boundary) and must be independently trustwor
 
 #### Deliverables
 
-- Acceptance contract: Stop at the precise committed transition boundary, return over-read bytes unchanged/in order, never parse post-transition bytes as HTTP, keep failure bytes under HTTP framing, distinguish half-close/cancel/close_notify/EOF, and transfer ownership exactly once.
+- Acceptance contract: Stop at the precise committed transition boundary using a generation-bound `TransitionBarrier { downstream: DownstreamCommitted, upstream: UpstreamCommitted }`. For CONNECT or Upgrade, each client-side received success must correlate to a committed request head and each server-side emitted success head must be fully acknowledged; only the product of both per-leg states permits cross-leg publication. Return each leg's over-read bytes unchanged/in order only after the barrier, never parse them as HTTP or as the new protocol beforehand, and transfer ownership exactly once. Any partial-head/frame or transport failure abandons the bridge once, keeps bytes on their original leg under HTTP framing, and never reinterprets them. Distinguish half-close/cancel/close_notify/EOF after successful transfer.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8454,7 +8472,7 @@ on v0.187.0 (Upgrade transformation boundary) and must be independently trustwor
 
 #### Verification
 
-- Test Exact CONNECT, Upgrade, and tunnel byte-handoff ownership and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases.
+- Test Exact CONNECT, Upgrade, and tunnel byte-handoff ownership and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Cross every request and success-response/frame acknowledgement offset on each leg, both barrier orders, over-read on either/both legs, stale generations, and partial failure; prove exact `DownstreamCommitted x UpstreamCommitted`, no early parse/release/crossing, one transfer after the barrier, and one abandonment without reinterpretation.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -8561,11 +8579,15 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
 
 - Acceptance contract: Stabilize borrowed/fixed-capacity APIs first, including acknowledgements, lifetimes, explicit capacity errors, and proof that protocol correctness needs no allocator. Expose `OutboundFrameArena` only from exclusive caller storage, with generation-checked `OutboundFrameSlot`/`FrozenOutboundFrameSlot` ownership, independent queue-byte/entry sizing, nonzero `ResourceProfile::max_outbound_frame_payload`, and typed `OutboundFrameStorageCapacity`; no API sizes storage directly from peer MAX_FRAME_SIZE or permits caller access/reuse before supersession, full acknowledgement, or connection cleanup. `PartialDeliveryPreference`, `RequestedOverlapBudget`, `AssemblyInvalidationCapacity`, `PushedAssemblyProvenanceCapacity`, `StreamTrackingUnavailable`, `PushRejectionTrackingUnavailable`, `LeaseHeld`, and ordinary error values are freely constructible and confer no authority; caller-provided `VariantIdentityStorage` is constructible only from exclusive slices/sealed slots. Expose civil-time evidence, PendingConditionalRequest, CurrentRepresentationEvidence, WouldBe200Snapshot, request content/execution permits, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, and PartialCombinationPlan only with the sealed generation/lifetime constraints appropriate to authority-bearing evidence. The invalidation handle and pushed provenance remain non-Copy/non-Clone, exact promised-correlation-bound, independently leased from associated-stream storage, held through reserved push and terminal backpressure, and exactly-once released; no public operation duplicates, rebinds, substitutes peer identity, crosses associated requests, borrows recyclable associated-stream storage, or releases either early. Semantic invalidation is observable only as rejection and cannot shorten a lease or authorize physical reclamation. Expose generated responses only through fixed-capacity `vef-semantics` validation yielding a frozen `ValidatedResponse` consumed whole by the selected engine, preserve the mandatory reserve, and keep raw request/response serializers and separable capability/data pairings non-public.
 - Stabilize `advance_io(output_ack, input)` so output acknowledgement is applied
-  before any input borrow is consumed. Independent input APIs expose a checked
-  causal precondition and return typed `DriverCommitOrderViolation` with the
-  entire input borrow and all engine state unchanged; no convenience/alloc
-  facade may reorder the two phases, buffer a rejected dependent frame for later
-  acceptance, or synthesize commitment from input.
+  before any input borrow is consumed. With a live `OutputToken`, only a
+  combined call consuming that exact token accepts nonempty input; input-only
+  APIs return typed `DriverCommitOrderViolation` with the entire input borrow
+  and all engine state unchanged. Invalid acknowledgement likewise leaves the
+  input untouched; zero/short/full acknowledgement establishes the parse
+  state, and later parse failure preserves its committed prefix. No
+  convenience/alloc facade may add a dependency classifier, reorder the two
+  phases, buffer rejected input, treat vectored/DMA queuing as transport
+  consumption, or synthesize commitment from input.
 - Public constructors reject overflow in `checked_add(9, max_outbound_frame_payload)`, zero/undersized `field_fragment_cap`, enabled mandatory-prefix shortage, inconsistent block/continuation capacity, ambiguous padding, and HPACK layouts whose checked logical physical capacity exceeds exclusive caller storage. `EncoderTableLimits`, received/acknowledged ceiling transitions, selected-capacity mutation, decoder advertisement proof, `InboundSettingsTransaction`, `PendingEncoderTableSizeTransition`, `EncoderTableUpdateDebt`, leases, AckCommitted promotion, debt merge/restore/transfer, and HPACK promotion remain engine-owned and non-constructible. Callers provide storage and policy preferences but cannot forge a larger physical capacity, select outside limits, acknowledge a peer ceiling, advertise unsafe decoder capacity, or expose ACK/debt authority. Public output acknowledgement accepts only one token-bound suffix.
 - Keep `OutboundSettingsTransaction`, ordered frozen entries, future-ACK FIFO
   reservation, commit plan/snapshot, timeout generation, strict committed FIFO,
@@ -8883,13 +8905,25 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   no caller-clock reorder of committed work, Frozen-first completion, atomic
   Private-only abandonment after fatal commitment, no later output, exact-once
   release, and no fabricated ACK/debt, credit, reset, response, or timer hook.
-- Fuzz the v0.25.0 causal call product over offered bytes, every acknowledged
-  prefix, outstanding token generations, independent/combined delivery, inbound
-  SETTINGS/PING ACK, locally initiated response frames, extension-dependent
-  frames, GOAWAY, failure, and retry. Assert output commitment always precedes
-  dependent parsing, reversed delivery consumes nothing and returns only
-  `DriverCommitOrderViolation`, and peer input never completes output or is
-  retained for later.
+- Fuzz the v0.25.0 causal call product over offered bytes, invalid/stale/
+  oversized and every valid zero/short/full acknowledgement, outstanding token
+  generations, input-only/combined delivery, input parse failure, scalar/
+  vectored/DMA progress, HTTP/1 request/response heads and transition barriers,
+  inbound SETTINGS/PING ACK, locally initiated HTTP/2 response frames,
+  extension-dependent frames, GOAWAY, failure, and retry. Assert the exact
+  token is consumed before any parsing, invalid acknowledgement leaves input
+  wholly unconsumed, zero parses unchanged state, committed prefixes survive
+  parse failure, input-only with a live token returns only
+  `DriverCommitOrderViolation`, and no peer input, classifier, or queued caller
+  memory completes output.
+- Fuzz HTTP/1 `AcceptedPrivate/Frozen/HeadCommitted/MessageCommitted/Abandoned`
+  request generations, outstanding-response FIFO order, 1xx/final/100 timing,
+  CONNECT 2xx, Upgrade/WebSocket 101, and v0.163.0/v0.187.0/v0.188.0
+  `DownstreamCommitted x UpstreamCommitted` barriers at every head/frame
+  acknowledgement offset. Assert correlation begins only at request
+  HeadCommitted, server handoff only at complete success-head commitment,
+  over-read bytes retain original-leg ownership until both bridge legs commit,
+  and partial failure abandons once without parse, release, or reinterpretation.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8931,9 +8965,10 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
 - Acceptance contract: Provide compile-fail cases proving borrowed input/body/events cannot outlive storage, acknowledged chunks cannot be reused, stale stream/exchange generations cannot issue commands, role-specific builders cannot construct forbidden transitions, and fixed-capacity APIs cannot smuggle alloc/std ownership into core crates; additionally prove callers cannot construct/clone/copy/reuse/rebind civil-time evidence, `OutputToken`, `OutboundFrameSlot`, `FrozenOutboundFrameSlot`, CurrentRepresentationEvidence, WouldBe200Snapshot, RequestContentPermit, MethodExecutionPermit, ParsedMediaType, ValidatedGeneratedMediaType, ValidatedConditionalRequest, PartialContentTypeClassification, PartialResponseDisposition, ValidatedPartialResponseHead, SelectedPartialDelivery, PartialBodyChunk, StandalonePartialComplete, VariantFieldLease, VariantSelectionIdentity, VariantSelectionEvidence, ActiveVariantNormalizationBudget, FullRepresentationFallback, AssemblyInvalidationHandle, PushedAssemblyProvenance, ConservativeReplacementScope, ConservativeInvalidationScope, ArenaRotationCause, ActiveOverlapBudget, StorageLeaseGeneration, StoredRepresentationSlice, StoredPartialSegment, ValidatedIncomplete200Prefix, CombinablePartialSegment, CombinableIncomplete200Prefix, AssemblyReplacementKey, PartialAssemblyContext, ReceiptOrderSource, ResponseHeadReceiptOrdinal, CombinationOutputLease, PartialCombinationPlan, or `ResponseEmissionPermit`; prove callers can construct preferences/requested budgets/ordinary errors without authority and create `OutboundFrameArena`/VariantIdentityStorage only from exclusive slice/sealed-slot inputs; reject duplicate/stale/cross-generation output acknowledgement, access/mutation/reuse of staged arena bytes while AcceptedPrivate/Frozen/offered, slot duplication/rebinding, frozen-frame/reset substitution, early stream/tombstone reuse, invalidation-handle/provenance Copy/Clone/duplication/rebinding/early or double release/retry reuse, ordinary-to-pushed or cross-associated-request rebinding, peer-derived principal/partition/tenant/navigation substitution, associated-stream-borrowed provenance or reuse after associated-stream teardown, promised publication without atomic slot/handle/provenance/rejection-tracking reservation, tombstone release before cancellation/classification horizon, caller storage traits/trust constructors, alias/mutate/recycle/reissue while leased, semantic invalidation used to end a borrow or authorize slot reuse, unfenced DMA mutation, identity release then assembly admission, active-budget reset/enlargement/replacement, frozen-data substitution, wrong generation/domain/principal use, trailer decision changes, and fabricated outcomes.
 - Reject APIs or call patterns that alias the same input/output storage across
   causal phases, forge output-commit evidence from input, reorder the combined
-  operation, or let the engine retain rejected dependent input. The caller
-  regains the wholly unconsumed input and may resubmit it only after supplying
-  the required output acknowledgement.
+  operation, classify input to bypass a live token, acknowledge caller-queued
+  vectored/DMA bytes, or let the engine retain rejected input. The caller
+  regains wholly unconsumed input after invalid acknowledgement or input-only
+  delivery with a live token and may resubmit it through a valid combined call.
 - Reject construction/rebinding of `EncoderTableLimits`, peer-ceiling snapshots, acknowledged-ceiling evidence, selected-capacity transitions, decoder-advertisement proof, `HpackEncoderTransaction`, SETTINGS/ACK transactions, `EncoderTableUpdateDebt`, or its lease. Reject selected > received/profile/physical, increases > wire-acknowledged ceiling, raw peer ceiling inserted as debt, automatic selection increase, eviction without selected update, unsafe decoder advertisement, AckCommitted before byte nine, duplicate/cross-block debt lease, rollback without exact restoration, early clearing/transfer, caller HpackCommitted, bound bypass, and cross-record acknowledgement.
 - Reject construction, cloning, copying, rebinding, or direct promotion of
   `OutboundSettingsTransaction`, future-ACK slot, commit plan/snapshot, timeout
@@ -9530,9 +9565,10 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
   commitment, all multiplication/addition is checked on 32-/64-bit targets,
   and terminal cleanup releases each reserved/committed owner exactly once.
 - Prove the causal combined operation requires no hidden input buffering:
-  reversed dependent input remains caller-owned and wholly unconsumed, so
-  enforcing `DriverCommitOrderViolation` adds only fixed token/generation/class
-  metadata within existing connection profiles.
+  input-only delivery with a live token and combined invalid acknowledgement
+  both leave input caller-owned and wholly unconsumed, so enforcing
+  `DriverCommitOrderViolation` adds only fixed token/generation metadata within
+  existing connection profiles and no peer-content classification storage.
 - Size one connection and the configured maximum stream `ReceiveCredit`
   ledgers, independent bounded private/frozen WINDOW_UPDATE records, their
   exact 13-byte storage, generations, counters, and reserved queue entries.

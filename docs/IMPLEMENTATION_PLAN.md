@@ -60,12 +60,16 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
   measured as each hostile surface lands.
 - Successful incremental calls make non-zero observable progress; input,
   output, event, transition, and blocked states remain distinguishable.
-- Enforce per-connection Sans-I/O causality: acknowledge every written outbound
-  prefix before consuming input that could depend on it. A combined
-  `advance_io(output_ack, input)` applies acknowledgement first; independent
-  reversed input returns local `DriverCommitOrderViolation` without consuming
-  bytes or changing protocol state. Never infer output commitment from peer
-  input.
+- Enforce a content-independent per-connection Sans-I/O order. While an
+  `OutputToken` is outstanding, accept nonempty input only through
+  `advance_io(output_ack, input)` consuming that exact token first. Valid
+  zero/short/full acknowledgements invalidate the offer, commit exactly their
+  prefix, and then parse; invalid acknowledgement consumes neither state nor
+  input, and later input failure cannot undo a committed prefix. Input-only
+  delivery with a live token returns local `DriverCommitOrderViolation`
+  without parsing. Dependency flags are forbidden, peer input never proves
+  output commitment, and vectored/DMA queues count only transport-consumed
+  bytes.
 - Applications receive no request before framing/routing control data is
   complete and validated.
 - Conditional origin requests expose only a read-only selection view until
@@ -510,6 +514,13 @@ borrowed body acknowledgement and drain/discard/cancel/reuse actions, bounded
 pipelines, typed error/close actions, RFC 9931, ordered Upgrade validation, an
 isolated WebSocket handshake crate with caller-supplied entropy, safe
 reframing, hardened HTTP/1.0, and an isolated `vef-http09` package.
+Outbound HTTP/1 messages retain AcceptedPrivate/Frozen/HeadCommitted/
+MessageCommitted-or-Abandoned state. Client requests enter the
+outstanding-response FIFO only at final-head-octet acknowledgement; every
+1xx/final response binds to its oldest committed request. Server CONNECT 2xx
+and Upgrade/WebSocket 101 publication waits for full response-head
+acknowledgement, while client receipt requires a committed opening request;
+partial failure never hands off or reparses over-read bytes.
 Host parsing accepts the RFC-required empty value but yields only a non-routable
 artifact. The next stop authorizes target form by origin/forward/reverse role,
 derives the full effective scheme/authority/path/query under explicit trusted
@@ -769,7 +780,10 @@ The v0.163 bridge is bidirectional: HTTP/1-side key/accept processing never
 leaks into RFC 8441, ws/wss and retained negotiation/end-to-end fields map
 exactly with lowercase HTTP/2 names, hostile HTTP/2 key/accept fields cannot
 influence fresh HTTP/1 keys, the reverse direction consumes caller entropy,
-and no WebSocket data crosses before both handshakes commit.
+and a generation-bound DownstreamCommitted × UpstreamCommitted barrier keeps
+over-read bytes on their original leg until both exact commitments. v0.187.0
+and v0.188.0 reuse that barrier for Upgrade/CONNECT; partial failure abandons
+once without crossing, releasing, parsing, or reinterpreting bytes.
 Tunnel closure is protocol-specific: HTTP/1 EOF drains already-owned bytes then
 closes both sides, while HTTP/2/RFC8441 FIN acceptance seals local sends and
 only full acknowledgement of its END_STREAM-carrying frame enters wire

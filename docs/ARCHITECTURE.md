@@ -61,16 +61,29 @@ token; invalid or replayed tokens are state-neutral. Acknowledgement governs
 only suffix progress and reclamation—never byte mutation. Outstanding tokens
 pin their record and owning protocol generation; connection failure records only
 the acknowledged prefix.
-Per connection, transport commitment is causally ordered before dependent
-input. The adapter must report an outbound written prefix to the engine before
-the engine consumes input whose existence or meaning could depend on that
-prefix. The combined I/O operation applies `output_ack` before `input`; an
-independent input call with an unreported causal commitment returns typed local
-`DriverCommitOrderViolation` without consuming bytes or mutating protocol
-state. Peer input can never stand in for an output acknowledgement. This rule
-covers SETTINGS and locally originated PING ACKs, responses on locally initiated
-streams, frames enabled by local extension advertisements, and GOAWAY-dependent
-state.
+Per connection, transport commitment is ordered without inspecting or
+classifying peer bytes. While an `OutputToken` is outstanding, nonempty input is
+accepted only by a combined `advance_io(output_ack, input)` call that first
+consumes that exact token. A valid zero acknowledgement resolves the offer
+without advancing its frozen record and then parses input against unchanged
+protocol state; short/full acknowledgement commits that prefix before parsing,
+and full-completion hooks run first. Invalid, stale, cross-record, or oversized
+acknowledgement is state-neutral and leaves all input unconsumed. Input failure
+never rolls back a prefix already acknowledged by the same call. No
+caller-supplied dependency classification can bypass this rule, and
+vectored/DMA adapters acknowledge only transport-consumed bytes, never bytes
+merely queued in caller-controlled memory. Nonempty input presented while a
+token remains outstanding returns typed local `DriverCommitOrderViolation`
+without parsing. Peer input can never stand in for output acknowledgement.
+
+HTTP/1 uses the same boundary. Outbound heads move through private, frozen, and
+fully head-committed states; a client request enters the outstanding-response
+FIFO only after its final head octet is acknowledged. Informational and final
+responses correlate only to the oldest committed request. CONNECT and Upgrade
+publication waits for complete success-head acknowledgement on the emitting
+server leg and committed opening-request evidence on the receiving client leg.
+Cross-protocol bridges retain generation-bound per-leg commitment evidence and
+original-leg ownership of over-read bytes until both legs commit.
 
 ## Shared model
 

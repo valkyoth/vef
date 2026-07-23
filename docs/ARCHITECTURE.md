@@ -425,6 +425,28 @@ generation-checked dimensions; every frame validates/commits its wire transition
 before policy controls publication. A stream-scoped delta may touch only its
 target stream; compression errors and connection-scoped violations stop
 publication and enqueue exactly one bounded GOAWAY action.
+GOAWAY keeps local admission sealing, graceful/fatal shutdown intent,
+application-published peer-stream high-water, reserved/frozen output, and
+wire-committed sent cutoff in separate generation-checked state. The high-water
+advances only when peer-initiated stream data first becomes application-visible,
+never on parse or slot allocation. A final cutoff snapshots it at first exposure;
+higher streams may still drain HPACK and account connection flow control but can
+never publish afterward. `GoawayOutput` moves None → ReservedPrivate → Frozen →
+Complete, or AbandonedConnection. First exposure freezes the exact minimum
+17-byte frame plus owned optional debug bytes. Prefix acknowledgement changes no
+sent cutoff; only all `17 + debug_len` bytes commit the cutoff. Transport
+failure at acknowledged zero records NotVisible; a positive incomplete prefix
+records peer visibility as unknown. The graceful timer starts only when
+the complete initial `2^31 - 1`/NO_ERROR frame commits. A fatal cause may replace
+an unexposed graceful record but never Frozen bytes; a fatal arriving during a
+Frozen graceful record waits for one non-increasing successor or abandons the
+connection. A closed ranked fatal-cause table plus event ordinal selects one
+terminal record and preserves secondary causes without duplicate GOAWAY.
+Inbound and outbound debug caps are independent; unretained inbound bytes drain,
+retained/outbound bytes are owned and redacted by default, and optional debug
+capacity never prevents the reserved minimum frame. Received cutoffs only
+decrease; an increase preserves the prior cutoff and yields a typed connection
+PROTOCOL_ERROR disposition.
 Terminal stream validation can replace an uncommitted policy reset but cannot
 alter partially committed bytes; connection-fatal compression errors override
 future stream actions without rolling back HPACK or wire state.

@@ -4372,7 +4372,7 @@ on v0.109.0 (PING frame codec) and must be independently trustworthy before v0.1
 
 #### Deliverables
 
-- Acceptance contract: Require stream zero and at least eight payload bytes, mask the reserved bit from the last-stream identifier, preserve the error code, cap retained debug data independently from frame acceptance, ignore unknown flags, emit reserved bits as zero, and map a nonzero stream to connection PROTOCOL_ERROR or a short payload to connection FRAME_SIZE_ERROR.
+- Acceptance contract: Require stream zero and at least eight payload bytes, mask the reserved bit from the last-stream identifier, preserve the error code, cap retained debug data independently from frame acceptance, ignore unknown flags, emit reserved bits as zero, and map a nonzero stream to connection PROTOCOL_ERROR or a short payload to connection FRAME_SIZE_ERROR. Define checked exact output length `17 + debug_len`, guarantee the 17-byte minimum independently from optional debug capacity, and emit last-stream reserved bits as zero. Bound inbound retained debug and outbound generated debug separately. Drain every unretained inbound debug byte to preserve framing; copy any retained bytes into owned fixed storage before input reuse; redact debug contents by default. For outbound debug, copy the configured-cap prefix and record DebugTruncated when requested input exceeds that cap; if optional storage cannot hold the selected prefix, omit it entirely and record DebugOmittedCapacity. Absent, retained, truncated, and omitted are distinct, and no optional-debug outcome can prevent minimum shutdown.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4384,7 +4384,7 @@ on v0.109.0 (PING frame codec) and must be independently trustworthy before v0.1
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Cover exact 17-byte minimum, zero/maximum/over-limit debug, checked length arithmetic, independent inbound/outbound caps, input overwrite after retained copy, complete drain after retention cap, default redaction, reserved-bit zeroing, and successful minimum encoding when optional debug storage is absent.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -4853,7 +4853,34 @@ on v0.121.0 (HTTP/2 error scope, typed deltas, and isolated stream mutation) and
 
 #### Deliverables
 
-- Acceptance contract: Implement two-stage graceful GOAWAY, exact last-processed-stream classification, no new streams after cutoff, bounded mandatory-control output under backpressure, and deterministic cancellation/EOF shutdown completion.
+- Acceptance contract: Implement two-stage graceful GOAWAY, exact last-processed-stream classification, no new streams after cutoff, bounded mandatory-control output under backpressure, and deterministic cancellation/EOF shutdown completion. Keep local admission sealing, `ShutdownIntent`, `PublishedPeerStreamHighWater`, `GoawayOutput`, graceful timer generation, and `SentGoawayCutoff` as separate state. Advance the high-water only when data from a peer-initiated stream—including its first validated mapped head or body event—becomes application-visible, never when a frame parses, a slot allocates, or synchronization-only HPACK completes. Local admission sealing occurs at shutdown intent without claiming peer knowledge.
+- Define `GoawayOutput::{None, ReservedPrivate { generation, stage,
+  last_stream_id, error_code, debug }, Frozen { generation, stage,
+  last_stream_id, error_code, slot, total_len, acknowledged }, Complete,
+  AbandonedConnection}` with
+  `stage::{GracefulInitial, GracefulFinal, Fatal}`. GracefulInitial uses
+  `2^31 - 1` and NO_ERROR. Its RTT/grace timer is unarmed while requested,
+  ReservedPrivate, or partially Frozen; only full frame acknowledgement arms a
+  generation-checked deadline. Early, stale, duplicate, and wrong-generation
+  timer events are state-neutral. GracefulFinal snapshots
+  `PublishedPeerStreamHighWater` only at first non-empty exposure. From that
+  boundary, higher peer streams may finish required HPACK synchronization and
+  connection flow-control accounting but cannot publish any application event.
+- A fatal decision replaces an unexposed graceful record but never a Frozen
+  frame. Fatal causes enter a closed `FatalCauseClass` order:
+  CompressionSynchronization (COMPRESSION_ERROR), ProtocolState
+  (PROTOCOL_ERROR, FLOW_CONTROL_ERROR, FRAME_SIZE_ERROR, CONNECT_ERROR, or a
+  promoted STREAM_CLOSED), AuthenticatedSecurity (INADEQUATE_SECURITY or
+  HTTP_1_1_REQUIRED), Timeout (SETTINGS_TIMEOUT), PeerResource
+  (ENHANCE_YOUR_CALM), then LocalInvariant (INTERNAL_ERROR). REFUSED_STREAM and
+  CANCEL remain stream-scoped and never enter this table. Within a class the
+  earliest monotonic event ordinal wins and its exact typed RFC error code is
+  retained. Preserve later
+  causes as bounded redacted secondary diagnostics without another terminal
+  frame. If fatal intent arrives during Frozen graceful output, finish those
+  immutable bytes and then reserve at most one non-increasing fatal successor,
+  or abandon the connection if output is unusable. Never widen a frozen or
+  committed cutoff.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -4865,7 +4892,7 @@ on v0.121.0 (HTTP/2 error scope, typed deltas, and isolated stream mutation) and
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Cross admission seal, intent, publication high-water, every graceful/fatal state, timer request/reservation/partial/full-commit boundaries, early/stale/wrong-generation events, and every fatal class/arrival order. Publish immediately before/after final first exposure; prove the former advances the snapshot, the latter is suppressed while HPACK/connection credit still synchronize. Prove one fatal winner, bounded secondary causes, no Frozen rewrite, at most one non-increasing successor, and deterministic abandonment.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5217,6 +5244,13 @@ on v0.130.0 (HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliatio
 
 - Acceptance contract: Allow ordered informational responses before one final response without prematurely completing the stream; accept trailers only after the body on trailing HEADERS with END_STREAM, forbid pseudo-fields and Content-Length, and apply the shared v0.52.0 `TrailerFieldPermission` policy while keeping local authentication-info generation unavailable until v0.157.2; received trailers carry no local capability, publish atomically into a separate ordered section, classify authentication-info as RequiresSchemeAuthorization and other forbidden fields with a typed semantic/policy disposition after stream synchronization rather than automatically as a framing error, cannot retroactively alter routing, framing, authentication, or representation decisions, and never merge into initial fields at this stop.
 - Own the final HEADERS stage `SemanticStage::TrailerAndRoleRules`. Classify initial, informational, final, and trailer HEADERS independently from END_STREAM/END_HEADERS while reading the same immutable field-section lease. Any informational 1xx HEADERS carrying END_STREAM is terminal `Malformed(PROTOCOL_ERROR)` and requires stream RST_STREAM(PROTOCOL_ERROR); only successful completion of every prior stage may mark terminal `Valid`, atomically transfer the lease into the final unpublished/message-event lifecycle, and release the dormant reset slot. Malformed validation retains redaction and releases the lease exactly once through v0.138.0 cleanup. Trailer HEADERS require END_STREAM and close exactly once.
+- When that final transaction makes the first event for a peer-initiated stream
+  application-visible, atomically advance the v0.122.0
+  `PublishedPeerStreamHighWater` with the same commit. Parsed, mapped,
+  unpublished, policy-rejected, synchronization-only, reset, and capacity-failed
+  streams never advance it. Once a final GOAWAY cutoff has Frozen, the
+  publication gate rejects every higher stream before visibility while
+  preserving required HPACK and connection flow-control work.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5228,7 +5262,7 @@ on v0.130.0 (HTTP/2 content-length, DATA, trailers, and END_STREAM reconciliatio
 
 #### Verification
 
-- Test Informational responses and trailers and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Pause after every v0.125.0–v0.131.0 semantic stage and cross initial, informational, final, and trailer HEADERS with END_STREAM/END_HEADERS, peer reset, GOAWAY, connection failure, capacity exhaustion, valid/missing/malformed status, pseudo-fields, names, values, and HPACK success/failure. Prove no intermediate stage releases/reuses the dormant slot or publishes, 1xx+END_STREAM and malformed blocks re-arm once, peer reset aborts without publication after required HPACK drain, GOAWAY alone preserves the active pipeline, connection teardown owns cleanup, valid terminal blocks release only at the final owner, and exactly one terminal/error action commits.
+- Test Informational responses and trailers and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Pause after every v0.125.0–v0.131.0 semantic stage and cross initial, informational, final, and trailer HEADERS with END_STREAM/END_HEADERS, peer reset, GOAWAY, connection failure, capacity exhaustion, valid/missing/malformed status, pseudo-fields, names, values, and HPACK success/failure. Prove no intermediate stage releases/reuses the dormant slot or publishes, 1xx+END_STREAM and malformed blocks re-arm once, peer reset aborts without publication after required HPACK drain, GOAWAY alone preserves the active pipeline, connection teardown owns cleanup, valid terminal blocks release only at the final owner, and exactly one terminal/error action commits. Cross peer/local initiation and publication immediately before/after final-cutoff exposure; prove atomic high-water advancement only with visibility and post-freeze synchronization without higher-stream publication.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5755,6 +5789,14 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
   generation, increment, and 13-byte frame. Later reclamation, stream closure,
   reset, generation reuse, priority change, and other update demand cannot
   replace its suffix or convert a stream update into a connection update.
+- Schedule each `GoawayOutput` as one exclusive terminal record. Existing
+  Frozen frame suffix and FramingCommitted CONTINUATION ownership finish first.
+  Before exposure, a fatal winner may replace ReservedPrivate graceful output;
+  first non-empty exposure freezes stage, cutoff, error, owned debug bytes,
+  total length, slot, and generation. No later stream publication, fatal cause,
+  timer, PING/control demand, or shutdown request can rewrite that suffix.
+  After completion, a pending fatal successor is eligible before nonterminal
+  output and must carry a non-increasing cutoff.
 - Preserve each v0.137.0 END_STREAM frame's completion hook through scheduling and fragmentation: only acknowledgement of that frame's final byte can emit `LocalEndStreamComplete`. Priority changes, interleaved streams, CONTINUATION ownership, zero/short writes, cancellation, and connection failure cannot run the hook early or twice; command-level send sealing remains independent from wire-state transition.
 - Treat each unexposed DATA reservation as a linear scheduler capability bound to one stream generation, connection generation, immutable frame layout, and queue entry. Arbitration may revoke/release it before exposure; first exposure consumes it into a non-refundable debit. A Frozen ordinary frame owns connection framing until its suffix completes, so mandatory RST_STREAM waits behind that frame but ahead of later ordinary work. WINDOW_UPDATE or SETTINGS changes wake/revoke eligible reservations without allowing two streams to spend the same connection credit.
 - Make FramingCommitted `OutboundFieldBlock` the scheduler's highest framing obligation. Admission exposes its initial frame only after every worst-case-fragmented slot and queue entry through END_HEADERS is atomically reserved/materialized. From first initial-frame exposure through final-frame acknowledgement, select only its exact current suffix or next pre-reserved CONTINUATION; individual AcceptedPrivate disposition and later local capacity exhaustion cannot authorize supersession. All required control queues remain reserved but blocked behind that obligation. A connection-fatal protocol decision waits to emit GOAWAY until END_HEADERS if output remains usable; fatal transport failure abandons block, provisional HPACK transaction, and connection with no further bytes.
@@ -5800,6 +5842,11 @@ on v0.141.0 (SETTINGS max-concurrent-streams admission integration) and must be 
   then every eligible PING ACK wins in FIFO order without coalescing; zero/short
   writes, stale/cross-record tokens, and transport failure never change bytes or
   reclaim a transaction early.
+- Block ReservedPrivate GOAWAY behind every ordinary/control Frozen suffix and
+  each initial/CONTINUATION prefix, then cross first exposure and every
+  `17 + debug_len` split. Inject graceful timers, publication, and fatal causes
+  at every boundary; prove no interleaving or rewrite, final-cutoff snapshot at
+  exposure, and at most one eligible fatal successor after completion.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5873,7 +5920,7 @@ on v0.143.0 (SETTINGS max-frame-size outbound integration) and must be independe
 
 #### Deliverables
 
-- Acceptance contract: Record each received/sent GOAWAY last-stream ID monotonically non-increasing, classify locally initiated streams above the peer cutoff as possibly unprocessed and those at/below separately, reject new streams after the cutoff, and never equate cutoff classification with replay authorization or duplicate terminal events.
+- Acceptance contract: Record received and fully wire-committed sent GOAWAY cutoffs in separate ledgers, both monotonically non-increasing. Requested, ReservedPrivate, Frozen, and partially acknowledged local values do not mutate `SentGoawayCutoff`; only the exact completion event from v0.153.0 may do so. On partial transport failure record `PeerVisibleCutoff::UnknownAfterPartial` without inventing a sent cutoff. Classify locally initiated streams above the peer's received cutoff as possibly unprocessed and those at/below separately, reject new streams after the cutoff, and never equate cutoff classification with replay authorization or duplicate terminal events. A received cutoff above the prior value retains the prior lower cutoff and yields typed `ReceivedGoawayCutoffIncrease` connection PROTOCOL_ERROR rather than widening admission/retry state.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -5885,7 +5932,7 @@ on v0.143.0 (SETTINGS max-frame-size outbound integration) and must be independe
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Cross requested/reserved/frozen/partial/complete/abandoned sent states, multiple decreasing received/sent cutoffs, equal cutoffs, illegally increasing received cutoffs, stale generations, stream classification, and transport failure. Prove monotonic ledgers, prior-cutoff retention on violation, unknown partial peer visibility, no early sent mutation, and no cutoff-derived replay permit.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -5913,6 +5960,12 @@ on v0.144.0 (GOAWAY cutoff and retry classification) and must be independently t
 #### Deliverables
 
 - Acceptance contract: Integrate SETTINGS_ENABLE_PUSH directionally: clients reject server use that violates the effective setting, servers never advertise it, and receipt of PUSH_PROMISE from a client is connection PROTOCOL_ERROR; before publication validate the complete promised request field section, require a recognized method classified both safe and cacheable, prohibit content indication and trailers, and require connection-/generation-bound PushAuthorityEvidence carrying caller-certified authenticated TLS origin metadata, caller-certified cleartext endpoint authority, or explicitly configured proxy authority without depending on v0.190.0 coalescing; invalid promised semantics produce promised-stream PROTOCOL_ERROR without resetting or mutating the associated stream; for outbound servers require the associated stream open/half-closed(remote), while receiving clients observe the equivalent open/half-closed(local); atomically validate associated legality, promised server-ID availability, peer permission, GOAWAY cutoff, and a separate bounded reserved-push-slot/work budget before reservation; reserved streams do not count against SETTINGS_MAX_CONCURRENT_STREAMS and reservation remains legal at zero, but opening the promised response enforces the then-current concurrent-stream limit; cancellation/reset reclaims exactly once; pushed responses carry typed cacheability metadata and every non-cacheable response is marked forbidden for cache storage even though storage remains outside VEF. Keep the validated promised request, trusted authority/push-policy provenance, and reserved slot unpublished and rollback-capable until the admission transaction commits. The promised slot includes or pre-reserves its v0.117.0 in-place rejection-tombstone/cutoff representation, so accepting PUSH_PROMISE makes the promised ID continuously tracked through publication, rejection, or bounded connection shutdown. At v0.145.0 the transaction's participants are the promised-stream slot/work and rejection tracking; v0.181.0 adds assembly invalidation and independent pushed provenance at the same prepublication gate. No v0.145.0-only pushed response has partial-retention or cross-request assembly authority.
+- A promised ID, reserved slot, validated request, or unpublished pushed response
+  does not advance `PublishedPeerStreamHighWater`. Only the same atomic commit
+  that makes the peer-initiated pushed stream's first validated response event
+  application-visible advances it. If final GOAWAY cutoff exposure already
+  froze a lower value, keep the promised stream tracked and finish HPACK/credit
+  obligations but reject publication and assembly authority.
 - ENABLE_PUSH processing attaches a generation-bound push participant to the owning `InboundSettingsTransaction`, applies duplicate values in wire order, and reports Effective only after directional validation/state mutation. It never owns the SETTINGS ACK; an invalid role/value reports connection-fatal failure to the shared transaction so no other participant can expose an ACK.
 - PUSH_PROMISE field blocks use the exact v0.137.0 debt lifecycle: Private encoding leases unsignaled table-size history, rollback returns it before any newer setting merges, first non-empty PUSH_PROMISE exposure transfers it irreversibly to the guaranteed CONTINUATION sequence, and later settings create debt only for the following HEADERS/PUSH_PROMISE block.
 - Rejected promised streams use the v0.118.0 orthogonal model: policy, wire state, remote/first-closure cause, `ResetOutput`, output-token generation/cursor, compression workspace, immutable `TerminalFieldSectionLease`, terminal stage, and active block remain distinct. HPACK success moves the section lease into semantics. Final valid/malformed/peer-reset outcomes may change only an unexposed reserved reset; a frozen CANCEL remains the sole immutable frame and continues from its acknowledged suffix. Prefixes 0..=12 retain prior frame legality; completion at 13 applies one local close only when remote closure has not already won. Connection-fatal failure owns cleanup and records acknowledged bytes only.
@@ -5930,7 +5983,7 @@ on v0.144.0 (GOAWAY cutoff and retry classification) and must be independently t
 
 #### Verification
 
-- Test client-originated PUSH_PROMISE failure and all prior authority/admission cases. At reset acknowledgement offsets 0..=13 cross every inbound frame, terminal/section state, wire/closure cause, peer reset, END_STREAM/END_HEADERS, malformed re-arm, GOAWAY, failure, stale/duplicate/oversized/out-of-order token, caller-buffer reuse, and stream-generation rollover. Also retain the dynamic-reference/section-lease cases. Prove prior legality and credit through offset 12, no premature closed-stream DATA tolerance, one local close at 13, remote-first cause preservation, immutable suffixes, acknowledged-only diagnostics, and no block/stage/reset/output/section lease stranded, aliased, reused early, or completed twice.
+- Test client-originated PUSH_PROMISE failure and all prior authority/admission cases. At reset acknowledgement offsets 0..=13 cross every inbound frame, terminal/section state, wire/closure cause, peer reset, END_STREAM/END_HEADERS, malformed re-arm, GOAWAY, failure, stale/duplicate/oversized/out-of-order token, caller-buffer reuse, and stream-generation rollover. Also retain the dynamic-reference/section-lease cases. Prove prior legality and credit through offset 12, no premature closed-stream DATA tolerance, one local close at 13, remote-first cause preservation, immutable suffixes, acknowledged-only diagnostics, and no block/stage/reset/output/section lease stranded, aliased, reused early, or completed twice. Cross promised reservation, response validation, publication immediately before/after final-cutoff exposure, rejection, and synchronization-only completion; prove only atomic visibility advances the processed high-water and post-freeze higher streams gain no application/assembly authority.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6258,6 +6311,24 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
   connection shutdown, while transport failure at any Frozen prefix abandons
   connection-owned transactions without claiming Complete or retaining caller
   input.
+- Reserve a generation-safe GOAWAY slot that always fits the 17-byte minimum;
+  optional owned debug uses separate bounded capacity and is omitted/truncated
+  under its recorded policy rather than blocking shutdown. ReservedPrivate may
+  be replaced only by the selected fatal winner before exposure. First exposure
+  freezes the exact stage, last-stream ID, error code, owned/redacted debug
+  bytes, slot, generation, and checked `total_len = 17 + debug_len`.
+  Acknowledged offsets below `total_len` retain the slot and change neither
+  `SentGoawayCutoff` nor timer state. Only acknowledgement of all `total_len`
+  bytes produces Complete, atomically lowers the sent-cutoff ledger, and arms
+  the generation-checked grace timer when stage is GracefulInitial. Invalid,
+  stale, duplicate, cross-record, out-of-order, or overlong acknowledgement is
+  state-neutral. Transport failure at acknowledged zero moves to
+  AbandonedConnection with `PeerVisibleCutoff::NotVisible`; failure after a
+  positive incomplete prefix records `PeerVisibleCutoff::UnknownAfterPartial`.
+  Neither arms a timer or commits a cutoff, and no further frame is emitted.
+  Frozen graceful completion with pending
+  fatal intent reserves exactly one non-increasing successor or abandons the
+  connection; duplicate fatal causes never multiply queue entries.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -6269,7 +6340,7 @@ on v0.152.0 (WINDOW_UPDATE churn defenses) and must be independently trustworthy
 
 #### Verification
 
-- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK and releases only at byte 17. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
+- Test Reserved control-output queues and all previously implemented relevant behavior with positive, negative, boundary, truncation, invalid-state, cancellation, capacity, and no-panic cases. Queue each required control during every initial/CONTINUATION prefix; use mixed-entry SETTINGS frames and prove one transaction-owned slot each, exact participant completion, FIFO eligibility, and smallest/final HPACK collapse without ACK collapse. Prove capacity remains reserved, participant failure cancels before exposure, Private rollback permits ACK ahead of failing re-encode, FramingCommitted waits through final acknowledgement/HpackCommitted, and transport failure emits no interleaved control byte. For GOAWAY, overwrite caller debug after command acceptance and exhaust every acknowledged offset 0..=`17 + debug_len` for zero/maximum debug, graceful initial/final/fatal stages, early/stale/correct timers, fatal escalation at each Frozen prefix, minimum-slot-only exhaustion, duplicate causes, stale/cross-slot tokens, and transport failure. Prove byte-for-byte immutability, final-byte-only cutoff/timer commitment, zero-prefix NotVisible versus positive-prefix UnknownAfterPartial, non-increasing successor, and optional debug never blocking shutdown. For PING, overwrite input after parse and exhaust every output split/acknowledged offset 0..=17 across distinct/identical FIFO records, ACK-bearing no-reply, queue exhaustion, stale/duplicate/cross-slot/overlong tokens, and failure at every prefix; each accepted non-ACK PING emits its own exact ACK and releases only at byte 17. For WINDOW_UPDATE, exhaust offsets 0..=13 for stream and connection records, every underflow/overflow boundary, coalescing before/after exposure, new credit while Frozen, padding-only DATA, reset/closure and connection-only post-reset credit, stale/cross-record tokens, and failure at every prefix; advertised credit changes once and only at byte 13.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -6317,6 +6388,19 @@ on v0.153.0 (Reserved control-output queues) and must be independently trustwort
   live-key completion regardless of arrival order, exact one-for-one peer
   replies, byte-17-only release, explicit PING priority SHOULD disposition, and
   no RFC connection error for correlation mismatch.
+- Audit GOAWAY across admission seal, shutdown intent, application-publication
+  high-water, graceful initial/final and every fatal class, ReservedPrivate,
+  every Frozen offset 0..=`17 + debug_len`, Complete/AbandonedConnection,
+  committed sent and received cutoff ledgers, and timer generations. Cross
+  caller debug reuse, zero/maximum debug, minimum-only capacity, final-cutoff
+  publication races, higher-stream HPACK/credit synchronization, received
+  decreasing/equal/increasing cutoffs, scheduler blocking, duplicate fatal
+  causes, and transport failure at every prefix. Require full-frame-only
+  cutoff/timer commitment, zero-prefix nonvisibility versus unknown positive
+  partial visibility, deterministic fatal
+  precedence, immutable Frozen bytes, no post-final higher-stream publication,
+  one non-increasing successor at most, default redaction, and no replay
+  authority from cutoff classification.
 - Preserve the phase invariant: HPACK encoder/decoder state tracks committed wire bytes; HTTP/2 activates, validates, publishes, mutates settings/state, cancels, and shuts down only through ordered bounded lifecycles.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8126,7 +8210,7 @@ on v0.188.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) and must
 
 #### Deliverables
 
-- Acceptance contract: Track GOAWAY last-stream protocol processing status separately from application replay permission; correlate each affected request exactly once; treat 421 as an origin-authorization failure and permit its retry only when the retry contract authorizes it and a new non-coalesced connection is authenticated for that origin.
+- Acceptance contract: Track GOAWAY last-stream protocol processing status separately from application replay permission; consume received or fully wire-committed sent cutoff evidence but never requested, partial, or unknown-after-failure output as proof of peer processing; correlate each affected request exactly once; treat 421 as an origin-authorization failure and permit its retry only when the retry contract authorizes it and a new non-coalesced connection is authenticated for that origin. Above-cutoff “possibly unprocessed” is classification only and never fabricates replay authority.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8138,7 +8222,7 @@ on v0.188.0 (Exact CONNECT, Upgrade, and tunnel byte-handoff ownership) and must
 
 #### Verification
 
-- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone.
+- Create or extend the matching HTTP/2 frame/state Kani or stateful fuzz harness at this milestone. Cross received/committed/partial/unknown cutoff evidence with safe, unsafe, idempotent, non-idempotent, body-replayable, and non-replayable requests; prove classification never creates a retry permit and each separately authorized retry correlates exactly once.
 - No test may require a later-version capability; previously established resource ceilings remain release-blocking.
 - Prove failures do not publish partial state, mutate unrelated state, exceed
   active work/output limits, or require hidden allocation.
@@ -8219,6 +8303,13 @@ on v0.190.0 (Authenticated origin authorization and HTTP/2 coalescing metadata) 
   reuse the wire correlation key, forge a peer reply obligation, access opaque
   peer bytes after parsing, coalesce transactions, match an ACK, or release a
   PING slot before byte 17.
+- Keep `ShutdownIntent`, `PublishedPeerStreamHighWater`, `GoawayOutput`,
+  `SentGoawayCutoff`, fatal-cause ranking, owned debug, and graceful timer
+  evidence engine-owned and non-constructible. Callers may request graceful
+  shutdown, supply optional debug input that is copied/redacted under policy,
+  and acknowledge one offered suffix, but cannot choose the final processed
+  cutoff, forge publication, arm/fire a timer, rank fatal causes, rewrite Frozen
+  bytes, commit a prefix, claim peer visibility, or derive retry authority.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8312,6 +8403,14 @@ on v0.192.0 (Optional alloc-backed convenience API) and must be independently tr
   opaque bytes, treat equal peer payloads as one transaction, report offset 16
   as complete, claim a failed prefix released its slot, or diagnose correlation
   mismatch as an RFC connection error.
+- For GOAWAY, separately report admission-sealed, graceful/fatal intent and
+  selected cause class/code, stage, output generation, ReservedPrivate/Frozen/
+  Complete/AbandonedConnection disposition, total/acknowledged lengths,
+  application-published high-water, requested/frozen/committed/received cutoff,
+  timer generation/state, debug length/truncated-or-omitted disposition, and
+  peer-visibility known/unknown. Never expose debug contents, report a prefix as
+  sent, arm the timer early, treat parsed/allocated as processed, replace Frozen
+  cause/bytes, widen an increasing received cutoff, or imply replay authority.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8447,6 +8546,17 @@ on v0.195.0 (Multi-implementation interoperability) and must be independently tr
   ACKs. Assert owned-byte independence, exact one-for-one replies, no
   coalescing, byte-17-only release, priority after committed framing, bounded
   cleanup, and state-neutral nonmatching correlation.
+- Add stateful `ShutdownIntent × PublishedPeerStreamHighWater × GoawayOutput ×
+  SentGoawayCutoff × GraceTimer` transitions. Generate application publication
+  immediately around final exposure, higher-stream HPACK/credit work, graceful
+  initial/final, every ranked fatal arrival order, zero/maximum/reused debug,
+  scheduler blocking, all offsets 0..=`17 + debug_len`, timer generations,
+  received decreasing/equal/increasing cutoffs, queue exhaustion, duplicate
+  causes, stale/cross-record tokens, and transport failure. Assert
+  publication-derived snapshots, immutable Frozen bytes, final-byte-only
+  cutoff/timer commitment, monotonic ledgers, unknown partial visibility,
+  deterministic single fatal successor, owned/redacted debug, and no
+  cutoff-derived replay permit.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -8500,6 +8610,15 @@ on v0.196.0 (Adversarial and stateful fuzz campaign) and must be independently t
   before byte 17, access or recycling of frozen/copied storage while owned,
   duplicate slot release, FIFO bypass, stale tombstone revival, and forged
   match/unsolicited/duplicate/reordered/stale dispositions.
+- Reject construction, cloning, copying, rebinding, or direct promotion of
+  `ShutdownIntent`, `PublishedPeerStreamHighWater`, `GoawayOutput`,
+  `SentGoawayCutoff`, `PeerVisibleCutoff`, fatal-cause rank/ordinal, and graceful
+  timer evidence. Reject caller-selected final cutoff, parsed/allocated stream
+  used as processed, borrowed debug retained after acceptance, cross-generation
+  acknowledgement/timer events, completion before `17 + debug_len`, Frozen
+  stage/cutoff/error/debug substitution, increasing-cutoff acceptance, duplicate
+  terminal output, early timer arm, forged peer visibility, and cutoff converted
+  into replay permission.
 - Preserve the phase invariant: Role APIs expose validated authorized messages; translation emits nothing before the complete destination head/framing decision passes; retry and transition ownership are explicit.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for
@@ -9066,6 +9185,13 @@ on v0.210.0 (Aesynx kernel integration tests) and must be independently trustwor
   copy, correlation-key generation/wrap is checked, rate limits bound priority
   starvation/amplification, and every partial prefix retains only
   profile-bounded connection-owned state.
+- Size the guaranteed 17-byte GOAWAY minimum slot independently from optional
+  outbound debug, the inbound retained-debug cap/drain scratch, maximum Frozen
+  record, shutdown/high-water/cutoff/timer ledgers, fatal primary plus bounded
+  secondary causes, and one successor reservation. Prove checked
+  `17 + debug_len` arithmetic, maximum-prefix ownership, optional-debug
+  exhaustion fallback, constant-bounded precedence work, no duplicate terminal
+  amplification, and profile-bounded cleanup on 32- and 64-bit targets.
 - Preserve the phase invariant: Adapters cannot alter protocol validity; TLS admission, EOF/alerts, deterministic resource ceilings, readiness, deadlines, storage, and release evidence remain explicit across targets.
 - Update paragraph-addressable requirements, role/applicability decisions,
   SHOULD dispositions, deviations, and verified/held errata for

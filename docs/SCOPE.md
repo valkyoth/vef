@@ -103,7 +103,23 @@ slot, while malformed status/fields/
 trailers/Content-Length/body phase re-arms PROTOCOL_ERROR. Peer reset aborts
 pending semantics without publication, after finishing active HPACK; GOAWAY
 alone preserves validation, and fatal failure transfers cleanup to bounded
-connection shutdown. Malformed/abort release the section once; shutdown owns
+connection shutdown. GOAWAY admission seal, graceful/fatal intent,
+application-published peer-stream high-water, output prefix, timer, and
+wire-committed sent cutoff are distinct. Only first application publication
+advances the high-water; final-cutoff exposure snapshots it, after which higher
+streams may synchronize HPACK and connection credit but never publish. First
+GOAWAY exposure freezes its exact `17 + owned_debug_len` bytes. Prefixes commit
+no cutoff; full acknowledgement alone commits it and starts the initial
+max-ID/NO_ERROR grace timer. Fatal intent can replace only ReservedPrivate
+graceful output; Frozen output is immutable and finishes before one
+non-increasing fatal successor, or the connection is abandoned. Ranked fatal
+causes plus event order choose one record without duplicates. Minimum 17-byte
+storage is guaranteed independently of optional owned/redacted debug; inbound
+and outbound caps are separate and unretained input drains. Partial failure
+at zero acknowledged bytes is NotVisible; a positive incomplete prefix leaves
+peer cutoff visibility unknown. Received cutoffs never increase: an
+increase retains the prior cutoff and produces typed connection PROTOCOL_ERROR.
+Malformed/abort release the section once; shutdown owns
 fatal cleanup with redaction and caller-scrub rules intact. Reset reason changes
 only before non-empty output exposure. Exposure freezes the exact 13-byte frame,
 stream/reason/generation, and a token-acknowledged cursor; zero/short writes never

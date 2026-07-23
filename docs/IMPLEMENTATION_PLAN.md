@@ -129,6 +129,29 @@ pretends byte-stream HTTP/1 and HTTP/2 can transport HTTP/3.
 - Each output token owns one immutable protocol-record/frame-slot suffix.
   Scalar or vectored transport adapters cannot combine records; exact completion
   runs one hook and any acknowledgement crossing the slot is InvalidState.
+- Separate `ShutdownIntent`, local admission sealing,
+  application-published peer-stream high-water, `GoawayOutput`, graceful timer,
+  and wire-committed sent cutoff. Advance the high-water only on first
+  application publication for a peer-initiated stream. A final GOAWAY snapshots
+  it at first exposure; later higher streams remain synchronization/accounting
+  only. `GoawayOutput` is None, ReservedPrivate, Frozen, Complete, or
+  AbandonedConnection. Command acceptance copies bounded optional debug bytes;
+  first exposure freezes the exact `17 + debug_len` frame, while offsets before
+  total length change no sent cutoff. Full acknowledgement alone commits the
+  cutoff and, for the initial max-ID/NO_ERROR stage, starts its
+  generation-checked grace timer. Stale/early timer events are neutral.
+  Fatal intent may replace only unexposed graceful output. Frozen graceful bytes
+  finish unchanged, followed by at most one non-increasing fatal successor, or
+  connection abandonment. Select multiple fatal causes through a closed rank
+  table plus monotonic event ordinal, retain secondary diagnostics, and never
+  queue duplicate terminal frames. Guarantee storage for 17 bytes independently
+  of optional debug; own/redact retained debug, separately cap inbound/outbound
+  data, truncate requested output to its configured-cap prefix, omit that prefix
+  on optional-storage shortage with a distinct disposition, and drain
+  unretained inbound bytes. A received increasing cutoff retains
+  the prior value and returns typed connection PROTOCOL_ERROR. Partial transport
+  failure never claims a sent cutoff: zero acknowledged bytes are NotVisible,
+  while a positive incomplete prefix has unknown peer visibility.
 - Copy every validated non-ACK PING payload into its own bounded FIFO
   transaction before releasing caller input. Reserve reply capacity and charge
   lookup/creation before mutation; ACK-bearing PINGs allocate no reply.

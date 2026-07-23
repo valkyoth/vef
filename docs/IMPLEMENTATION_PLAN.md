@@ -465,16 +465,16 @@ except bounded monotonic attempt work already charged. Each permit owns
 one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
 permits. Granular engine work kinds and sealed unit specs derive checked
 base-plus-per-unit cost in O(1) from lengths/counts/cursors inside
-`AdmissionAttempt<'command>`, whose lifetime binds the exact command to one
-call. Its checked non-wrapping generation is allocated before inspection/ledger
-mutation; exhaustion leaves both ledgers unchanged. Atomic charge returns
-private `AdmissionWorkPermit<'attempt, 'command>` structurally borrowing that
-attempt exclusively. Consuming it creates a bounded `ChargedWorkWindow`; bytes
-and entries expose only their charged prefix, while semantic/reservation work
-requires successful `take_unit()`. `finish()` derives progress internally,
-advances by that value, and returns a receipt with attempt generation and cursor
-kind/before/after. Unprocessed charged units remain consumed. Stale/cross-
-attempt/reused permits/windows and receipts authorize no work.
+`AdmissionAttempt<'command>`, which stores the sole private engine `&Command`
+and exposes no raw getter. Its generation is allocated before inspection/ledger
+mutation. Cursor kind and maximum advancement are preflighted before charge, so
+receipt arithmetic cannot fail. Private `with_charged_window` owns the
+structurally borrowed permit/guard and gives validation only `&mut` bounded
+window access. It finalizes normal, early-error, and explicit-abort results;
+drop/forget of the borrowed reference cannot skip it. Bytes/entries expose only
+their prefix and other work requires `take_unit()`. Each result emits one
+consistent receipt. Impossible guard corruption burns the charge, poisons the
+attempt, emits no receipt, and closes.
 Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/

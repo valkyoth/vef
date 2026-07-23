@@ -357,17 +357,19 @@ connection-lifetime `Http10AdmissionCumulativeLedger` is initialized once and
 never reset by later permits. Granular engine-only `AdmissionWorkKind` covers
 base, byte, field-entry, framing, semantic, output, and reservation units.
 Each call checked-allocates a non-wrapping generation before inspection/ledger
-mutation and owns `AdmissionAttempt<'command>` whose cursors borrow the exact
-command. Exhaustion closes locally with both ledgers unchanged. Sealed specs
-derive cost in O(1) from attempt metadata. Atomic charge returns
-`AdmissionWorkPermit<'attempt, 'command>` with an exclusive structural borrow of
-that attempt; its numeric generation is defense-in-depth only. Consuming it
-creates `ChargedWorkWindow`: byte/entry work sees only a bounded prefix, while
-other work must successfully `take_unit()` first. Original unbounded work is
-not simultaneously accessible. `finish()` accepts no progress count, derives
-actual progress from the window, advances the cursor, and emits a receipt with
-attempt generation and cursor kind/before/after. Unused charged units remain
-consumed without authority. Fragmentation retains cursors only within the call;
+mutation and owns `AdmissionAttempt<'command>` storing the actual private
+`&'command Command`; it exposes no raw getter, and validation has no parallel
+unbounded view. Exhaustion closes locally with both ledgers unchanged. Before
+charging, cursor selection and `before + charged` are preflighted, making later
+advancement/receipt arithmetic infallible. The scoped
+`with_charged_window` method owns the structurally borrowed permit/window and
+passes only `&mut ChargedWorkWindow` to validation. Early error, abort, dropping,
+or forgetting that reference cannot bypass owner finalization. Byte/entry work
+sees only a bounded prefix; other work must `take_unit()`. Every closure result
+emits one Completed/Aborted receipt with attempt generation and cursor
+kind/before/after. Impossible guard corruption poisons the attempt, burns the
+charge, emits no receipt, forbids admission, and closes. Fragmentation retains
+cursors only within the call;
 reason-only return destroys every cursor and command borrow. Retry creates
 zeroed cursors and recharges all repeated work. Stale/cross-attempt/reused
 permits/windows and diagnostic receipts authorize nothing.

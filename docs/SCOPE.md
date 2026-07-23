@@ -330,16 +330,16 @@ retain no caller borrow, expose no bytes, and preserve permit/input/ledger/
 output/structural state for retry before the unchanged deadline. Bounded
 per-permit `Http10AdmissionAttemptBudget` and connection-lifetime cumulative
 ledger are charged from granular engine work kinds plus sealed bounded units.
-Each call owns `AdmissionAttempt<'command>` cursors tied to its exact command
-borrow and a checked non-wrapping generation allocated before inspection/ledger
-mutation. Exhaustion leaves both ledgers unchanged. Atomic charge returns
-private `AdmissionWorkPermit<'attempt, 'command>` structurally borrowing the
-attempt. Consuming it yields `ChargedWorkWindow`: bytes/entries expose at most
-the charge and other steps require `take_unit()`. `finish()` accepts no caller
-count, derives progress internally, advances the cursor, and emits a
-non-authoritative receipt containing attempt generation and cursor
-kind/before/after. Unused units remain consumed without authority. Reason-only
-return destroys cursors/borrow; retry cannot use stale permits/windows/receipts.
+Each call owns `AdmissionAttempt<'command>` with the sole private engine
+`&Command`, cursors, and checked generation; no raw command getter or parallel
+validation view exists. Cursor kind and maximum advancement preflight before
+charge. Scoped `with_charged_window` retains permit/guard ownership and passes
+only a bounded mutable window, so normal/error/abort return always finalizes
+despite dropping/forgetting the borrowed reference. Bytes/entries expose only
+their prefix and other work requires `take_unit()`. Finalization emits one
+infallibly consistent receipt. Impossible corruption burns the charge, poisons
+the attempt, emits none, forbids admission, and closes. Reason-only return
+destroys cursors/borrow; retry cannot use stale permits/windows/receipts.
 Successful admission
 transfers rather than double-charges. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit

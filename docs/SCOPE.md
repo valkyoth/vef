@@ -317,14 +317,15 @@ releases all of it without visible mutation to the exact permit/deadline.
 retain no caller borrow, expose no bytes, and preserve permit/input/ledger/
 output/structural state for retry before the unchanged deadline. Bounded
 per-permit `Http10AdmissionAttemptBudget` and connection-lifetime cumulative
-ledger are checked-charged before validation/preflight and never refunded or
-reset across their defined lifetimes; pre-inspection exhaustion closes and
-successful admission transfers rather than double-charges. Admission terminal reasons revoke the
+ledger are charged only through atomic `try_charge_admission_work`: both
+preflight and mutate or neither changes and no governed work occurs. Its linear
+record is diagnostic only. Budgets never reset/refund; successful admission
+transfers rather than double-charges. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit
-local-invariant `PermitLedgerMismatch`. Admission indivisibly consumes the
-complete reservation and permit including its deadline, commits every resource
-and budget, decrements the ledger, installs the generation/snapshot/persistence
-mode, and only then publishes ActiveExchange. Stale expiry cannot affect it.
+local-invariant `PermitLedgerMismatch`. Admission consumes reservation/permit,
+commits the tentative count debit, installs resources/parser reserve, transfers
+consumed attempt work without recommit/recharge, decrements reuse, and installs
+generation/snapshot/mode/work total before publishing ActiveExchange.
 No engine-structural fallible initialization follows; later server response
 validation remains fallible before exposure under the retained mode.
 The snapshot is immutable and non-authoritative; future minting reads only the
@@ -333,8 +334,12 @@ ledger. Client output and server input require admission. Same-call input requir
 byte. Transfer-Encoding, chunked coding, trailers, and close-delimited responses
 create no evidence, permit, or successor. Full acknowledgement of a nonfinal
 record remains premature. Admitted work never rolls back. No HTTP/1.0 path
-pipelines. Normal success enters `Completing` and keeps correlation/evidence
-inside one transaction through resolution and reclamation. A linear
+pipelines. Initial and successor construction both reserve an identically
+maximum-sized normal/cancellation terminal slot before Active publication.
+Normal success enters `Completing` with Resolving, DecisionHeld, Reclaiming,
+and PublicationPending. Cancellation in every phase skips/replaces reuse,
+finishes only receipt-unreclaimed resources, or rewrites the held slot without
+new capacity. A linear
 `PendingHttp10TerminalPublication` retains the reserved event slot, encoded
 event, decision, receipts, and generation across backpressure. Only its
 infallible final consumption atomically publishes one event and constructs
@@ -342,8 +347,9 @@ Reusable/closing state; cancellation before then rewrites held capacity,
 revokes provisional reuse, and stays Completing. Same-call input remains
 unconsumed until Reusable is published. Other terminal paths use
 generation-bound cleanup. All paths release records, storage leases,
-and unused parser-work reserve exactly once, while ledger/count/admission-work
-and consumed parser-work accounting never refunds. Stale cleanup cannot affect
+and unused parser-work reserve exactly once, while reuse/count debits,
+transferred admission-attempt consumption, and consumed parser-work accounting
+never refund. Stale cleanup cannot affect
 later generations, and no-refund never leaks caller storage. HTTP/1.0
 CONNECT is unsupported: local
 capacity stays local; aggregate start-line byte/work and method limits keep

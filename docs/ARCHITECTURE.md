@@ -328,7 +328,7 @@ Only `Reuse` consumes both signals. The decision is owned by
 not construct `Reusable`. The provisional permit solely owns its idle deadline.
 The only successor edge atomically moves `Reusable { permit }` to
 `ActiveExchange { next_exchange_generation, reuse_remaining_snapshot,
-local_persistence_mode }`.
+local_persistence_mode, admission_attempt_work_consumed }`.
 Before it, internal linear
 `Http10NextExchangeReservation::{Client { request, private_output, ... },
 Server { parser, local_persistence_mode, ... }}` acquires all role-specific and
@@ -340,9 +340,10 @@ monotonic attempt work already performed. Each provisional/published permit
 owns `Http10AdmissionAttemptBudget { permit_generation, configured_max,
 remaining, consumed }`, initialized once and never reset across retries. A
 connection-lifetime `Http10AdmissionCumulativeLedger` is initialized once and
-never reset by later permits. Every governed unit checked-charges both ledgers
-before work. Success transfers the permit's consumed total into Active
-diagnostics without charging it again.
+never reset by later permits. Atomic `try_charge_admission_work(cost)` preflights
+both counters, additions, generations, and ledger equations before mutating
+either. Failure changes neither and performs no governed work; success updates
+both once and returns linear diagnostic-only `AdmissionWorkCharge`.
 `Http10SuccessorAdmissionOutcome` adds reason-only `RejectedLocalCommand` for
 malformed/illegal/semantic/conflicting client commands alongside
 `RetryableCapacity`. Both retain no caller borrow, accept/expose no byte, keep
@@ -353,28 +354,28 @@ policy revocation, idle-deadline equality, permit-ledger mismatch, correlation
 failure, and checked generation exhaustion. They revoke the permit, consume no
 input, close locally without a peer error, and do not decrement.
 `PermitLedgerMismatch` is a local invariant failure. Admission indivisibly
-consumes the complete reservation and permit including its deadline; commits
-every lease, count/work debit and parser reserve; decrements the ledger once;
-installs the generation, snapshot, and persistence mode; then publishes
+consumes the reservation and permit; commits the tentative request/exchange
+count debit; installs leases and parser-work reserve; transfers already
+consumed attempt work without recommit/recharge; decrements reuse once; and
+installs generation, snapshot, persistence mode, and work total before publishing
 ActiveExchange. A stale permit expiry cannot affect it. No engine-structural
 fallible initialization follows publication; later server response construction
 remains fallible before exposure under the retained mode. The immutable
 `reuse_remaining_snapshot` is diagnostic and binding metadata, never a second
 authority, and the next mint reads only the ledger. Generation increment is
 checked and exhaustion closes without wrap.
-ActiveExchange exclusively owns its exchange/correlation/evidence records and
-parser/event/output leases. Normal success enters `Completing` with one linear
-`Http10NormalCompletionTransaction`: verify both lifecycles, resolve while
-evidence remains owned, retain the unpublished decision, reclaim
-non-transferred storage, and transfer the reserved event slot into
-`PendingHttp10TerminalPublication`. That object owns the encoded event,
-decision, reclamation receipts, and final generation through queue backpressure.
-Polling, timeout handling, cancellation, and admission cannot observe Reusable.
-The final infallible step consumes the object and atomically publishes one event
-plus Reusable/closing state; only it constructs Reusable. Cancellation before
-publication rewrites the held slot, revokes provisional reuse, and stays
-Completing. Non-normal terminal paths use generation-bound cleanup.
-Ledger/count/admission-work debits and consumed parser work never refund; unused
+Initial and successor exchange reservations both acquire a largest-normal-or-
+cancellation terminal-event slot before Active publication. ActiveExchange
+owns its exchange/correlation/evidence records and parser/event/output leases.
+Normal success enters `Completing` with
+`Http10CompletingPhase::{Resolving, DecisionHeld, Reclaiming,
+PublicationPending}`. Cancellation respectively skips resolution, revokes and
+replaces a decision, continues only receipt-unreclaimed items, or rewrites the
+pending slot/state. Every phase uses held capacity, advances exactly once, and
+remains Completing through backpressure. Only infallible pending-publication
+consumption atomically publishes one event and constructs Reusable/close.
+Non-normal terminal paths use generation-bound cleanup.
+Reuse/count debits, transferred admission-attempt consumption, and consumed parser work never refund; unused
 parser-work reserve returns exactly once. Stale cleanup cannot release later
 generations. No-refund never means caller-storage leakage.
 Client request acceptance/exposure and server input consumption cannot precede

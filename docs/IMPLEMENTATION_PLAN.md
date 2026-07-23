@@ -452,8 +452,10 @@ ownership and leaves permit/deadline/input/ledger/generation/output unchanged
 except bounded monotonic attempt work already charged. Each permit owns
 `Http10AdmissionAttemptBudget`, initialized once and retained across retries;
 one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
-permits. Checked charge-before-work updates both, and success transfers the
-already-charged permit total into diagnostics without charging twice. Its
+permits. Atomic `try_charge_admission_work(cost)` preflights both ledgers and
+arithmetic, then updates both or neither; failure performs no governed work.
+Its linear `AdmissionWorkCharge` is diagnostic evidence, never authority.
+Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/
 conflicting client commands retain no caller borrow and expose no bytes;
@@ -465,10 +467,12 @@ revocation, idle-deadline equality, `PermitLedgerMismatch`, correlation
 invariant failure, and generation exhaustion; each consumes no input, revokes
 the permit, closes locally, never blames the peer, and never decrements.
 `PermitLedgerMismatch` is explicitly a local invariant failure. Admission
-atomically consumes the complete reservation and permit including its deadline;
-commits all records, leases, count/work charges and parser reserve; decrements
-the ledger once; and installs `ActiveExchange { next_exchange_generation,
-reuse_remaining_snapshot, local_persistence_mode }`. Only then is ActiveExchange
+atomically consumes the reservation and permit; commits only the tentative
+request/exchange count debit; installs records, leases, and parser reserve;
+transfers consumed attempt work without recommit/recharge; decrements reuse
+once; and installs `ActiveExchange { next_exchange_generation,
+reuse_remaining_snapshot, local_persistence_mode,
+admission_attempt_work_consumed }`. Only then is ActiveExchange
 visible. Stale permit expiry cannot affect it. No engine-structural fallible
 initialization remains; later server response construction remains fallible
 before exposure under the retained persistence mode.
@@ -476,16 +480,16 @@ That immutable snapshot is diagnostic/binding metadata and never authorizes a
 later mint; only the ledger does. Admission never refunds and checked
 generation exhaustion closes without wrap. Client/proxy-upstream request
 acceptance/exposure and origin/server input consumption require admission.
-Normal success enters `Completing` and runs one linear completion transaction
-that keeps evidence through resolution, retains its unpublished decision,
-reclaims non-transferred resources, and moves the reserved event slot into
-`PendingHttp10TerminalPublication` with encoded event, receipts, and final
-generation. Backpressure retains that object without rerunning work. Only its
-infallible final consumption atomically publishes one terminal event and
-constructs Reusable/closing state. Cancellation beforehand rewrites the held
-slot, revokes provisional reuse, and remains Completing. Other terminal paths use
-generation-bound cleanup. Ledger,
-request-count, admission-work, and consumed parser-work charges never refund.
+Initial construction and successor admission both reserve the largest normal/
+cancellation terminal slot before Active publication. Normal success enters
+`Completing` with Resolving, DecisionHeld, Reclaiming, and PublicationPending.
+Cancellation respectively skips resolution, revokes/replaces the decision,
+continues only receipt-unreclaimed items, or rewrites the pending slot/state.
+Every path uses reserved capacity, advances exactly once, and stays Completing
+through backpressure. Only infallible pending-publication consumption emits one
+event and constructs Reusable/close. Other terminal paths use
+generation-bound cleanup. Reuse/request-count debits, transferred
+admission-attempt consumption, and consumed parser-work charges never refund.
 Stale cleanup cannot release a newer exchange; no-refund never leaks caller
 storage.
 Same-call input requires the acknowledgement that enters `MessageCommitted`

@@ -276,7 +276,8 @@ from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
 lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`/
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReuseLedger`/`Http10ReusePermit`/`Http10CompletionDecision`/
+`Http10ReuseLedger`/`Http10ReusePermit`/
+`Http10ReuseResolutionRecord`/`Http10TerminalDecision`/
 `Http10SuccessorAdmissionOutcome`, and
 either-version
 stripping consume that evidence with no cross-version authority.
@@ -303,9 +304,13 @@ server mode persists until a response is supplied. Existing private heads are re
 absent heads retain the mode. It cannot mint a local signal.
 Total resolution handles correlation, policy, framing, configured-zero,
 ledger-exhaustion, missing-negotiation, and deadline-add outcomes after both
-lifecycles terminate, even when evidence is absent. It returns unpublished
-`Http10CompletionDecision` owned in `Completing`, never Reusable; only its reuse
-variant owns a provisional permit and sole idle deadline. The separate atomic
+lifecycles terminate, even when evidence is absent. It returns an unpublished
+`Http10ReuseResolutionRecord`; `Completing` independently retains that record,
+an optional first completion interrupt, and their derived final publication in
+`Http10TerminalDecision`. An interrupt revokes reuse authority without erasing
+the resolved identity, while a close reason and interrupt can coexist.
+Completion never constructs Reusable; only a still-authoritative reuse permit
+owns the sole idle deadline. The separate atomic
 `Reusable -> ActiveExchange`
 transition first assembles a role-specific internal linear
 `Http10NextExchangeReservation::{Client { request, private_output, ... },
@@ -317,10 +322,11 @@ releases all of it without visible mutation to the exact permit/deadline.
 retain no caller borrow, expose no bytes, and preserve permit/input/ledger/
 output/structural state for retry before the unchanged deadline. Bounded
 per-permit `Http10AdmissionAttemptBudget` and connection-lifetime cumulative
-ledger are charged only from sealed engine `AdmissionWorkKind` through atomic
-`try_charge_admission_work`. Typed results distinguish each exhaustion and
-zero-cost/generation/invariant/overflow fault; every failure preserves both
-ledgers and performs no work. The charge is diagnostic only. Successful admission
+ledger are charged from granular engine work kinds plus sealed bounded units.
+Checked base-plus-per-unit pricing covers newly processed bytes, entries,
+steps, output, and reservation components; fragmentation retains cursors and
+retries/rescans charge again. Typed atomic failure preserves both ledgers.
+Successful admission
 transfers rather than double-charges. Admission terminal reasons revoke the
 permit, consume no input, close without blaming the peer, and include explicit
 local-invariant `PermitLedgerMismatch`. Admission consumes reservation/permit,
@@ -340,11 +346,13 @@ reserve an identically maximum-sized terminal slot before Active publication.
 Client failure retains no borrow/byte and unchanged output; server input remains
 unconsumed; neither publishes a generation and all tentative owners release once.
 Normal success enters `Completing` with Resolving, DecisionHeld, Reclaiming,
-and PublicationPending. Deadline, policy, transport, local-close, and
-cancellation interrupts use immutable first-valid-cause attribution and fixed
-same-call precedence. Stale bindings are neutral; equality expires. Every
-interrupt skips/replaces reuse, finishes receipt-unreclaimed resources, or
-rewrites held state without capacity/rerun. A linear
+and PublicationPending under one fresh connection/exchange/completion binding.
+Every interrupt and cause-specific generation must match it; stale LocalClose,
+Cancellation, policy, timeout, and transport events remain neutral after
+publication/successor admission. Reuse resolution and first interrupt are
+independent records: preserve Close plus interrupt, SkippedByInterrupt, and
+ReuseRevokedByInterrupt distinctly. Only unrevoked Reuse without interrupt may
+publish reuse. A linear
 `PendingHttp10TerminalPublication` retains the reserved event slot, encoded
 event, decision, receipts, and generation across backpressure. Only its
 infallible final consumption atomically publishes one event and constructs

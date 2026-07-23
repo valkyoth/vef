@@ -402,7 +402,8 @@ Its v0.56.0 bounded `Connection` lexer is version-neutral and emits sealed
 persistence/received optimistic-CONNECT close proof/Upgrade pairing, HTTP/1.0
 default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`,
 `CommittedHttp10KeepAliveHead`/`CorrelatedHttp10KeepAliveRequest`/
-`Http10ReuseLedger`/`Http10ReusePermit`/`Http10CompletionDecision`/
+`Http10ReuseLedger`/`Http10ReusePermit`/
+`Http10ReuseResolutionRecord`/`Http10TerminalDecision`/
 `Http10SuccessorAdmissionOutcome`, and
 either-version
 intermediary stripping consume that one result. HTTP/1.0
@@ -437,12 +438,16 @@ mode persists until a response is supplied.
 Existing private heads are rewritten/revalidated, and absent heads retain the
 mode. The mode cannot mint
 `CommittedHttp10KeepAliveHead`. Total reuse resolution after both terminal
-lifecycles returns unpublished
-`Http10CompletionDecision::{Reuse { provisional_permit }, Close { reason }}`,
-even when evidence is absent. Reasons have fixed precedence and are reachable.
-Only Reuse consumes both signals. The normal-completion transaction owns the
-decision in `Completing`; resolution never installs `Reusable`. The provisional
-permit alone owns the exact generation-bound deadline.
+lifecycles returns an unpublished `Http10ReuseResolutionRecord`, even when
+evidence is absent. Reasons have fixed precedence and are reachable. Only
+Reuse consumes both signals. The normal-completion transaction combines that
+record with an optional first completion interrupt in
+`Http10TerminalDecision`, preserving both dimensions and deriving the final
+publication state from them. An interrupt revokes a reuse permit without
+erasing its resolved identity, and never replaces an existing close reason.
+The transaction owns the decision in `Completing`; resolution never installs
+`Reusable`. A still-authoritative provisional permit alone owns the exact
+generation-bound deadline.
 The separate successor transition first builds role-specific all-or-nothing
 `Http10NextExchangeReservation::{Client { request, private_output, ... },
 Server { parser, local_persistence_mode, ... }}` over all shared records,
@@ -452,10 +457,11 @@ ownership and leaves permit/deadline/input/ledger/generation/output unchanged
 except bounded monotonic attempt work already charged. Each permit owns
 `Http10AdmissionAttemptBudget`, initialized once and retained across retries;
 one connection-lifetime `Http10AdmissionCumulativeLedger` never resets across
-permits. Engine-only `AdmissionWorkKind` supplies a fixed positive cost.
-Atomic `try_charge_admission_work(kind)` returns distinct permit/connection
-exhaustion, zero-cost, generation, invariant, and overflow errors; all failures
-preserve both ledgers and perform no work. Its linear charge is diagnostic only.
+permits. Granular engine work kinds and sealed unit specs derive checked
+base-plus-per-unit cost from newly processed bytes/entries/steps/components.
+Fragment cursors prevent free rescans; retries charge again. Atomic charge
+returns distinct typed errors, preserves both ledgers on failure, and yields
+diagnostic-only evidence.
 Success transfers the charged total without charging twice. Its
 total result adds reason-only `RejectedLocalCommand` to `Admitted`,
 `RetryableCapacity`, and `CloseLocal`. Rejected malformed/illegal/semantic/
@@ -486,12 +492,13 @@ largest terminal slot before Active publication. Client failure retains no
 borrow/byte and unchanged output; server input stays unconsumed; neither
 publishes a generation and both release tentative ownership once. Normal success enters
 `Completing` with Resolving, DecisionHeld, Reclaiming, and PublicationPending.
-Deadline, policy, transport, local-close, and cancellation interrupts share a
-sealed first-cause latch with deterministic same-call precedence. Stale
-bindings are neutral; deadline equality expires. Every interrupt skips
-resolution, revokes/replaces reuse, continues receipt-unreclaimed cleanup, or
-rewrites pending state according to phase, without new capacity or rerun. Only
-infallible pending-publication consumption emits one event/state. Other terminal paths use
+All phases share a fresh connection/exchange/completion binding; every deadline,
+policy, transport, local-close, and cancellation interrupt plus its specific
+generation must match. Stale events remain neutral after publication/successor.
+Reuse resolution and first interrupt attribution remain independent:
+SkippedByInterrupt, Close-plus-interrupt, or ReuseRevokedByInterrupt are
+preserved distinctly, and only unrevoked Reuse without interrupt can publish
+Reusable. Other terminal paths use
 generation-bound cleanup. Reuse/request-count debits, transferred
 admission-attempt consumption, and consumed parser-work charges never refund.
 Stale cleanup cannot release a newer exchange; no-refund never leaks caller

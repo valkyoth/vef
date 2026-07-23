@@ -274,26 +274,34 @@ evidence, and ordinary HTTP/2 CONNECT through existing PendingConnect. Mere
 configured intent grants no permit. Received-close evidence is refined only
 from the sole v0.56.0 sealed, exact-version `ValidatedConnectionOptions`
 lexical result. HTTP/1.1 persistence/close-proof/Upgrade, HTTP/1.0
-default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`, and
-either-version stripping consume that evidence with no cross-version authority.
+default-close/`Http10PersistenceDisposition`/`ValidatedHttp10KeepAlive`/
+`CommittedHttp10KeepAliveHead`/`Http10ReusePermit`, and either-version
+stripping consume that evidence with no cross-version authority.
 HTTP/1.0 persistence is bound to the current received message and exact
 role/direction: origin requests, client responses, and intermediary upstream
 responses are distinct candidates; intermediary downstream requests and
-invalid pairs always close. Default-close endpoints emit `Connection: close`
-on the request or response they own, newer received messages revoke older
-evidence, and no HTTP/1.0 path pipelines. HTTP/1.0 CONNECT is unsupported:
-malformed start lines preserve parse errors, invalid targets/fields/framing use
-bounded 400-and-close, and only fully valid authority-form requests reach the
-typed rejection. Local builders return zero-output
+invalid pairs always close. Reuse needs the exact current received signal plus
+a corresponding local keep-alive head fully committed and both message
+lifecycles complete. Clients/proxy-upstream legs pair request then response;
+origins pair received request then self-delimited committed response. Proxy
+hops negotiate independently and never forward signal authority. Newer
+messages revoke old evidence. Persistence loss rewrites only private heads;
+after exposure it preserves immutable output, prohibits successors, and closes.
+No HTTP/1.0 path pipelines. HTTP/1.0 CONNECT is unsupported: local capacity
+stays local, target byte/work limit is 414, field byte/count/section/work limit
+is 431, syntax/framing/content is 400, and only fully bounded valid
+authority-form input reaches fixed 501. Authority-form recognition is
+classification-only. Local builders return zero-output
 `UnsupportedVersionMethod`; receivers select role-specific
 `UnsupportedHttp10ConnectDisposition`, atomically reserve the exact fixed
 70-byte `HTTP/1.0 501 Not Implemented` response plus mandatory close, expose no
 body/transfer coding/trailers/variable fields, publish/resolve/forward nothing,
-and discard same-buffer optimistic bytes once. Offsets 0 through 69 retain the
-immutable response; byte 70 alone commits it and close remains mandatory. Later
-input accompanying invalid/zero/partial/full acknowledgement stays wholly
-unconsumed and requests immediate close, with no parsing, retention, queue,
-publication, or input-backpressure state. Reserve failure uses the existing
+and discard same-buffer optimistic bytes once. `Flush501ThenClose` owns offsets
+0 through 69; byte 70 alone commits it and close remains mandatory. Invalid
+acknowledgement and input-only delivery with a live token are state-neutral.
+Only after a valid acknowledgement is applied may accompanying input select
+`CloseTransportNow`; it stays wholly unconsumed with no parsing, retention,
+queue, publication, or backpressure. Reserve failure uses the existing
 zero-partial close fallback; partial failure creates no completion, successor,
 or tunnel. Missing committed close proof is strict:
 discard once, close, never reparse, and never promote after later success.

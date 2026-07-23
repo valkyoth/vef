@@ -135,20 +135,25 @@ explicit close, keep-alive, and fallback-close state cannot construct or
 substitute either HTTP/1.1 proof variant. Local builders return zero-output
 `UnsupportedVersionMethod`. Only a completely validated HTTP/1.0 CONNECT with
 authority-form target can mint role-specific
-`UnsupportedHttp10ConnectDisposition`; malformed start lines retain their parse
-error and malformed targets, fields, or framing retain bounded 400-and-close.
+`UnsupportedHttp10ConnectDisposition`. Local capacity remains local; target
+byte/work limits retain 414, field byte/count/section/work limits retain 431,
+and syntax/framing/CONNECT-content failures retain 400. Authority-form is
+recognized only for unsupported-CONNECT classification and never becomes
+application-visible HTTP/1.0 grammar.
 Receiving servers, proxies, intermediaries, and gateways atomically reserve the
 fixed 70-byte `HTTP/1.0 501 Not Implemented` response and mandatory close before
 publishing the disposition. That response contains only `Connection: close`
 and `Content-Length: 0`: it has no body, transfer coding, trailers, or variable
 fields. Acknowledgements 0 through 69 retain the immutable response; byte 70
 alone commits it, without revoking close. Same-buffer optimistic bytes are
-discarded once. Input supplied after rejection, including alongside
-invalid/zero/partial/full response acknowledgement, remains wholly unconsumed
-and requests immediate transport close; it is never parsed, retained, queued,
-published, or converted into input backpressure. Partial 501 failure closes
-without fabricated completion; mandatory-response reserve failure uses the
-existing zero-partial-output close action.
+discarded once. `UnsupportedHttp10ConnectAction::Flush501ThenClose` owns the
+record and cursor. Invalid acknowledgement or input-only delivery with its live
+token is state-neutral and leaves accompanying input wholly unconsumed. Only
+after applying a valid zero/partial/full acknowledgement may accompanying new
+input select `CloseTransportNow`; the input remains caller-owned and is never
+parsed, retained, queued, published, or converted into backpressure. Partial
+501 failure closes without fabricated completion; mandatory-response reserve
+failure uses the existing zero-partial-output close action.
 HTTP/2 ordinary CONNECT uses its existing PendingConnect owner. Unpermitted
 ordinary CONNECT follows the strict policy: discard once, close, never reparse,
 and never promote even after 2xx. Forbidden WebSocket/CONNECT-UDP input follows
@@ -260,8 +265,9 @@ HTTP/1 `Connection` fields have one bounded version-neutral parser. It produces
 sealed `ValidatedConnectionOptions` bound to the exact ordered fields, exact
 HTTP version, role, message/request generation, and connection generation.
 HTTP/1.1 persistence, received optimistic-CONNECT close proof and Upgrade
-pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`, and
-`ValidatedHttp10KeepAlive`; and
+pairing; HTTP/1.0 default-close, `Http10PersistenceDisposition`,
+`ValidatedHttp10KeepAlive`, `CommittedHttp10KeepAliveHead`, and
+`Http10ReusePermit`; and
 either-version intermediary stripping consume that same evidence. None reparses
 or renormalizes raw fields, and no semantic refinement crosses versions.
 Repeated lines/comma lists, OWS, case-insensitive tokens, bounded empty
@@ -272,11 +278,19 @@ message-bound. Origin requests, client responses, and intermediary upstream
 responses have distinct candidate dispositions; proxy/gateway downstream
 requests are always close and invalid role/direction pairs are rejected.
 Default-close clients emit `Connection: close` on requests and default-close
-servers/intermediaries emit it on responses. Admission of a newer received
-message atomically invalidates every older disposition and keep-alive permit.
-Only a matching current candidate with explicit validated keep-alive, complete
-self-delimiting framing, configured support, and available budgets may refine
-to persistence. HTTP/1.0 never pipelines.
+servers/intermediaries emit it on responses. Persistence is two-sided:
+received current-message evidence must pair with an exact local
+`Connection: keep-alive` head that reached `HeadCommitted`, and both message
+lifecycles must complete before one reuse permit is minted. Clients and
+proxy-upstream legs pair local requests with received responses; origins pair
+received requests with local self-delimited responses. Each proxy hop
+negotiates independently; no received authority is forwarded. Admission of a
+newer received message invalidates older signals and permits. Persistence loss
+while a head is `AcceptedPrivate` rewrites and revalidates that current head
+with close. After `Frozen`, output remains immutable, every successor is
+prohibited, and the current message finishes only when possible before close;
+a client receiving a response without keep-alive emits no next request.
+HTTP/1.0 never pipelines.
 HTTP/1.1 requires exactly one syntactically valid Host, including an empty Host
 when the target URI has no authority, but syntax alone is non-routable. Before
 application publication, role policy authorizes target form and derives an

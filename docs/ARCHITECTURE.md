@@ -325,30 +325,43 @@ precedence is correlation integrity, policy, framing, configured zero,
 exhausted ledger, unavailable exact negotiation, and deadline arithmetic. Only
 `Reuse` consumes both signals. `Http10NormalCompletionTransaction` combines
 that record with an optional first `Http10CompletionInterruptCause` in an
-unpublished `Http10TerminalDecision`; reuse resolution and terminal interruption
-remain independently attributable. An interrupt revokes a resolved reuse
-permit without erasing its resolved identity, while an existing close reason is
-retained beside the interrupt. The transaction is owned by connection state
-`Completing` and does not construct `Reusable`. A still-authoritative
+unpublished `Http10TerminalDecision` containing only those two facts; reuse
+resolution and terminal interruption remain independently attributable. It
+stores no planned final state. Immediately before publication, exhaustive
+`planned_final_state()` matching permits reuse only for live Reuse plus no
+interrupt and closes every other combination. An interrupt revokes a resolved
+reuse permit without erasing its resolved identity, while an existing close
+reason is retained beside the interrupt. The transaction is owned by connection
+state `Completing` and does not construct `Reusable`. A still-authoritative
 provisional permit solely owns its idle deadline.
 The only successor edge atomically moves `Reusable { permit }` to
-`ActiveExchange { next_exchange_generation, reuse_remaining_snapshot,
-local_persistence_mode, admission_attempt_work_consumed }`.
+`ActiveExchange { next_exchange_generation, completion_binding,
+reuse_remaining_snapshot, local_persistence_mode,
+admission_attempt_work_consumed }`.
 Before it, internal linear
 `Http10NextExchangeReservation::{Client { request, private_output, ... },
 Server { parser, local_persistence_mode, ... }}` acquires all role-specific and
 shared exchange/correlation records, storage leases, count debit, parser-work
-reserve, checked deadline snapshot, and generation all-or-nothing. It never
-owns the deadline. One-short failure releases everything and leaves permit,
-deadline, input, ledger, generation, and output unchanged except bounded
-monotonic attempt work already performed. Each provisional/published permit
+reserve, checked deadline snapshot, exchange generation, and future completion
+generation all-or-nothing. Initial reservations do the same before publishing
+their Active exchange. Both seal the common completion binding. They never own
+the deadline. Exhaustion, cancellation, or abandonment occurs before
+input/command acceptance and output exposure, publishes no Active state, and
+invalidates the reserved binding before slot reuse. One-short failure releases
+everything and leaves permit, deadline, input, ledger, generation, and output
+unchanged except bounded monotonic attempt work already performed. Each
+provisional/published permit
 owns `Http10AdmissionAttemptBudget { permit_generation, configured_max,
 remaining, consumed }`, initialized once and never reset across retries. A
 connection-lifetime `Http10AdmissionCumulativeLedger` is initialized once and
 never reset by later permits. Granular engine-only `AdmissionWorkKind` covers
 base, byte, field-entry, framing, semantic, output, and reservation units.
-Sealed specs derive checked base-plus-per-unit cost from newly processed bounded
-progress. Fragmentation retains cursors; every retry/rescan charges again.
+Sealed specs derive checked base-plus-per-unit cost in O(1) from stored bounded
+lengths/counts and monotonic cursors; they never pre-traverse an iterator. Each
+field entry is charged before inspection. A step charges `n`, processes at most
+`n`, and advances once. Fragmentation retains cursors; early rejection never
+refunds; charges are single-use; every retry/rescan charges again without cursor
+rewind.
 Atomic charge returns typed exhaustion/invariant errors and updates both ledgers
 or neither.
 `Http10SuccessorAdmissionOutcome` adds reason-only `RejectedLocalCommand` for
@@ -364,28 +377,33 @@ input, close locally without a peer error, and do not decrement.
 consumes the reservation and permit; commits the tentative request/exchange
 count debit; installs leases and parser-work reserve; transfers already
 consumed attempt work without recommit/recharge; decrements reuse once; and
-installs generation, snapshot, persistence mode, and work total before publishing
-ActiveExchange. A stale permit expiry cannot affect it. No engine-structural
+installs generation, reserved completion binding, snapshot, persistence mode,
+and work total before publishing ActiveExchange. A stale permit expiry cannot
+affect it. No engine-structural
 fallible initialization follows publication; later server response construction
 remains fallible before exposure under the retained mode. The immutable
 `reuse_remaining_snapshot` is diagnostic and binding metadata, never a second
 authority, and the next mint reads only the ledger. Generation increment is
 checked and exhaustion closes without wrap.
 Role-specific `Http10InitialExchangeReservation::{Client, Server}` and successor
-reservations both acquire a largest-terminal-event slot before Active
-publication. Client failure retains no borrow/byte and unchanged output; server
-failure leaves input unconsumed; both publish no generation and release all
-tentative owners once. ActiveExchange
-owns its exchange/correlation/evidence records and parser/event/output leases.
+reservations both acquire a largest-terminal-event slot and future completion
+binding before Active publication. Client failure retains no borrow/byte and
+unchanged output; server failure leaves input unconsumed; both publish no
+generation and release all tentative owners once. ActiveExchange owns its
+exchange/correlation/evidence records, parser/event/output leases, and reserved
+completion binding.
 Normal success enters `Completing` with
 `Http10CompletingPhase::{Resolving, DecisionHeld, Reclaiming,
-PublicationPending}` and a fresh common connection/exchange/completion binding.
+PublicationPending}` by infallibly moving that common
+connection/exchange/completion binding; no generation is allocated after Active
+publication.
 Every deadline, policy, transport, local-close, and cancellation interrupt must
 match it before cause-specific evidence. Stale bindings stay neutral after
 publication/successor admission. Reuse resolution and immutable first interrupt
 are independent records: Close plus interrupt preserves both; pre-resolution
-interrupt records Skipped; resolved Reuse becomes ReuseRevokedByInterrupt.
-Final reuse is legal only for unrevoked Reuse with no interrupt.
+interrupt records Skipped; resolved Reuse becomes ReuseRevokedByInterrupt. No
+final state is stored; exhaustive matching at publication makes reuse legal only
+for unrevoked Reuse with no interrupt.
 Non-normal terminal paths use generation-bound cleanup.
 Reuse/count debits, transferred admission-attempt consumption, and consumed parser work never refund; unused
 parser-work reserve returns exactly once. Stale cleanup cannot release later
